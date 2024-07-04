@@ -760,3 +760,34 @@ async def update_user_credentials_table_database():
     
     finally:
         await connection.close()
+
+async def store_lab_info(chat_id,subjects,weeks):
+    """Store lab information in the database.
+    
+    :param chat_id: Chat ID of the user.
+    :param subjects: List of subjects.
+    :param weeks: List of weeks.
+    """
+    
+    subjects = json.dumps(subjects) # Serializing the data so that it can be stored.
+    weeks = json.dumps(weeks)
+    connection = await connect_pg_database()
+    
+    try:
+        existing_data = await connection.execute('SELECT * FROM user_credentials WHERE chat_id = $1', chat_id)
+        existing_data = connection.fetchone()
+        if existing_data:
+
+            if weeks is not None:
+                connection.execute('UPDATE user_credentials SET lab_weeks_data = $1 WHERE chat_id = $2', weeks, chat_id)
+            if subjects is not None:
+                connection.execute('UPDATE user_credentials SET lab_subjects_data = $1 WHERE chat_id = $2', subjects, chat_id)
+        else:
+            connection.execute('INSERT INTO user_credentials (chat_id, lab_subjects_data, lab_weeks_data) VALUES ($1, $2, $3)',
+                        chat_id,subjects,weeks)
+            
+    except Exception as e:
+        print(f"error while executing the store_lab_info function : {e}")
+        return False
+    finally:
+        await connection.close()
