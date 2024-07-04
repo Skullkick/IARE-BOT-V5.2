@@ -662,3 +662,23 @@ async def get_all_chat_ids():
         return []
     finally:
         await conn.close()
+
+async def get_all_credentials():
+    connection = await connect_pg_database()
+    try:
+        if connection:
+            query = "SELECT * FROM user_credentials"
+            result = await connection.fetch(query)
+            if result:
+                return result
+            else:
+                return None
+        else:
+            print("Database connection not established.")
+            return None
+    except asyncpg.PostgresError as e:
+        print(f"Error retrieving data from database: {e}")
+        return None
+    finally:
+        if connection:
+            await connection.close()
