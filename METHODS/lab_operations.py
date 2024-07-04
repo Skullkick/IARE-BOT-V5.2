@@ -370,3 +370,21 @@ async def fetch_experiment_names_html(bot,chat_id,user_details, sub_code)->str:
         s.cookies.update(cookies)
     response = requests.post(url, headers=headers, data=data, cookies=cookies)
     return response.text
+
+async def get_experiment_title(experiment_names_html, week_no):
+    soup = BeautifulSoup(experiment_names_html, 'html.parser')
+    table = soup.find('table', class_='table')
+
+    if not table:
+        return None
+    try:
+        rows = table.find_all('tr')
+        for row in rows[1:]:  # Start from index 1 to skip header row
+            cells = row.find_all('td')
+            week_number = cells[0].get_text().strip()
+            if week_number == f"Week-{week_no}":
+                experiment_title = cells[2].get_text().strip() 
+
+        return experiment_title
+    except:
+        return None
