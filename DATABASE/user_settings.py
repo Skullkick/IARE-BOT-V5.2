@@ -221,3 +221,254 @@ async def store_user_settings(chat_id,attendance_threshold,biometric_threshold,u
             cursor.execute("""INSERT INTO user_settings (chat_id,attendance_threshold,biometric_threshold,traditional_ui,extract_title) VALUES (?,?,?,?,?)""",
                            (chat_id,attendance_threshold,biometric_threshold,ui,title_mode))
         conn.commit()
+async def set_default_attendance_indexes():
+    """
+    This function is used to set the default index values for the attendance table
+    Updated index values on 15-05-2024
+    Make sure to update the index values if there is a change
+    """
+    name = "ATTENDANCE_INDEX_VALUES"
+    course_name_index = 2
+    attendance_percentage_index = 7
+    conducted_classes_index = 5
+    attended_classes_index = 6
+    status = 8
+    all_attendance_indexes  = {
+        'course_name' : course_name_index,
+        'attendance_percentage' : attendance_percentage_index,
+        'conducted_classes' : conducted_classes_index,
+        'attended_classes' : attended_classes_index,
+        'status' : status
+    }
+    with sqlite3.connect(SETTINGS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(all_attendance_indexes)))
+        conn.commit()
+async def set_default_biometric_indexes():
+    """
+    This function is used to set the default index values for the biometric table
+    Updated index values on 15-05-2024
+    Make sure to update the index values if there is a change
+    """
+    name = "BIOMETRIC_INDEX_VALUES"
+    status_index = 6
+    intime_index = 4
+    outtime_index = 5
+    all_biometric_index = {
+        'status' : status_index,
+        'intime' : intime_index,
+        'outtime' : outtime_index
+    }
+    with sqlite3.connect(SETTINGS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(all_biometric_index)))
+        conn.commit()
+
+async def set_default_pat_attendance_indexes():
+    """
+    This function is used to set the default index values for the biometric table
+    Updated index values on 15-05-2024
+    Make sure to update the index values if there is a change
+    """
+    name = "PAT_INDEX_VALUES"
+    course_name_index = 2
+    conducted_classes_index = 3
+    attended_classes_index = 4
+    pat_attendance_percentage_index = 5
+    pat_status = 6
+    pat_attendance_indexes  = {
+        'course_name' : course_name_index,
+        'attendance_percentage' : pat_attendance_percentage_index,
+        'conducted_classes' : conducted_classes_index,
+        'attended_classes' : attended_classes_index,
+        'status' : pat_status
+    }
+    with sqlite3.connect(SETTINGS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(pat_attendance_indexes)))
+        conn.commit()
+
+async def set_attendance_indexes(
+        course_name_index,
+        conducted_classes_index,
+        attended_classes_index,
+        attendance_percentage_index,
+        status_index):
+    """This Function is used to set the index values of the attendance table
+    :course_name_index: Index value of the course name column
+    :conducted_classes: Index value of conducted_classes column
+    :attended_classes: Index value of the attended classes column
+    :attendance_percentage_index: Index value of the attendance percentage coloumm
+    :status_index: Index value of status column """
+    name = "ATTENDANCE_INDEX_VALUES"
+    all_attendance_indexes  = {
+        'course_name' : course_name_index,
+        'attendance_percentage' : attendance_percentage_index,
+        'conducted_classes' : conducted_classes_index,
+        'attended_classes' : attended_classes_index,
+        'status':status_index
+    }
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM index_values WHERE name = ?", (name,))
+            data = cursor.fetchone()
+            if data:
+                cursor.execute("UPDATE index_values SET index_ = ? WHERE name = ?", (json.dumps(all_attendance_indexes), name))
+            else:
+                cursor.execute("INSERT INTO index_values (name, index_) VALUES (?, ?)", (name, json.dumps(all_attendance_indexes)))
+            conn.commit()
+    except Exception as e:
+        print(f"Error updating the attendance index values : {e}")
+
+async def set_biometric_indexes(intime_index,outtime_index,status_index):
+    """This function is used to set the biometric index values manually
+    :status_index: Index value of the status column
+    :intime_index: Index value of the intime column
+    :outtime_index: Index value of the outtime column"""
+    name = "BIOMETRIC_INDEX_VALUES"
+    all_biometric_index = {
+        'status' : status_index,
+        'intime' : intime_index,
+        'outtime' : outtime_index
+    }
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM index_values WHERE name = ?", (name,))
+            data = cursor.fetchone()
+            if data:
+                cursor.execute("UPDATE index_values SET index_ = ? WHERE name = ?", (json.dumps(all_biometric_index),name))
+            else:
+                cursor.execute("INSERT INTO index_values (name, index_) VALUES (?, ?)", (name,json.dumps(all_biometric_index)))
+            conn.commit()
+    except Exception as e:
+        print(f"Error updating biometric index values : {e}")
+
+async def set_pat_attendance_indexes(course_name_index,
+    conducted_classes_index,
+    attended_classes_index,
+    pat_attendance_percentage_index,
+    pat_status):
+    """This Function is used to set the index values of the pat attendance table
+    :course_name_index: Index value of the course name column
+    :conducted_classes: Index value of conducted_classes column
+    :attended_classes: Index value of the attended classes column
+    :attendance_percentage_index: Index value of the attendance percentage coloumm
+    :status_index: Index value of status column """
+    name = "PAT_INDEX_VALUES"
+    pat_attendance_indexes  = {
+        'course_name' : course_name_index,
+        'attendance_percentage' : pat_attendance_percentage_index,
+        'conducted_classes' : conducted_classes_index,
+        'attended_classes' : attended_classes_index,
+        'status' : pat_status
+    }
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM index_values WHERE name = ?", (name,))
+            data = cursor.fetchone()
+            if data:
+                cursor.execute("UPDATE index_values SET index_ = ? WHERE name = ?", (json.dumps(pat_attendance_indexes),name))
+            else:
+                cursor.execute("INSERT INTO index_values (name, index_) VALUES (?, ?)", (name,json.dumps(pat_attendance_indexes)))
+            conn.commit()
+    except Exception as e:
+        print(f"Error updating pat attendance index values : {e}")
+
+async def get_attendance_index_values():
+    """
+    This Function extracts the attendance index values from the database
+    :return: Returns a dictionary containing all the index values 
+    dictionary : {
+        'course_name' : course_name_index,
+        'attendance_percentage' : attendance_percentage_index,
+        'conducted_classes' : conducted_classes_index,
+        'attended_classes' : attended_classes_index,
+        'status':status_index
+    }
+    """
+    with sqlite3.connect(SETTINGS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT index_ FROM index_values WHERE name = ?", ("ATTENDANCE_INDEX_VALUES",))
+        result = cursor.fetchone()
+        
+        if result:
+            attendance_indexes = json.loads(result[0])
+            return attendance_indexes
+        else:
+            return None
+
+async def get_pat_attendance_index_values():
+    """
+    This Function extracts the pat attendance index values from the database
+    :return: Returns a dictionary containing all the index values 
+    dictionary : {
+        'course_name' : course_name_index,
+        'attendance_percentage' : pat_attendance_percentage_index,
+        'conducted_classes' : conducted_classes_index,
+        'attended_classes' : attended_classes_index,
+        'status' : pat_status
+    }"""
+    with sqlite3.connect(SETTINGS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT index_ FROM index_values WHERE name = ?", ("PAT_INDEX_VALUES",))
+        result = cursor.fetchone()
+        
+        if result:
+            pat_attendance_indexes = json.loads(result[0])
+            return pat_attendance_indexes
+        else:
+            return None
+        
+async def get_biometric_index_values():
+    """
+    This Function extracts the pat attendance index values from the database
+    :return: Returns a dictionary containing all the index values 
+    dictionary : {
+        'status' : status_index,
+        'intime' : intime_index,
+        'outtime' : outtime_index
+    }
+    """
+    with sqlite3.connect(SETTINGS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT index_ FROM index_values WHERE name = ?", ("BIOMETRIC_INDEX_VALUES",))
+        result = cursor.fetchone()
+        if result:
+            biometric_indexes = json.loads(result[0])
+            return biometric_indexes
+        else:
+            return None
+
+async def store_index_values_to_restore(name,indexes_dictionary):
+    """
+    This function is used to store the index values in the form of dictionary
+    
+    Usually used while restoring the index values from the pgdatabase
+    
+    :param name: Name of the index values
+    :param indexes_dicttionary: Dictionary containing all the index values
+    """
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM index_values WHERE name = ?", (name,))
+            data = cursor.fetchone()
+            if data:
+                cursor.execute("UPDATE index_values SET index_ = ? WHERE name = ?", (json.dumps(indexes_dictionary),name))
+            else:
+                cursor.execute("INSERT INTO index_values (name, index_) VALUES (?, ?)", (name,json.dumps(indexes_dictionary)))
+            conn.commit()
+    except Exception as e:
+        print(f"Error restoring index values : {e}")
+
+async def clear_indexes_table():
+    """
+    This Function is used to clear all the values in index_value table.
+    """
+    with sqlite3.connect(SETTINGS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM index_values")
+        conn.commit()
