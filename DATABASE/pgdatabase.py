@@ -1,5 +1,12 @@
 import asyncpg,os,json
 
+#Database Credentials
+USER_CRED = os.environ.get("POSTGRES_USER_ID")
+PASSWORD_CRED = os.environ.get("POSTGRES_PASSWORD")
+DATABASE_CRED = os.environ.get("POSTGRES_DATABASE")
+HOST_CRED = os.environ.get("POSTGRES_HOST")
+PORT_CRED = os.environ.get("POSTGRES_PORT")
+
 # Data stored in this database is permanent, only if user removes the data will be removed.
 
 async def connect_pg_database():
