@@ -194,3 +194,12 @@ async def _download_pdf(bot,message):
         await labs_handler.download_pdf(bot, message, pdf_compress_scrape=pdf_compressor.use_pdf_compress_scrape)
     except Exception as e:
         logging.error("Error in '_download_pdf' function: %s", e)
+@bot.on_callback_query()
+async def _callback_function(bot,callback_query):
+    try:
+        if "manager" in callback_query.data:
+            await manager_buttons.manager_callback_function(bot, callback_query)
+        else:
+            await buttons.callback_function(bot, callback_query)
+    except Exception as e:
+        logging.error("Error in '_callback_function': %s", e)
