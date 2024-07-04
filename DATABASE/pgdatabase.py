@@ -621,3 +621,18 @@ async def store_reports(unique_id: str, user_id: str, message: str, chat_id: str
 
     finally:
         await connection.close()
+async def clear_banned_users_database():
+    connection = await connect_pg_database()
+    try:
+        # Execute the SQL command to delete banned users data
+        await connection.execute("DELETE FROM banned_users")
+        print("Index values removed successfully! from the database")
+        return True
+        # handles the exceptional errors .
+    except Exception as e:
+        print(f"Error while clearing banned user values from the database: {e}")
+        return False
+    
+    finally:
+        # Close the database connection
+        await connection.close()
