@@ -434,4 +434,117 @@ async def callback_function(bot,callback_query):
             await callback_query.message.edit_text("Your credentails have been saved successfully.")
         except Exception as e:
             await bot.send_message(chat_id,f"Error saving credentils : {e}")
-        
+
+    elif callback_query.data == "user_back":
+        await callback_query.edit_message_text(USER_MESSAGE,reply_markup = USER_BUTTONS)
+    elif callback_query.data == "username_saved_options":
+        USERNAME_SAVED_OPTIONS_TEXT = "Here are some operations that you can perform."
+        USERNAME_SAVED_OPTIONS_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Remove",callback_data="remove_saved_cred")],
+                [InlineKeyboardButton("Remove and Logout", callback_data="remove_logout_saved_cred")],
+                [InlineKeyboardButton("Back",callback_data="user_back")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            USERNAME_SAVED_OPTIONS_TEXT,
+            reply_markup = USERNAME_SAVED_OPTIONS_BUTTONS
+        )
+    elif callback_query.data == "remove_saved_cred":
+        await callback_query.answer()
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        # await tdatabase.delete_lab_upload_data(chat_id) # Deletes the saved Subjects and weeks from database
+        await pgdatabase.remove_saved_credentials(bot,chat_id)
+        await tdatabase.delete_user_credentials(chat_id)
+        await callback_query.answer()
+
+    elif callback_query.data == "remove_logout_saved_cred":        
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        # if await tdatabase.fetch_lab_subjects_from_lab_info(chat_id):
+        #     await tdatabase.delete_lab_upload_data(chat_id)# Deletes the saved Subjects and weeks from database
+        await pgdatabase.remove_saved_credentials(bot,chat_id)
+        await operations.logout_user_and_remove(bot,_message)
+        await tdatabase.delete_user_credentials(chat_id)
+        await callback_query.answer()
+
+    elif callback_query.data == "attendance_threshold":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
+        ATTENDANCE_THRESHOLD_TEXT = f"Current Attendance Threshold : {current_threshold[0]}\n\nClick on \n ●\t \"+\" to increase threshold \n\n ●\t \"-\" to decrease threshold"
+        ATTENDANCE_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("-",callback_data="decrease_att_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_att_threshold")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            ATTENDANCE_THRESHOLD_TEXT,
+            reply_markup = ATTENDANCE_THRESHOLD_BUTTONS
+        )
+    elif callback_query.data == "None":
+        await callback_query.answer()
+    elif "att_threshold" in callback_query.data:
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        query = callback_query.data.split("_")[0]
+        if query == "increase":
+            current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
+            await user_settings.set_attendance_threshold(chat_id,current_threshold[0]+5)
+        elif query == "decrease":
+            current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
+            await user_settings.set_attendance_threshold(chat_id,current_threshold[0]-5)
+        current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
+        ATTENDANCE_THRESHOLD_TEXT = f"Current Attendance Threshold : {current_threshold[0]}\n\nClick on \n ●\t \"+\" to increase threshold \n\n ●\t \"-\" to decrease threshold"
+        ATTENDANCE_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("-",callback_data="decrease_att_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_att_threshold")],
+                [InlineKeyboardButton("Save Changes",callback_data="save_changes_settings")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            ATTENDANCE_THRESHOLD_TEXT,
+            reply_markup = ATTENDANCE_THRESHOLD_BUTTONS
+        )
+    elif callback_query.data == "biometric_threshold":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+        # current_threshold = current_threshold[0]
+        BIOMETRIC_THRESHOLD_TEXT = f"Current Biometric Threshold : {current_threshold[0]}\n\nClick on \n ●\t \"+\" to increase threshold \n\n ●\t \"-\" to decrease threshold"
+        BIOMETRIC_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("-",callback_data="decrease_bio_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_bio_threshold")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            BIOMETRIC_THRESHOLD_TEXT,
+            reply_markup = BIOMETRIC_THRESHOLD_BUTTONS
+        )
+    elif "bio_threshold" in callback_query.data:
+        _message = callback_query.message
+        chat_id = _message.chat.id    
+        query = callback_query.data.split("_")[0]
+        if query == "increase":
+            current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+            await user_settings.set_biometric_threshold(chat_id,current_threshold[0]+5)
+        elif query == "decrease":
+            current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+            await user_settings.set_biometric_threshold(chat_id,current_threshold[0]-5)
+        current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+        BIOMETRIC_THRESHOLD_TEXT = f"Current Biometric Threshold : {current_threshold[0]}\n\nClick on \n ●\t + to increase threshold \n\n ●\t - to decrease threshold"
+        BIOMETRIC_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("-",callback_data="decrease_bio_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_bio_threshold")],
+                [InlineKeyboardButton("Save Changes",callback_data="save_changes_settings")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            BIOMETRIC_THRESHOLD_TEXT,
+            reply_markup = BIOMETRIC_THRESHOLD_BUTTONS
+        )
