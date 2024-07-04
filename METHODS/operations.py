@@ -395,6 +395,153 @@ async def attendance(bot,message):
         await bot.send_message(chat_id,"Attendance data not found.")
     await buttons.start_user_buttons(bot,message)
 
+async def biometric(bot, message):
+    chat_id = message.chat.id
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        auto_login_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # LOGIN MESSAGE
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+
+    session_data = await tdatabase.load_user_session(chat_id)
+
+    biometric_url = 'https://samvidha.iare.ac.in/home?action=std_bio'
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        headers = session_data['headers']
+        response = s.get(biometric_url, headers=headers)
+
+        # Parse the HTML content using BeautifulSoup
+        Biometric_html = BeautifulSoup(response.text, 'html.parser')
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    # Check if the response contains the expected title
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot, chat_id)
+            await biometric(bot, message)
+        else:
+            await logout_user_if_logged_out(bot, chat_id)
+        return
+
+    # Find the table
+    biometric_table = Biometric_html.find('table', class_='table')
+
+    if not biometric_table:
+        await message.reply("Biometric data not found.")
+        return
+
+    # Dictionary to store attendance data for each student
+    attendance_data = {
+        'Total Days Present': 0,
+        'Total Days Absent': 0,
+        'Total Days': 0
+    }
+
+    # Find all rows in the table body except the last one
+    biometric_rows = biometric_table.find('tbody').find_all('tr')[:-1]
+    biometric_index_values = await user_settings.get_biometric_index_values()
+    if biometric_index_values:
+        intime_index = biometric_index_values['intime']
+        outtime_index = biometric_index_values['outtime']
+        status_index = biometric_index_values['status']
+    else:
+        intime_index = 4
+        outtime_index = 5
+        status_index = 6
+    for row in biometric_rows:
+        # Extract data from each row
+        cells = row.find_all('td')
+        status = cells[6].text.strip()
+        if status.lower() == 'present':
+            attendance_data['Total Days Present'] += 1
+        else:
+            attendance_data['Total Days Absent'] += 1
+
+    attendance_data['Total Days'] = attendance_data['Total Days Present'] + attendance_data['Total Days Absent']
+    # Calculate the biometric percentage
+    biometric_percentage = (attendance_data['Total Days Present'] / attendance_data['Total Days']) * 100 if attendance_data['Total Days'] != 0 else 0
+    biometric_percentage = round(biometric_percentage, 3)
+
+    # Calculate the biometric percentage with six hours gap
+    six_percentage,days_six_hours = await six_hours_biometric(biometric_rows, attendance_data['Total Days'],intime_index,outtime_index)
+    leaves_biometric,leave_status = await biometric_leaves(chat_id,present_days=attendance_data['Total Days Present'],total_days=attendance_data['Total Days'])
+    six_hour_leaves,six_hour_leave_status = await biometric_leaves(chat_id,present_days=days_six_hours,total_days=attendance_data['Total Days'])
+    biometric_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+    if leave_status is True:
+        leaves_biometric_msg = f"● Leaves available       -  {leaves_biometric}"
+    elif leave_status is False:
+        leaves_biometric_msg = f"Biometric Below {biometric_threshold[0]}\n\n● Days to Attend              -  {leaves_biometric}\n"
+    if six_hour_leave_status is True:
+        six_hour_leave_msg = f"● Leaves available (6h)  -  {six_hour_leaves}"
+    elif six_hour_leave_status is False:
+        six_hour_leave_msg = f"Biometric (6h) Below {biometric_threshold[0]}\n\n    ● Days to Attend         -  {six_hour_leaves}\n" 
+    biometric_msg_updated = f"""
+    ```Biometric
+⫷
+
+● Total Days             -  {attendance_data['Total Days']}
+                    
+● Days Present           -  {attendance_data['Total Days Present']}  
+                
+● Days Absent            -  {attendance_data['Total Days Absent']}
+                    
+● Biometric %            -  {biometric_percentage}
+
+● Biometric % (6h gap)   -  {six_percentage}
+
+● Biometric Threshold    -  {biometric_threshold[0]}
+
+{leaves_biometric_msg}
+
+{six_hour_leave_msg}
+⫸
+
+@iare_unofficial_bot
+    ```
+    """
+    biometric_msg_traditional = f"""
+**Biometric**
+
+⫷
+
+● Total Days                      -  {attendance_data['Total Days']}
+                    
+● Days Present                 -  {attendance_data['Total Days Present']}  
+                
+● Days Absent                  -  {attendance_data['Total Days Absent']}
+                    
+● Biometric %                   -  {biometric_percentage}
+
+● Biometric % (6h gap)   -  {six_percentage}
+
+● Biometric Threshold    -  {biometric_threshold[0]}
+
+{leaves_biometric_msg}
+
+{six_hour_leave_msg}
+
+⫸
+
+@iare_unofficial_bot
+"""
+    if ui_mode[0] == 0:
+        await bot.send_message(chat_id, biometric_msg_updated)
+    else:
+        await bot.send_message(chat_id, biometric_msg_traditional)
+    
+    
+    await buttons.start_user_buttons(bot,message)
 
 
 async def six_hours_biometric(biometric_rows, totaldays, intime_index,outtime_index):
