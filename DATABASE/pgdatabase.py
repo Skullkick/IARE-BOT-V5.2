@@ -791,3 +791,43 @@ async def store_lab_info(chat_id,subjects,weeks):
         return False
     finally:
         await connection.close()
+
+
+async def save_credentials_to_databse(chat_id, username, password):
+    """This is used to save the username and password to the pgdatabase"""
+    connection = await connect_pg_database() 
+    try:
+         # Await the coroutine
+        await connection.execute(
+            "INSERT INTO user_credentials (chat_id, username, password) VALUES ($1, $2, $3)",
+            chat_id, username, password
+        )
+        return True
+    except Exception as e:
+        print(f"Error saving to database: {e}")
+        return False
+    finally:
+        if connection:
+            await connection.close()
+
+
+async def retrieve_credentials_from_database(chat_id):
+    """This Function is used to Retreive the user credentials based on the chat_id
+    Returns username and password. Used to login the user automatically during session timeout"""
+    connection = await connect_pg_database()
+    try:
+        
+        result = await connection.fetchrow(
+            "SELECT username, password FROM user_credentials WHERE chat_id = $1",
+            chat_id
+        )
+        if result:
+            return result['username'], result['password']
+        else:
+            return None, None
+    except Exception as e:
+        print(f"Error retrieving credentials from database: {e}")
+        return None, None
+    finally:
+        if connection:
+            await connection.close()
