@@ -860,3 +860,32 @@ async def get_all_lab_subjects_and_weeks_data():
         return False
     finally:
         await connection.close()
+async def delete_labs_data_for_user(chat_id:int)->bool:
+    """
+    Deletes the lab data stored for a user
+    
+    :param chat_id: Chat id of the user
+    :return: Bool
+    
+    Labs Data :
+    
+    - subjects 
+    - weeks
+    """
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute(
+
+            """
+                DELETE lab_subjects_data,lab_weeks_data FROM user_credentials WHERE chat_id = $1
+            
+            """,chat_id)
+        return True
+
+    except Exception as e:
+        print(f"error while deleting lab_subjects_data,lab_weeks_data from user credentials table of the pg_database {e}")
+        return False
+    
+    finally:
+        await connection.close()
