@@ -831,3 +831,32 @@ async def retrieve_credentials_from_database(chat_id):
     finally:
         if connection:
             await connection.close()
+async def get_all_lab_subjects_and_weeks_data():
+    """
+    This function returns all the details which are required for the lab selection for all users if the data is previously stored
+    
+    if data is present then this function returns: 
+    - chat_id
+    - lab_subjects_data
+    - lab_weeks_data\n
+
+    - None if no data
+
+    """
+    connection = await connect_pg_database()
+
+    try:
+        get_lab_sub_and_weeks_data = await connection.fetch(
+            """
+                SELECT  chat_id,lab_subjects_data,lab_weeks_data FROM user_credentials
+            """
+        )
+        if get_lab_sub_and_weeks_data:
+            return get_lab_sub_and_weeks_data
+        else:
+            return None
+    except Exception as e:
+        print(f"Error while returning the lab_subjects_data and lab_week_data values {e}. ")
+        return False
+    finally:
+        await connection.close()
