@@ -416,12 +416,10 @@ async def get_server_stats():
 async def backup_all_credentials_and_settings(bot,message):
     user_chat_id = message.chat.id
     # admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
-    print("fetched admin chat ids")
     # if chat_id not in admin_chat_ids:
     #     print("chat id not in admin chat_ids")
     #     await bot.send_message(user_chat_id,"You are not authorized to perform this operation")
     #     return
-    print("Chat id is present in the admin chat id")
     user_credentials_and_settings_sqlite = "user_credentials_settings_backup.db"
     print("User credentials database name is assigned")
     with sqlite3.connect(user_credentials_and_settings_sqlite) as conn:
@@ -439,7 +437,6 @@ async def backup_all_credentials_and_settings(bot,message):
                 title_extract BOOLEAN
             )
         """)
-        print("Successfully created the table which is required for the backup file")
         credentials_settings = await pgdatabase.get_all_credentials()
         for row in credentials_settings:
             chat_id,username,password,pat_student,attendance_threshold,biometric_threshold,traditional_ui,extract_title = row

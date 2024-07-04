@@ -1,5 +1,12 @@
 import asyncpg,os,json
 
+#Database Credentials
+USER_CRED = os.environ.get("POSTGRES_USER_ID")
+PASSWORD_CRED = os.environ.get("POSTGRES_PASSWORD")
+DATABASE_CRED = os.environ.get("POSTGRES_DATABASE")
+HOST_CRED = os.environ.get("POSTGRES_HOST")
+PORT_CRED = os.environ.get("POSTGRES_PORT")
+
 # Data stored in this database is permanent, only if user removes the data will be removed.
 
 async def connect_pg_database():
@@ -425,3 +432,765 @@ async def set_biometric_indexes(all_biometric_index):
             await connection.execute("INSERT INTO index_values (name, index_) VALUES ($1, $2)", name, json.dumps(all_biometric_index))
     except Exception as e:
         print(f"Error updating biometric index values : {e}")
+
+
+async def get_all_banned_usernames():
+    """
+    This Function is used to get all the banned usernames
+    :return: Returns a tuple containing all the usernames
+    """
+    connection = await connect_pg_database()
+    try:
+        banned_usernames = await connection.fetch(
+            " SELECT * FROM banned_users "
+        )
+        if banned_usernames:
+            return banned_usernames
+        else:
+            return None
+    except Exception as e:
+        print(f"error while retriving the data {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def get_all_user_settings():
+
+    connection = await connect_pg_database()
+
+    try:
+        user_setting_values = await connection.fetch(
+            """
+                SELECT chat_id,attendance_threshold, biometric_threshold,
+                traditional_ui, extract_title FROM user_credentials
+            """
+        )
+        if user_setting_values:
+            return user_setting_values
+        else:
+            return None
+    except Exception as e:
+        print(f"Error while returning the user setting values {e}. ")
+        return False
+    finally:
+        await connection.close()
+
+async def get_all_index_values():
+    connection = await connect_pg_database()
+
+    try:
+        index_values = await connection.fetch(
+            """
+                SELECT * FROM index_values
+            """
+        )
+        if index_values:
+            return index_values
+        else:
+            return None
+    except Exception as e:
+        print(f"Error while returning the index values {e}. ")
+        return False
+    finally:
+        await connection.close()
+
+
+async def get_all_cgpa_trackers():
+    connection = await connect_pg_database()
+    try:
+        query = "SELECT * FROM cgpa_tracker"
+        result = await connection.fetch(query)
+        if result:
+            return result
+        else:
+            return None
+    except Exception as e:
+        print(f"Error retrieving cgpa tracker data from database: {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def get_all_cie_tracker_data():
+    connection = await connect_pg_database()
+    try:
+        query = "SELECT * FROM cie_tracker"
+        result = await connection.fetch(query)
+        if result:
+            return result
+        else:
+            return None
+    except Exception as e:
+        print(f"Error retrieving cie tracker data from the database : {e}")
+    finally:
+        await connection.close()
+
+async def store_as_admin(name,chat_id):
+    """
+    Perform storing the user as admin.
+    :param chat_id: chat id based on the message
+    :param name: Name of the user
+    """
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            await connection.execute("""INSERT INTO bot_managers 
+            (chat_id,admin,name,control_access) VALUES ($1,$2,$3,$4)""",chat_id,True,name,'Full')
+        return True
+    except Exception as e:
+        print(f"error in store_as_admin function {e}")
+        return False
+    
+    finally:
+        await connection.close()
+
+async def store_as_maintainer(name,chat_id):
+
+    """
+    Perform storing the user as maintainer
+    :param chat_id: Chat id of the maintainer.
+    :param name: Name of the user"""
+
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            await connection.execute("INSERT INTO bot_managers (chat_id,maintainer,name,control_access) VALUES ($1,$2,$3,$4)",int(chat_id),True,name,'limited')
+        return True
+
+    except Exception as e:
+        print(f"error in maintainer table{e}")
+        return False
+
+    finally:
+        await connection.close()
+
+async def update_access_data_pgdatabase(maintainer_chat_id,access_data,announcement,configure,show_reports,reply_reports,clear_reports,ban_username,unban_username,manage_maintainers,logs):
+    connection = await connect_pg_database()
+    try:
+        await connection.execute('''
+            UPDATE bot_managers
+            SET access_users = $1,
+                announcement = $2,
+                configure = $3,
+                show_reports = $4,
+                reply_reports = $5,
+                clear_reports = $6,
+                ban_username = $7,
+                unban_username = $8,
+                manage_maintainers = $9,
+                logs = $10
+            WHERE chat_id = $11
+        ''', access_data, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs, int(maintainer_chat_id))
+        
+    finally:
+        await connection.close()
+
+async def store_reports(unique_id: str, user_id: str, message: str, chat_id: str, 
+                        replied_message: str, replied_maintainer: str, reply_status: str) -> bool:
+    """
+    This function is used to store the reports sent by the user.
+
+    :param unique_id: Unique id which is generated for the specific report
+    :param user_id: User ID of the user
+    :param message: Report sent by the user
+    :param chat_id: Chat ID of the user
+    :param replied_message: Replied message
+    :param replied_maintainer: Replied maintainer
+    :param reply_status: Reply status
+    """
+    connection = await connect_pg_database()
+    try:
+        existing_report = await connection.fetchrow("SELECT * FROM pending_reports WHERE unique_id = $1", unique_id)
+        if existing_report:
+            # Update existing report fields if they are provided
+            if user_id is not None:
+                await connection.execute("UPDATE pending_reports SET user_id = $1 WHERE unique_id = $2", user_id, unique_id)
+            if message is not None:
+                await connection.execute("UPDATE pending_reports SET message = $1 WHERE unique_id = $2", message, unique_id)
+            if chat_id is not None:
+                await connection.execute("UPDATE pending_reports SET chat_id = $1 WHERE unique_id = $2", chat_id, unique_id)
+            if replied_message is not None:
+                await connection.execute("UPDATE pending_reports SET replied_message = $1 WHERE unique_id = $2", replied_message, unique_id)
+            if replied_maintainer is not None:
+                await connection.execute("UPDATE pending_reports SET replied_maintainer = $1 WHERE unique_id = $2", replied_maintainer, unique_id)
+            if reply_status is not None:
+                await connection.execute("UPDATE pending_reports SET reply_status = $1 WHERE unique_id = $2", reply_status, unique_id)
+        else:
+            # Insert new report if it doesn't exist
+            await connection.execute(
+                "INSERT INTO pending_reports (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status
+            )
+        return True
+
+    except Exception as e:
+        print(f"Error in maintainer table: {e}")
+        return False
+
+    finally:
+        await connection.close()
+async def clear_banned_users_database():
+    connection = await connect_pg_database()
+    try:
+        # Execute the SQL command to delete banned users data
+        await connection.execute("DELETE FROM banned_users")
+        print("Index values removed successfully! from the database")
+        return True
+        # handles the exceptional errors .
+    except Exception as e:
+        print(f"Error while clearing banned user values from the database: {e}")
+        return False
+    
+    finally:
+        # Close the database connection
+        await connection.close()
+
+async def total_users_pg_database(bot,chat_id):
+    """This Function return the Total Number of users in the database."""
+    connection = await connect_pg_database()
+    try:
+        query = "SELECT COUNT(*) FROM user_credentials"
+        result = await connection.fetchval(query)
+        return result
+    except Exception as e:
+        await bot.send_message(chat_id, f"Error retrieving data: {e}")
+        return None
+    finally:
+        await connection.close()
+async def get_all_chat_ids():
+    """This Function Gets all the Chat_ids Present in the database"""
+    conn = await connect_pg_database()
+    try:
+        query = "SELECT chat_id FROM user_credentials"
+        result = await conn.fetch(query)
+        # Returns the data in list.
+        return [record['chat_id'] for record in result]
+    except Exception as e:
+        print(f"Error fetching chat IDs: {e}")
+        return []
+    finally:
+        await conn.close()
+
+async def get_all_credentials():
+    connection = await connect_pg_database()
+    try:
+        if connection:
+            query = "SELECT * FROM user_credentials"
+            result = await connection.fetch(query)
+            if result:
+                return result
+            else:
+                return None
+        else:
+            print("Database connection not established.")
+            return None
+    except asyncpg.PostgresError as e:
+        print(f"Error retrieving data from database: {e}")
+        return None
+    finally:
+        if connection:
+            await connection.close()
+async def get_pat_student(chat_id):
+    """This Function checks whether the pat_student column is True or False, Based on chat_id of the user"""
+    connection = await connect_pg_database()
+    try:
+        
+        result = await connection.fetchrow(
+            "SELECT pat_student FROM user_credentials WHERE chat_id = $1",
+            chat_id
+        )
+        if result:
+            return result['pat_student']
+        else:
+            return False
+    except Exception as e:
+        print(f"Error retrieving credentials from database: {e}")
+        return False
+    finally:
+        if connection:
+            await connection.close()
+async def set_pat_student_true(chat_id):
+    """This Function Sets the pat_student Colum to True"""
+    connection = await connect_pg_database()
+    try:
+        # Execute UPDATE query to set pat_student to True for the specified user_id
+        await connection.execute('''
+            UPDATE user_credentials
+            SET pat_student = TRUE
+            WHERE chat_id = $1
+        ''', chat_id)
+        return True
+    except asyncpg.PostgresError as e:
+        print(f"Error setting pat_student to True: {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def update_all_the_threshold_values(attendance_threshold, biometric_threshold, traditional_ui, extract_title, chat_id):
+
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute("""
+            UPDATE user_credentials 
+                SET attendance_threshold = $1,
+                biometric_threshold = $2,
+                traditional_ui = $3,
+                extract_title = $4 
+            WHERE chat_id = $5 
+        """,attendance_threshold, biometric_threshold, traditional_ui, extract_title, chat_id)
+        return True 
+    except Exception as e:
+        print(f"error while upadating the default threshold values {e}")
+        return False
+    finally:
+        await connection.close() 
+
+async def update_user_credentials_table_database():
+    """
+    This function is used to alter the table present in the credentials table in postgres database
+    """
+    connection = await connect_pg_database()
+    try:
+        
+            await connection.execute('''
+
+                ALTER TABLE user_credentials
+                ADD COLUMN IF NOT EXISTS attendance_threshold INTEGER DEFAULT 75,
+                ADD COLUMN IF NOT EXISTS biometric_threshold INTEGER DEFAULT 75,
+                ADD COLUMN IF NOT EXISTS traditional_ui BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS extract_title BOOLEAN DEFAULT TRUE
+                ''')
+            return True
+    except Exception as e:
+        print(" error as occured during the creation of table. ")
+        return False
+    
+    finally:
+        await connection.close()
+
+async def store_lab_info(chat_id,subjects,weeks):
+    """Store lab information in the database.
+    
+    :param chat_id: Chat ID of the user.
+    :param subjects: List of subjects.
+    :param weeks: List of weeks.
+    """
+    
+    subjects = json.dumps(subjects) # Serializing the data so that it can be stored.
+    weeks = json.dumps(weeks)
+    connection = await connect_pg_database()
+    
+    try:
+        existing_data = await connection.execute('SELECT * FROM user_credentials WHERE chat_id = $1', chat_id)
+        existing_data = connection.fetchone()
+        if existing_data:
+
+            if weeks is not None:
+                connection.execute('UPDATE user_credentials SET lab_weeks_data = $1 WHERE chat_id = $2', weeks, chat_id)
+            if subjects is not None:
+                connection.execute('UPDATE user_credentials SET lab_subjects_data = $1 WHERE chat_id = $2', subjects, chat_id)
+        else:
+            connection.execute('INSERT INTO user_credentials (chat_id, lab_subjects_data, lab_weeks_data) VALUES ($1, $2, $3)',
+                        chat_id,subjects,weeks)
+            
+    except Exception as e:
+        print(f"error while executing the store_lab_info function : {e}")
+        return False
+    finally:
+        await connection.close()
+
+
+async def save_credentials_to_databse(chat_id, username, password):
+    """This is used to save the username and password to the pgdatabase"""
+    connection = await connect_pg_database() 
+    try:
+         # Await the coroutine
+        await connection.execute(
+            "INSERT INTO user_credentials (chat_id, username, password) VALUES ($1, $2, $3)",
+            chat_id, username, password
+        )
+        return True
+    except Exception as e:
+        print(f"Error saving to database: {e}")
+        return False
+    finally:
+        if connection:
+            await connection.close()
+
+
+async def retrieve_credentials_from_database(chat_id):
+    """This Function is used to Retreive the user credentials based on the chat_id
+    Returns username and password. Used to login the user automatically during session timeout"""
+    connection = await connect_pg_database()
+    try:
+        
+        result = await connection.fetchrow(
+            "SELECT username, password FROM user_credentials WHERE chat_id = $1",
+            chat_id
+        )
+        if result:
+            return result['username'], result['password']
+        else:
+            return None, None
+    except Exception as e:
+        print(f"Error retrieving credentials from database: {e}")
+        return None, None
+    finally:
+        if connection:
+            await connection.close()
+async def get_all_lab_subjects_and_weeks_data():
+    """
+    This function returns all the details which are required for the lab selection for all users if the data is previously stored
+    
+    if data is present then this function returns: 
+    - chat_id
+    - lab_subjects_data
+    - lab_weeks_data\n
+
+    - None if no data
+
+    """
+    connection = await connect_pg_database()
+
+    try:
+        get_lab_sub_and_weeks_data = await connection.fetch(
+            """
+                SELECT  chat_id,lab_subjects_data,lab_weeks_data FROM user_credentials
+            """
+        )
+        if get_lab_sub_and_weeks_data:
+            return get_lab_sub_and_weeks_data
+        else:
+            return None
+    except Exception as e:
+        print(f"Error while returning the lab_subjects_data and lab_week_data values {e}. ")
+        return False
+    finally:
+        await connection.close()
+async def delete_labs_data_for_user(chat_id:int)->bool:
+    """
+    Deletes the lab data stored for a user
+    
+    :param chat_id: Chat id of the user
+    :return: Bool
+    
+    Labs Data :
+    
+    - subjects 
+    - weeks
+    """
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute(
+
+            """
+                DELETE lab_subjects_data,lab_weeks_data FROM user_credentials WHERE chat_id = $1
+            
+            """,chat_id)
+        return True
+
+    except Exception as e:
+        print(f"error while deleting lab_subjects_data,lab_weeks_data from user credentials table of the pg_database {e}")
+        return False
+    
+    finally:
+        await connection.close()
+
+
+async def delete_labs_data_for_all():
+    """
+    This is used to delete all the labs data for every user in the database
+    """
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute(
+
+            """
+                DELETE lab_subjects_data,lab_weeks_data FROM user_credentials
+            
+            """)
+        return True
+
+    except Exception as e:
+        print(f"failed to delete lab_subjects_data and lab_weeks_data from user credentials table by the admin {e}. ")
+        return False
+    
+    finally:
+        await connection.close()
+
+async def get_tables_and_columns():
+    """
+    This function prints all tables and their columns from the PostgreSQL database in a visual format.
+    """
+
+    connection = await connect_pg_database()  # Assuming this function connects to the PostgreSQL database
+
+    try:
+        # Fetch all tables and their columns
+        tables_query = """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+        """
+
+        async with connection.transaction():
+            tables_columns = {}
+            async for row in connection.cursor(tables_query):
+                table_name = row['table_name']
+                column_name = row['column_name']
+                
+                if table_name in tables_columns:
+                    tables_columns[table_name].append(column_name)
+                else:
+                    tables_columns[table_name] = [column_name]
+
+            # Print tables and their columns in a visual format
+            for table, columns in tables_columns.items():
+                print(f"+{'=' * (len(table) + 2)}+")
+                print(f"| {table} |")
+                print(f"+{'=' * (len(table) + 2)}+")
+                for column in columns:
+                    print(f"| {column} |")
+                    print(f"+{'-' * (len(column) + 2)}+")
+                print()
+
+    except Exception as e:
+        print(f"Error while fetching tables and columns: {e}")
+
+    finally:
+        await connection.close()
+
+async def sqlite_bool_to_pg_bool(sqlbool):
+    """
+    This function is used to convert the boolean values from 1 to True, and 0 to False
+    :return: returns boolean values in the form of True and False
+    """
+    return True if sqlbool else False
+
+async def remove_saved_credentials(bot,chat_id):
+    """This Function removes the Column based on chat_id. 
+    This is used to remove the saved credentials."""
+    connection = await connect_pg_database()
+    try:
+        
+        await connection.execute("DELETE FROM user_credentials WHERE chat_id = $1", chat_id)
+        
+        await bot.send_message(chat_id,"Data deleted successfully!")
+    
+    except Exception as e:
+        await bot.send_message(chat_id,f"Error deleting data: {e}")
+    
+    finally:
+        await connection.close()
+
+async def remove_saved_credentials_silent(chat_id):
+    """
+    This Function is mainly used to remove saved credentials of the banned usernames
+    :param chat_id: Chat id of the banned username
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute("DELETE FROM user_credentials WHERE chat_id = $1", chat_id)
+        return True
+    except Exception as e:
+        print(f"Error deleting data: {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def remove_banned_username_credentials(username):
+    """
+    THIS FUNCTION DIDN'T PERFORM WELL UNDER MULTIPLE TESTCASES
+    RECOMMENDED NOT TO USE THIS FUNCTION.
+    
+    This function is used to remove the credentials if the username matches with the given username
+    :username: Username of the banned user.
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute('DELETE FROM banned_users WHERE LOWER($1) LIKE LOWER(username|| \'%\')',f'{username}')
+        return True
+    except Exception as e:
+        print(f"error in removing banned user : {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def remove_banned_username(username):
+    """
+    This Function is used to remove the banned username,
+    Basically this means unban of the user
+    :param username : Username of the user
+    Note : While deleting send the username in the same letter case when it is stored in the database
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute('DELETE FROM banned_users WHERE username = $1',username)
+        return True
+    except Exception as e:
+        print("error in removing banned user")
+        return False
+    
+    finally:
+        await connection.close()
+
+async def remove_maintainer(chat_id):
+    """
+    Remove a maintainer based on the chat_id
+    :param chat_id: Chat id of the maintainer
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute("DELETE FROM bot_managers WHERE chat_id= $1 AND maintainer = $2",int(chat_id),True)
+        return True
+    except Exception as e:
+        print(f"error raised while relieving the maintainer from his duty {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def remove_admin(chat_id):
+    """
+    Remove a admin based on the chat_id
+    :param chat_id : Chat id of the admin
+    """
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            await connection.execute(
+                " DELETE FROM bot_managers WHERE chat_id =$1 AND admin=$1",int(chat_id),True)
+            return True
+    except Exception as e:
+        print(f"error in removing admin from his duty {e} ")
+        return False
+    finally:
+        await connection.close()
+
+async def get_bot_managers_data():
+    """
+    This function is used to get all the data present in the bot managers table.
+    :param chat_id : Chat id of the user 
+    :return: Returns a tuple containg boolean access data values.
+    :tuple boolean values: access_users,announcement,configure,show_reports,reply_reports,clear_reports,
+    ban_username,unban username,manage_maintainers,logs
+    """
+    connection = await connect_pg_database()
+    try:
+        
+        access_data = await connection.fetch(
+                """
+                SELECT * FROM bot_managers
+                """)
+
+        if access_data:
+            return access_data
+        else:
+            return None           
+    except Exception as e:
+        print(f"Error getting bot managers data : {e}")
+    finally:
+        await connection.close()
+
+async def get_all_reports():
+    connection = await connect_pg_database()
+    try:
+    
+        all_messages = await connection.fetch("SELECT * FROM pending_reports")
+        if all_messages:
+            return all_messages
+        else:
+            return None
+    
+    except Exception as e:
+        print(f"error while running the get_all_reports function {e} ")
+        return False
+    
+    finally:
+        await connection.close()
+
+async def delete_report(unique_id):
+    """
+    This function is used to delete a specific report based on unique id.
+    :param unique_id: Unique id is generated specifically for a report instead of chat_id
+    """
+    connection =  await connect_pg_database()
+    try:
+        await connection.execute(
+                "DELETE FROM pending_reports WHERE unique_id = $1",
+                (unique_id))
+        return True
+    
+    except Exception as e:
+        print(f"failed to complete the delete_report process {e}")
+        return False
+    finally:
+        await connection.close()
+
+
+async def clear_pending_reports():
+    connection =  await connect_pg_database()
+
+    try:
+        await connection.execute(
+                "DELETE FROM pending_reports"
+                )
+        return True
+    
+    except Exception as e:
+        print(f"failed to complete the delete_report process {e}")
+        return False
+    finally:
+        await connection.close()
+
+
+async def clear_credentials_and_settings_database():
+    """This Function Clears the Postgres database."""
+    # Connecting to the PSQL database
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            # Execute the SQL command to delete data
+            await connection.execute("DELETE FROM user_credentials")
+
+        print("Data erased successfully!")
+        return True
+    except Exception as e:
+        print(f"Error clearing database: {e}")
+        return False
+    finally:
+        # Close the database connection
+        await connection.close()
+
+async def clear_bot_manager_table():
+    connection = await connect_pg_database()
+    try:
+        # Execute the SQL command to delete banned users data
+        await connection.execute("DELETE FROM bot_manager")
+        print("bot_manager values have been removed successfully! from the database")
+        return True
+        # handles the exceptional errors .
+    except Exception as e:
+        print(f"Error while clearing banned user values from the database: {e}")
+        return False
+    
+    finally:
+        # Close the database connection
+        await connection.close()
+async def clear_index_values_database():
+    connection = await connect_pg_database()
+    try:
+        # Execute the SQL command to delete index values data from database
+        await connection.execute("DELETE FROM index_values")
+        print("Index values removed successfully! from the database")
+        return True
+    
+    except Exception as e:
+        print(f"Error while clearing index values from the database: {e}")
+        return False
+    
+    finally:
+        # Close the database connection
+        await connection.close()
