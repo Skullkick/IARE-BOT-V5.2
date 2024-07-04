@@ -1,6 +1,6 @@
 from pyrogram.types import InlineKeyboardButton,InlineKeyboardMarkup
 from DATABASE import pgdatabase,tdatabase,user_settings
-from METHODS import operations,labs_driver,labs_handler,lab_operations
+from METHODS import operations,labs_handler,lab_operations
 import main
 import json,asyncio
 
