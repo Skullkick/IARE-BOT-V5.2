@@ -486,3 +486,52 @@ async def get_all_index_values():
         return False
     finally:
         await connection.close()
+
+
+async def get_all_cgpa_trackers():
+    connection = await connect_pg_database()
+    try:
+        query = "SELECT * FROM cgpa_tracker"
+        result = await connection.fetch(query)
+        if result:
+            return result
+        else:
+            return None
+    except Exception as e:
+        print(f"Error retrieving cgpa tracker data from database: {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def get_all_cie_tracker_data():
+    connection = await connect_pg_database()
+    try:
+        query = "SELECT * FROM cie_tracker"
+        result = await connection.fetch(query)
+        if result:
+            return result
+        else:
+            return None
+    except Exception as e:
+        print(f"Error retrieving cie tracker data from the database : {e}")
+    finally:
+        await connection.close()
+
+async def store_as_admin(name,chat_id):
+    """
+    Perform storing the user as admin.
+    :param chat_id: chat id based on the message
+    :param name: Name of the user
+    """
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            await connection.execute("""INSERT INTO bot_managers 
+            (chat_id,admin,name,control_access) VALUES ($1,$2,$3,$4)""",chat_id,True,name,'Full')
+        return True
+    except Exception as e:
+        print(f"error in store_as_admin function {e}")
+        return False
+    
+    finally:
+        await connection.close()
