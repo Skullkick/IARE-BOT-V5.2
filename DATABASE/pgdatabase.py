@@ -54,4 +54,30 @@ async def create_all_pgdatabase_tables():
     await create_indexes_table()
     await create_cgpa_tracker_table()
     await create_cie_tracker_table()
-    
+
+async def create_user_credentials_table():
+
+    connection = await connect_pg_database()
+    try:
+        await connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_credentials (
+                chat_id BIGINT PRIMARY KEY,
+                username  VARCHAR(25),
+                password VARCHAR(30),
+                pat_student  BOOLEAN DEFAULT FALSE,
+                attendance_threshold INTEGER DEFAULT 75,
+                biometric_threshold INTEGER DEFAULT 75,
+                traditional_ui BOOLEAN DEFAULT TRUE,
+                extract_title BOOLEAN DEFAULT TRUE,
+                lab_subjects_data TEXT,
+                lab_weeks_data TEXT
+            )
+
+            """)
+        
+    except Exception as e:
+        print(f"error while creating the user_credentials table {e}")
+        return False
+    finally:
+        await connection.close()
