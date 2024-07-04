@@ -165,3 +165,11 @@ async def compress_pdf_scrape(bot,message):
     finally:
         # Close the browser
         driver.quit()
+
+def pdf_image_generator(input_path):
+    """A generator function to yield images from a PDF file."""
+    try:
+        for img in convert_from_path(input_path):
+            yield img
+    except Exception as e:
+        print(f"Error in pdf image generator : {e}")
