@@ -74,3 +74,37 @@ async def fetch_available_labs(bot,message):
     
     except Exception as e:
         return f"An error occurred: {str(e)}"
+    
+async def get_week_details(experiment_names,submitted_lab_records,all_weeks_numbers_bool:bool,submitted_weeks_bool:bool,not_submitted_weeks_bool:bool,can_delete_weeks_bool:bool):
+
+    soup = BeautifulSoup(experiment_names, 'html.parser')
+    rows = soup.find_all('tr')[1:]
+    all_week_numbers = []
+
+    for row in rows:
+        week_text = row.find_all('td')[0].get_text(strip=True)
+        week_number = re.findall(r'\d+', week_text)
+        if week_number:
+            all_week_numbers.append(int(week_number[0]))
+
+# Extract the list of submitted weeks
+    submitted_data = submitted_lab_records[0] 
+    # print(submitted_data)
+    submitted_weeks = []
+
+    for week_no, entries in submitted_data.items():
+        for entry in entries:
+            # if entry['delete'] == 0:  # Check if the 'delete' flag is 0
+            submitted_weeks.append(int(week_no))  # Add the week number to the list as an integer
+    # Sort the weeks for better readability
+    submitted_weeks = sorted(submitted_weeks)
+    can_upload_list = [week for week in all_week_numbers if week not in submitted_weeks]
+    can_upload_list_updated = [week for week in can_upload_list if week not in submitted_lab_records[1]]
+    if all_weeks_numbers_bool is True:
+        return all_week_numbers
+    if submitted_weeks_bool is True:
+        return submitted_weeks
+    if not_submitted_weeks_bool is True:
+        return can_upload_list_updated
+    if can_delete_weeks_bool is True:
+        return submitted_lab_records[1]
