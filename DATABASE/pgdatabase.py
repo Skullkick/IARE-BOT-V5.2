@@ -295,3 +295,24 @@ async def set_pat_attendance_indexes(pat_attendance_indexes):
             await connection.execute("INSERT INTO index_values (name, index_) VALUES ($1, $2)", name, json.dumps(pat_attendance_indexes))
     except Exception as e:
         print(f"Error updating pat attendance index values : {e}")
+
+async def store_cgpa_tracker_details(chat_id:int,status:bool,current_cgpa:str):
+    """
+    This function is used to store the cgpa_tracker details
+    :param chat_id: Chat id of the user
+    :param status: Boolean value which is used to stop the tracker
+    :param current_cgpa: Current cgpa of the user
+    table name: cgpa_tracker
+    """
+    connection = await connect_pg_database()
+    chat_id = int(chat_id)
+    current_cgpa = str(current_cgpa)
+    try:
+        data = await connection.fetchrow("SELECT * FROM cgpa_tracker WHERE chat_id = $1", chat_id)
+        if data:
+            await connection.execute("UPDATE cgpa_tracker SET status = $1,current_cgpa = $2 WHERE chat_id = $3", status,current_cgpa,chat_id)
+        else:
+            await connection.execute("INSERT INTO cgpa_tracker (chat_id,status,current_cgpa) VALUES ($1, $2, $3)",chat_id,status,current_cgpa)
+        return True
+    except Exception as e:
+        print(f"Error storing cgpa tracker values : {e}")
