@@ -809,3 +809,242 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             BANNED_USERNAME_TEXT,
             reply_markup = BANNED_USERNAME_BUTTON
         )
+    elif "manager_unban_user" in callback_query.data:
+        chat_id = callback_query.message.chat.id
+        admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+        maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+        if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+            return
+        access_data = await managers_handler.get_access_data(chat_id)
+        if chat_id in maintainer_chat_ids and access_data[7] != 1:
+            await bot.send_message(chat_id,"Access denied. You don't have permission to use this command.")
+            return
+        username = callback_query.data.split("-")[1:][0].lower()
+        await tdatabase.remove_banned_username(username)
+        await pgdatabase.remove_banned_username(username)
+        UNBANNED_USERNAME_TEXT = f"Unbanned Username Successfully **{username.upper()}**"
+        UNBANNED_USERNAME_BUTTON = InlineKeyboardMarkup(
+
+            inline_keyboard=[
+                [InlineKeyboardButton("BAN",callback_data=f"manager_ban_by_username-{username}")],
+                [InlineKeyboardButton("Back",callback_data="manager_banned_user_data")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            UNBANNED_USERNAME_TEXT,
+            reply_markup = UNBANNED_USERNAME_BUTTON
+        )
+
+    elif "manager_ban_by_username" in callback_query.data:
+        username = callback_query.data.split("-")[1:][0].lower()
+        await tdatabase.store_banned_username(username)
+        BANNED_USERNAME_TEXT = f"Banned Username Successfully **{username.upper()}**"
+        BANNED_USERNAME_BUTTON = InlineKeyboardMarkup(
+
+            inline_keyboard=[
+                [InlineKeyboardButton("UNBAN",callback_data=f"manager_unban_by_username-{username}")],
+                [InlineKeyboardButton("Back",callback_data="manager_banned_user_data")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            BANNED_USERNAME_TEXT,
+            reply_markup = BANNED_USERNAME_BUTTON
+        )
+    elif callback_query.data == "manager_configure":
+
+        CONFIGURE_BUTTON_TEXT = f"""
+Click on one of the buttons to continue."""
+        CONFIGURE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("AUTO INDEX",callback_data="manager_auto_configure_index")],
+                [InlineKeyboardButton("MANUAL INDEX",callback_data="manager_manual_configure_index")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            CONFIGURE_BUTTON_TEXT,
+            reply_markup = CONFIGURE_BUTTON
+        )
+    elif callback_query.data == "manager_auto_configure_index":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        AUTO_CONFIGURE_BUTTON_TEXT = f"""
+Please wait while this configures the indexes. \n\nPressing the Back button does not cancel the auto-indexing process."""
+        AUTO_CONFIGURE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("BACK",callback_data="manager_configure")],
+            ]
+        )
+        await callback_query.edit_message_text(
+            AUTO_CONFIGURE_BUTTON_TEXT,
+            reply_markup = AUTO_CONFIGURE_BUTTON
+        )
+        try:
+            course_name_index,conducted_classes_index,attended_classes_index,attendance_percentage_index,att_status_index = await extract_index.get_attendance_indexes(bot,_message)
+            await user_settings.set_attendance_indexes(course_name_index,conducted_classes_index,attended_classes_index,attendance_percentage_index,att_status_index)
+            await pgdatabase.set_attendance_indexes(await user_settings.get_attendance_index_values())
+        except Exception as e:
+            await bot.send_message(chat_id,f"Error Extracting Attendance Index Values : {e}")
+            return
+        ATTENDANCE_INDEX_TEXT = F"""
+```
+--ATTENDANCE INDEX VALUES--
+
+● COURSE NAME           : {course_name_index}
+
+● CONDUCTED CLASSES     : {conducted_classes_index}
+
+● ATTENDED CLASSES      : {attended_classes_index}
+
+● ATTENDANCE PERCENTAGE : {attendance_percentage_index}
+
+● STATUS                : {att_status_index}
+```
+"""
+        await bot.send_message(chat_id,ATTENDANCE_INDEX_TEXT)
+        try:
+            intime_index,outtime_index,bio_status_index= await extract_index.get_biometric_indexes(bot,_message)
+            await user_settings.set_biometric_indexes(intime_index,outtime_index,bio_status_index)
+            await pgdatabase.set_biometric_indexes(await user_settings.get_biometric_index_values())
+        except Exception as e:
+            await bot.send_message(chat_id,f"Error Extracting Bio index Values : {e}")
+            return
+        BIOMETRIC_INDEX_TEXT = f"""
+```
+--BIOMETRIC INDEX VALUES--
+
+● INTIME        : {intime_index}
+
+● OUTTIME       : {outtime_index}
+
+● STATUS INDEX  : {bio_status_index}
+
+```"""
+        await bot.send_message(chat_id,BIOMETRIC_INDEX_TEXT)
+        try:
+            course_name_index,conducted_classes_index,attended_classes_index,pat_attendance_percentage_index,pat_status_index = await extract_index.get_pat_indexes(bot,_message)
+            await user_settings.set_pat_attendance_indexes(course_name_index,conducted_classes_index,attended_classes_index,pat_attendance_percentage_index,pat_status_index)
+            await pgdatabase.set_pat_attendance_indexes(await user_settings.get_pat_attendance_index_values())
+        except Exception as e:
+            await bot.send_message(chat_id,f"Error Extracting PAT Indexes : {e}")
+            return
+        PAT_ATTENDANCE_INDEX_TEXT = f"""
+```
+--PAT ATTENDANCE INDEX VALUES--
+
+● COURSE NAME               : {course_name_index}
+
+● CONDUCTED CLASSES         : {conducted_classes_index}
+
+● ATTENDED CLASSES          : {attended_classes_index}
+
+● PAT ATTENDANCE PERCENTAGE : {pat_attendance_percentage_index}
+
+● STATUS                    : {pat_status_index}
+```
+"""
+        await bot.send_message(chat_id,PAT_ATTENDANCE_INDEX_TEXT)
+        
+        AFTER_AUTO_CONFIGURE_TEXT = f"""
+Successfully Configured Index Values.
+"""
+        await  callback_query.edit_message_text(
+            AFTER_AUTO_CONFIGURE_TEXT,
+            reply_markup = AUTO_CONFIGURE_BUTTON
+        )
+    elif callback_query.data == "manager_manual_configure_index":
+        MANUAL_CONFIGURE_BUTTON_TEXT = f"""
+Select one of the buttons from the choices given."""
+        MANUAL_CONFIGURE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("ATTENDANCE",callback_data="manager_index_attendance")],
+                [InlineKeyboardButton("PAT ATTENDANCE",callback_data="manager_index_pat_att")],
+                [InlineKeyboardButton("BIOMETRIC",callback_data="manager_index_biometric")],
+                [InlineKeyboardButton("BACK",callback_data="manager_configure")],
+            ]
+        )
+        await callback_query.edit_message_text(
+            MANUAL_CONFIGURE_BUTTON_TEXT,
+            reply_markup = MANUAL_CONFIGURE_BUTTON
+        )
+    elif callback_query.data == "manager_index_attendance":
+        current_attendance_index_values = await user_settings.get_attendance_index_values()
+        if not current_attendance_index_values:
+            await user_settings.set_default_attendance_indexes()
+            current_attendance_index_values = await user_settings.get_attendance_index_values()
+        course_name_index = current_attendance_index_values['course_name']
+        attendance_percentage_index = current_attendance_index_values['attendance_percentage']
+        conducted_classes_index = current_attendance_index_values['conducted_classes']
+        attended_classes_index = current_attendance_index_values['attended_classes']
+        att_status_index = current_attendance_index_values['status']
+        MANUAL_ATTENDANCE_INDEX_TEXT = f"""
+```ATTENDANCE
+
+COURSE NAME INDEX       : {course_name_index}
+
+CONDUCTED CLASSES INDEX : {conducted_classes_index}
+
+ATTENDED CLASSES INDEX  : {attended_classes_index}
+
+ATTENDANCE % INDEX      : {attendance_percentage_index}
+
+STATUS INDEX            : {att_status_index}
+
+The Changes that you have made are saved temporarily\n\n To save permanently Click on "SAVE CHANGES"
+```
+"""
+        MANUAL_ATTENDANCE_INDEX_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-course_index"), InlineKeyboardButton(course_name_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-course_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-conducted_classes_index"), InlineKeyboardButton(conducted_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-conducted_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-attended_classes_index"), InlineKeyboardButton(attended_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-attended_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-att_%_index"), InlineKeyboardButton(attendance_percentage_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-att_%_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-status_index"), InlineKeyboardButton(att_status_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-status_index")],
+                    [InlineKeyboardButton("BACK", callback_data="manager_manual_configure_index")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            MANUAL_ATTENDANCE_INDEX_TEXT,
+            reply_markup = MANUAL_ATTENDANCE_INDEX_BUTTON
+        )
+    
+    elif callback_query.data == "manager_index_pat_att":
+        current_pat_attendance_index_values = await user_settings.get_pat_attendance_index_values()
+        if not current_pat_attendance_index_values:
+            await user_settings.set_default_pat_attendance_indexes()
+            current_pat_attendance_index_values = await user_settings.get_pat_attendance_index_values()
+        course_name_index = current_pat_attendance_index_values['course_name']
+        attendance_percentage_index = current_pat_attendance_index_values['attendance_percentage']
+        conducted_classes_index = current_pat_attendance_index_values['conducted_classes']
+        attended_classes_index = current_pat_attendance_index_values['attended_classes']
+        att_status_index = current_pat_attendance_index_values['status']
+        MANUAL_PAT_ATTENDANCE_INDEX_TEXT = f"""
+```PAT ATTENDANCE
+
+COURSE NAME INDEX       : {course_name_index}
+
+CONDUCTED CLASSES INDEX : {conducted_classes_index}
+
+ATTENDED CLASSES INDEX  : {attended_classes_index}
+
+ATTENDANCE % INDEX      : {attendance_percentage_index}
+
+STATUS INDEX            : {att_status_index}
+
+The Changes that you have made are saved temporarily\n\n To save permanently Click on "SAVE CHANGES"
+```
+"""
+        MANUAL_PAT_ATTENDANCE_INDEX_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-course_index"), InlineKeyboardButton(course_name_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-course_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-conducted_classes_index"), InlineKeyboardButton(conducted_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-conducted_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-attended_classes_index"), InlineKeyboardButton(attended_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-attended_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-att_%_index"), InlineKeyboardButton(attendance_percentage_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-att_%_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-status_index"), InlineKeyboardButton(att_status_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-status_index")],
+                    [InlineKeyboardButton("BACK", callback_data="manager_manual_configure_index")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            MANUAL_PAT_ATTENDANCE_INDEX_TEXT,
+            reply_markup = MANUAL_PAT_ATTENDANCE_INDEX_BUTTON
+        )
