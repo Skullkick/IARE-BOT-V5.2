@@ -243,3 +243,12 @@ async def delete_lab_record(bot,chat_id,sub_code, user_details, week_number):
     response = requests.post(url, headers=headers, data=data, cookies=cookies)
     return response.json()
 
+async def get_subject_name(subject_code,lab_details):
+    """
+    This function is used to get the subject name based on the subject code provided
+    :subject_code: Subject code of the required subject
+    :lab_details: Details of all the lab_record containing subject_name and subject code as a dictionary
+
+    """
+    subject_name = (subject_name for subject_name, value in lab_details.items() if value == subject_code)
+    return list(subject_name)[0]
