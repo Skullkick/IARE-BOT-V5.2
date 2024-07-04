@@ -272,3 +272,26 @@ async def store_banned_username(username):
         return False
     finally:
         await connection.close()
+
+async def set_pat_attendance_indexes(pat_attendance_indexes):
+    """This Function is used to set the index values of the pat attendance table
+    :param pat_attendance_indexes: Dictionary containing all the pat attendance index values 
+    
+    :Dictionary: {
+        'course_name': course_name_index,
+        'attendance_percentage': pat_attendance_percentage_index,
+        'conducted_classes': conducted_classes_index,
+        'attended_classes': attended_classes_index,
+        'status': pat_status
+    }"""
+
+    connection = await connect_pg_database()
+    name = "PAT_INDEX_VALUES"
+    try:
+        data = await connection.fetchrow("SELECT * FROM index_values WHERE name = $1", name)
+        if data:
+            await connection.execute("UPDATE index_values SET index_ = $1 WHERE name = $2", json.dumps(pat_attendance_indexes), name)
+        else:
+            await connection.execute("INSERT INTO index_values (name, index_) VALUES ($1, $2)", name, json.dumps(pat_attendance_indexes))
+    except Exception as e:
+        print(f"Error updating pat attendance index values : {e}")
