@@ -252,3 +252,74 @@ async def get_subject_name(subject_code,lab_details):
     """
     subject_name = (subject_name for subject_name, value in lab_details.items() if value == subject_code)
     return list(subject_name)[0]
+
+async def user_lab_data(bot,chat_id):
+    """
+    This function is used to extract the data required while uploading the lab record
+    
+    :return: Dictionary
+    
+    :Dictionary:
+    - ay: academic_year
+    - roll_no : roll_no
+    - current_sem : semester
+    - lab_batch_no: lab_batch_no
+    """
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id) 
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # Login message if no user found in database based on chat_id
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=operations.login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=operations.login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    url = 'https://samvidha.iare.ac.in/home?action=labrecord_std'
+    with requests.session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        lab_record_user_data_response = s.get(url)
+    if lab_record_user_data_response.status_code == 200:
+        html_content = lab_record_user_data_response.text
+        soup = BeautifulSoup(html_content, 'html.parser') 
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in html_content:
+        if chat_id_in_local_database:
+            await operations.silent_logout_user_if_logged_out(bot,chat_id)
+            await user_lab_data(bot,chat_id)
+        else:
+            await operations.logout_user_if_logged_out(bot,chat_id)
+        return 
+    try:
+        academic_year = soup.find('input', id='ay')['value'].strip()
+    except TypeError:
+        academic_year = 'Not Found'
+
+    try:
+        roll_no = soup.find('input', id='rollno')['value'].strip()
+    except TypeError:
+        roll_no = 'Not Found'
+
+    try:
+        semester = soup.find('input', id='current_sem')['value'].strip()
+    except TypeError:
+        semester = 'Not Found'
+
+    try:
+        lab_batch_no = soup.find('input', id='lab_batch_no')['value'].strip()
+    except TypeError:
+        lab_batch_no = 'Not Found'
+    
+    user_details = {
+        'ay': academic_year,
+        'roll_no': roll_no,
+        'current_sem': semester,
+        'lab_batch_no': lab_batch_no,
+    }
+    return user_details
