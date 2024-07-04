@@ -187,6 +187,21 @@ async def clear_sessions_table():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sessions")
         conn.commit()
+
+async def store_username(username):
+    """
+    Store a username in the total_users table.
+
+    Parameters:
+        username (str): The username to store.
+    """
+    with sqlite3.connect(TOTAL_USERS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR IGNORE INTO users (username) VALUES (?)",
+                       (username,))
+        conn.commit()
+
+
 async def store_lab_info(chat_id,title,subject_code,week_index,get_title:bool):
     """Store lab information in the database.
     
