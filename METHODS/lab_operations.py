@@ -189,3 +189,9 @@ async def fetch_submitted_lab_records(bot,chat_id,user_details,sub_code):
 
     # return weeks_with_delete
     return data_by_week,weeks_with_delete
+
+async def get_view_pdf_url(sub_code,user_details,week_no):
+    roll_no = user_details['roll_no'].upper()
+    current_sem = user_details['current_sem'].upper()
+    url = f'https://iare-data.s3.ap-south-1.amazonaws.com/uploads/STUDENTS/{roll_no}/LAB/SEM{current_sem}/{sub_code}/{roll_no}_week{week_no}.pdf'
+    return url
