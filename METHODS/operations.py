@@ -265,3 +265,332 @@ async def silent_logout_user_if_logged_out(bot,chat_id):
         return
 
     await tdatabase.delete_user_session(chat_id)
+
+async def attendance(bot,message):
+    chat_id = message.chat.id
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id) 
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        auto_login_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # Login message if no user found in database based on chat_id
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+
+    # Access the attendance page and retrieve the content
+    attendance_url = 'https://samvidha.iare.ac.in/home?action=stud_att_STD'
+    
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+
+        attendance_response = s.get(attendance_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    data = BeautifulSoup(attendance_response.text, 'html.parser')
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            await attendance(bot,message)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+    table_all = data.find_all('table', class_='table table-striped table-bordered table-hover table-head-fixed responsive')
+    if len(table_all) > 1:
+        req_table = table_all[1]
+
+        table_data = []
+
+        rows = req_table.tbody.find_all('tr')
+        
+        # ATTENDANCE HEADING
+        
+        attendance_heading = f"""
+```ATTENDANCE
+@iare_unofficial_bot
+```
+"""
+        await bot.send_message(chat_id,attendance_heading)
+
+        for row in rows:
+            cells = row.find_all('td')
+            row_data = [cell.get_text(strip=True) for cell in cells]
+            table_data.append(row_data)
+        sum_attendance = 0
+        count_att = 0
+        all_attendance_indexes_dictionary = await user_settings.get_attendance_index_values()
+        if all_attendance_indexes_dictionary:
+            course_name_index = all_attendance_indexes_dictionary['course_name']
+            conducted_classes_index = all_attendance_indexes_dictionary['conducted_classes']
+            attended_classes_index = all_attendance_indexes_dictionary['attended_classes']
+            attendance_percentage_index = all_attendance_indexes_dictionary['attendance_percentage']
+            attendance_status_index = all_attendance_indexes_dictionary['status']
+        else:
+            course_name_index = 2
+            conducted_classes_index = 5
+            attended_classes_index = 6
+            attendance_percentage_index = 7
+            attendance_status_index = 8
+        for row in table_data[0:]:
+            course_name = row[course_name_index]
+            conducted = row[conducted_classes_index]
+            attended = row[attended_classes_index]
+            attendance_percentage = row[attendance_percentage_index]
+            attendance_status = row[attendance_status_index]
+            if course_name and attendance_percentage:
+                att_msg_updated_ui = f"""
+```{course_name}
+
+● Conducted         -  {conducted}
+             
+● Attended          -  {attended}  
+         
+● Attendance %      -  {attendance_percentage} 
+            
+● Status            -  {attendance_status}  
+         
+```
+"""
+                
+                att_msg_traditional_ui = f"""
+\n**{course_name}**
+
+● Conducted         -  {conducted}
+             
+● Attended            -  {attended}   
+         
+● Attendance %    -  {attendance_percentage} 
+            
+● Status                 -  {attendance_status}
+ 
+"""
+# ● Conducted         -  {conducted}
+             
+# ● Attended          -  {attended}  
+         
+# ● Attendance %      -  {attendance_percentage} 
+            
+# ● Status            -  {attendance_status}
+                # att_msg = f"Course: {course_name}, Attendance: {attendance_percentage}"
+                
+                sum_attendance += float(attendance_percentage)
+                if int(conducted) > 0:
+                        count_att += 1
+                if ui_mode[0] == 0:
+                    await bot.send_message(chat_id,att_msg_updated_ui)
+                else:
+                    await bot.send_message(chat_id,att_msg_traditional_ui)
+        aver_attendance = round(sum_attendance/count_att, 2)
+        over_all_attendance = f"**Overall Attendance is {aver_attendance}**"
+        await bot.send_message(chat_id,over_all_attendance)
+
+    else:
+        await bot.send_message(chat_id,"Attendance data not found.")
+    await buttons.start_user_buttons(bot,message)
+
+
+
+async def six_hours_biometric(biometric_rows, totaldays, intime_index,outtime_index):
+    intimes, outtimes = [], []
+    time_gap_more_than_six_hours = 0
+    for row in biometric_rows:
+        cell = row.find_all('td')
+        intime = cell[intime_index].text.strip()
+        outtime = cell[outtime_index].text.strip()
+        if intime and outtime and ':' in intime and ':' in outtime:
+            intimes.append(intime)
+            outtimes.append(outtime)
+            intime_hour, intime_minute = intime.split(':')
+            outtime_hour, outtime_minute = outtime.split(':')
+            time_difference = (int(outtime_hour) - int(intime_hour)) * 60 + (int(outtime_minute) - int(intime_minute))
+            if time_difference >= 360:
+                time_gap_more_than_six_hours += 1
+    # Calculate the biometric percentage with six hours gap
+    six_percentage = (time_gap_more_than_six_hours / totaldays) * 100 if totaldays != 0 else 0
+    six_percentage = round(six_percentage, 3)
+    return six_percentage,time_gap_more_than_six_hours
+
+async def biometric_leaves(chat_id,present_days,total_days):
+    biometric_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+    biometric_percentage = present_days / total_days * 100
+    if biometric_percentage > biometric_threshold[0]:
+        no_of_leaves = 0
+        while (present_days / (total_days + no_of_leaves)) * 100 >= biometric_threshold[0]:
+            no_of_leaves += 1
+        no_of_leaves -= 1  # Subtract 1 to account for the last iteration
+        return no_of_leaves, True
+    elif biometric_percentage < biometric_threshold[0]:
+        days_need_attend = 0
+        while (present_days + days_need_attend) / (total_days + days_need_attend) * 100 < biometric_threshold[0]:
+            days_need_attend += 1
+        return days_need_attend, False
+    
+
+async def bunk(bot,message):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+    if not session_data:
+        auto_login_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # LOGIN MESSAGE
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+
+    session_data = await tdatabase.load_user_session(chat_id)
+
+    attendance_url = 'https://samvidha.iare.ac.in/home?action=stud_att_STD'
+    
+    with requests.Session() as s:
+
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+
+        attendance_response = s.get(attendance_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    data = BeautifulSoup(attendance_response.text, 'html.parser')
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            await bunk(bot,message)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+
+    table_all = data.find_all('table', class_='table table-striped table-bordered table-hover table-head-fixed responsive')
+    if len(table_all) > 1:
+
+        req_table = table_all[1]
+        table_data = []
+        rows = req_table.tbody.find_all('tr')
+        
+        # BUNK HEADING
+        attendance_threshold = await user_settings.fetch_attendance_threshold(chat_id)
+        bunk_heading = f"""
+```BUNK
+@iare_unofficial_bot
+
+● Attendance Threshold - {attendance_threshold[0]}
+```
+"""
+        await bot.send_message(chat_id,bunk_heading)
+        
+        for row in rows:
+            cells = row.find_all('td')
+
+            row_data = [cell.get_text(strip=True) for cell in cells]
+
+            table_data.append(row_data)
+        all_attendance_indexes_dictionary = await user_settings.get_attendance_index_values()
+        if all_attendance_indexes_dictionary:
+            course_name_index = all_attendance_indexes_dictionary['course_name']
+            conducted_classes_index = all_attendance_indexes_dictionary['conducted_classes']
+            attended_classes_index = all_attendance_indexes_dictionary['attended_classes']
+            attendance_percentage_index = all_attendance_indexes_dictionary['attendance_percentage']
+            attendance_status_index = all_attendance_indexes_dictionary['status']
+        else:
+            course_name_index = 2
+            conducted_classes_index = 5
+            attended_classes_index = 6
+            attendance_percentage_index = 7
+            attendance_status_index = 8
+        for row in table_data[0:]:
+            course_name = row[course_name_index]
+            attendance_percentage = row[attendance_percentage_index]
+            if course_name and attendance_percentage:
+                attendance_present = float(attendance_percentage)
+                conducted_classes = int(row[conducted_classes_index])
+                attended_classes = int(row[attended_classes_index])
+                classes_bunked = 0
+                
+                if attendance_present >= attendance_threshold[0]:
+                    classes_bunked = 0
+                    while (attended_classes / (conducted_classes + classes_bunked)) * 100 >= attendance_threshold[0]:
+                        classes_bunked += 1
+                    classes_bunked -= 1
+                    bunk_can_msg_updated = f"""
+```{course_name}
+⫷
+
+● Attendance  -  {attendance_percentage}
+
+● You can bunk {classes_bunked} classes
+
+
+⫸
+
+```
+"""
+                    bunk_can_msg_traditional = f"""
+**{course_name}**
+
+⫷
+
+● Current Attendance      -  {attendance_percentage}
+
+● You can bunk {classes_bunked} classes
+
+
+⫸
+
+"""
+                    if ui_mode[0] == 0:
+                        await bot.send_message(chat_id,bunk_can_msg_updated)
+                    else:
+                        await bot.send_message(chat_id,bunk_can_msg_traditional)
+                  
+                    
+                else:
+                    classes_needattend = 0
+                    if conducted_classes == 0:
+                        classes_needattend = 0
+                    else:
+                        while((attended_classes + classes_needattend) / (conducted_classes + classes_needattend)) * 100 < attendance_threshold[0]:
+                            classes_needattend += 1    
+                    bunk_recover_msg_updated = f"""
+```{course_name}
+⫷
+
+● Attendance  -  Below {attendance_threshold[0]}%
+
+● Attend  {classes_needattend} classes for {attendance_threshold[0]}%
+
+● No Bunk Allowed
+
+⫸
+
+```
+"""
+                    bunk_recover_msg_traditional = f"""
+**{course_name}**
+
+⫷
+
+● Attendance  -  Below {attendance_threshold[0]}%
+
+● Attend  {classes_needattend} classes for {attendance_threshold[0]}%
+
+● No Bunk Allowed
+
+⫸"""
+                    if ui_mode[0] == 0:
+                        await bot.send_message(chat_id,bunk_recover_msg_updated)
+                    else:
+                        await bot.send_message(chat_id,bunk_recover_msg_traditional)              
+    else:
+        await message.reply("Data not found.")
+    await buttons.start_user_buttons(bot,message)
