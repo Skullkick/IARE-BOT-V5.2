@@ -885,6 +885,76 @@ async def pat_attendance(bot,message):
     await bot.send_message(chat_id,over_all_attendance)
     await buttons.start_user_buttons(bot,message)
 
+async def gpa(bot,message):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    gpa_url = "https://samvidha.iare.ac.in/home?action=credit_register"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        gpa_response = s.get(gpa_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            return await gpa(bot,message)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+    try:
+        pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
+        sgpa_values = re.findall(pattern,gpa_response.text)
+        sgpa_values = [float(x) for x in sgpa_values]
+        cgpa = round(sum(sgpa_values) / len(sgpa_values) , 3)
+        gpa_message_updated_ui = """
+```GPA
+⫸ SGPA 
+
+"""
+        gpa_message_traditional_ui = """
+**GPA**
+⫸ SGPA
+"""
+        if ui_mode[0] == 0:
+            gpa_message = gpa_message_updated_ui
+        elif ui_mode[0] == 1:
+            gpa_message = gpa_message_traditional_ui
+        for i,sgpa in enumerate(sgpa_values,start = 1):
+            # print(i,sgpa)
+            sgpa_message = f'Semester {i} : {sgpa} \n \n'
+            gpa_message += sgpa_message 
+            
+
+        cgpa_updated_ui_message = f"""⫸ CGPA : {cgpa}  
+```
+"""
+        cgpa_message_traditional_ui = f"""
+⫸ CGPA : {cgpa} 
+"""
+        if ui_mode[0] == 0:
+            cgpa_message = cgpa_updated_ui_message
+        elif ui_mode[0] == 1:
+            cgpa_message = cgpa_message_traditional_ui
+        gpa_message += cgpa_message
+        return gpa_message
+    except Exception as e:
+        await bot.send_message(chat_id,f"Error Retrieving GPA : {e}")
+        return False
+
 
 async def report(bot,message):
     chat_id = message.from_user.id
