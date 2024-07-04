@@ -24,7 +24,7 @@ SETTINGS_BUTTONS = InlineKeyboardMarkup(
         [InlineKeyboardButton("Biometric Threshold",callback_data="biometric_threshold")],
         [InlineKeyboardButton("Title Extract",callback_data="title_extract")],
         [InlineKeyboardButton("User Interface", callback_data="ui")],
-        [InlineKeyboardButton("Labs Data",callback_data="labs_data")]
+        # [InlineKeyboardButton("Labs Data",callback_data="labs_data")]
     ]
 )
 SETTINGS_TEXT = "Welcome to the settings menu.\n\n Here, you can customize various aspects of your experience to suit your preferences."
