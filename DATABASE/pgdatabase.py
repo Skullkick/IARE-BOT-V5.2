@@ -1163,3 +1163,19 @@ async def clear_credentials_and_settings_database():
     finally:
         # Close the database connection
         await connection.close()
+
+async def clear_bot_manager_table():
+    connection = await connect_pg_database()
+    try:
+        # Execute the SQL command to delete banned users data
+        await connection.execute("DELETE FROM bot_manager")
+        print("bot_manager values have been removed successfully! from the database")
+        return True
+        # handles the exceptional errors .
+    except Exception as e:
+        print(f"Error while clearing banned user values from the database: {e}")
+        return False
+    
+    finally:
+        # Close the database connection
+        await connection.close()
