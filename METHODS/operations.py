@@ -955,6 +955,56 @@ async def gpa(bot,message):
         await bot.send_message(chat_id,f"Error Retrieving GPA : {e}")
         return False
 
+async def get_certificates(bot,message,profile_pic : bool,aadhar_card : bool,dob_certificate : bool,income_certificate : bool,ssc_memo : bool,inter_memo : bool):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    getuname = await tdatabase.load_username(chat_id)
+    username = getuname[2].upper()
+    img_url = f"https://iare-data.s3.ap-south-1.amazonaws.com/uploads/STUDENTS/"
+    if profile_pic is True:
+        img_url = img_url + f"{username}/{username}.jpg"
+    elif aadhar_card is True:
+        img_url = img_url + f"{username}/DOCS/{username}_Aadhar.jpg"
+    elif dob_certificate is True:
+        img_url = img_url + f"{username}/DOCS/{username}_Caste.jpg"
+    elif income_certificate is True:
+        img_url = img_url + f"{username}/DOCS/{username}_Income.jpg"
+    elif ssc_memo is True:
+        img_url = img_url + f"{username}/DOCS/{username}_SSC.jpg"
+    elif inter_memo is True:
+        img_url = img_url + f"{username}//DOCS/{username}_MARKSMEMO.jpg"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+    try:
+        response = requests.get(img_url)
+        response.raise_for_status()
+        # Create an in-memory file-like object
+        image_bytes = io.BytesIO(response.content)
+        image_bytes.name = f'{username}.jpg'
+        
+        # Send the image
+        await bot.send_photo(message.chat.id, photo=image_bytes)
+        # Ensure the BytesIO object is closed
+        image_bytes.close()
+    except requests.RequestException as e:
+        await message.reply_text(f'Failed to fetch the image: {e}')
+    await buttons.start_certificates_buttons(message)
+
+
 
 async def report(bot,message):
     chat_id = message.from_user.id
