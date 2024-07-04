@@ -224,3 +224,8 @@ async def main(bot):
             for chat_id in cie_tracker_chat_ids:
                 await manager_operations.cie_tracker(bot,chat_id)
         await asyncio.sleep(300)
+
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.create_task(main(bot))
+    bot.run()
