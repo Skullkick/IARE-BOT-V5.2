@@ -781,7 +781,6 @@ async def check_pat_student(bot,message):
     else:
         return False
 
-pat-attendance
 # PAT ATTENDENCE IF REGISTERED
 
 async def pat_attendance(bot,message):
