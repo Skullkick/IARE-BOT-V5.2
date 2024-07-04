@@ -1048,3 +1048,318 @@ The Changes that you have made are saved temporarily\n\n To save permanently Cli
             MANUAL_PAT_ATTENDANCE_INDEX_TEXT,
             reply_markup = MANUAL_PAT_ATTENDANCE_INDEX_BUTTON
         )
+    elif callback_query.data == "manager_index_biometric":
+        biometric_index_values = await user_settings.get_biometric_index_values()
+        if not biometric_index_values:
+            await user_settings.set_default_biometric_indexes()
+            biometric_index_values = await user_settings.get_biometric_index_values()
+        bio_status_index = biometric_index_values['status']
+        bio_intime_index = biometric_index_values['intime']
+        bio_outtime_index = biometric_index_values['outtime']
+        MANUAL_BIO_ATTENDANCE_INDEX_TEXT = f"""
+```BIOMETRIC ATTENDANCE
+
+IN TIME INDEX           : {bio_intime_index}
+
+OUT TIME INDEX          : {bio_outtime_index}
+
+STATUS INDEX            : {bio_status_index}
+
+The Changes that you have made are saved temporarily\n\n To save permanently Click on "SAVE CHANGES"
+```
+"""
+        MANUAL_BIO_ATTENDANCE_INDEX_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("-", callback_data="manager_bio_attendance-decrease-intime_index"), InlineKeyboardButton(bio_intime_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_bio_attendance-increase-intime_index")],
+                [InlineKeyboardButton("-", callback_data="manager_bio_attendance-decrease-outtime_index"), InlineKeyboardButton(bio_outtime_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_bio_attendance-increase-outtime_index")],
+                [InlineKeyboardButton("-", callback_data="manager_bio_attendance-decrease-status_index"), InlineKeyboardButton(bio_status_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_bio_attendance-increase-status_index")],
+                [InlineKeyboardButton("BACK", callback_data="manager_manual_configure_index")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            MANUAL_BIO_ATTENDANCE_INDEX_TEXT,
+            reply_markup = MANUAL_BIO_ATTENDANCE_INDEX_BUTTON
+        )
+    elif  "manager_attendance" in callback_query.data:
+        vary, column = callback_query.data.split("-")[1:]
+        current_attendance_index_values = await user_settings.get_attendance_index_values()
+        course_name_index = current_attendance_index_values['course_name']
+        attendance_percentage_index = current_attendance_index_values['attendance_percentage']
+        conducted_classes_index = current_attendance_index_values['conducted_classes']
+        attended_classes_index = current_attendance_index_values['attended_classes']
+        att_status_index = current_attendance_index_values['status']
+        if vary == "increase":
+            if column == "course_index":
+                course_name_index += 1
+            elif column == "att_%_index":
+                attendance_percentage_index += 1
+            elif column == "conducted_classes_index":
+                conducted_classes_index += 1
+            elif column == "attended_classes_index":
+                attended_classes_index += 1
+            elif column == "status_index":
+                att_status_index += 1
+        elif vary == "decrease":
+            if column == "course_index":
+                course_name_index -= 1
+            elif column == "att_%_index":
+                attendance_percentage_index -= 1
+            elif column == "conducted_classes_index":
+                conducted_classes_index -= 1
+            elif column == "attended_classes_index":
+                attended_classes_index -= 1
+            elif column == "status_index":
+                att_status_index -= 1
+
+        await user_settings.set_attendance_indexes(
+            course_name_index,
+            conducted_classes_index,
+            attended_classes_index,
+            attendance_percentage_index,
+            att_status_index
+        )
+        MANUAL_ATTENDANCE_INDEX_TEXT = f"""
+```ATTENDANCE
+
+COURSE NAME INDEX       : {course_name_index}
+
+CONDUCTED CLASSES INDEX : {conducted_classes_index}
+
+ATTENDED CLASSES INDEX  : {attended_classes_index}
+
+ATTENDANCE % INDEX      : {attendance_percentage_index}
+
+STATUS INDEX            : {att_status_index}
+```
+"""
+        MANUAL_ATTENDANCE_INDEX_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-course_index"), InlineKeyboardButton(course_name_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-course_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-conducted_classes_index"), InlineKeyboardButton(conducted_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-conducted_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-attended_classes_index"), InlineKeyboardButton(attended_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-attended_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-att_%_index"), InlineKeyboardButton(attendance_percentage_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-att_%_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_attendance-decrease-status_index"), InlineKeyboardButton(att_status_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_attendance-increase-status_index")],
+                    [InlineKeyboardButton("SAVE CHANGES",callback_data="manager_save_indexes-attendance")],
+                    [InlineKeyboardButton("BACK", callback_data="manager_manual_configure_index")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            MANUAL_ATTENDANCE_INDEX_TEXT,
+            reply_markup = MANUAL_ATTENDANCE_INDEX_BUTTON
+        )
+    elif "manager_pat_attendance" in callback_query.data:
+        vary, column = callback_query.data.split("-")[1:]
+        current_attendance_index_values = await user_settings.get_pat_attendance_index_values()
+        course_name_index = current_attendance_index_values['course_name']
+        attendance_percentage_index = current_attendance_index_values['attendance_percentage']
+        conducted_classes_index = current_attendance_index_values['conducted_classes']
+        attended_classes_index = current_attendance_index_values['attended_classes']
+        att_status_index = current_attendance_index_values['status']
+        if vary == "increase":
+            if column == "course_index":
+                course_name_index += 1
+            elif column == "att_%_index":
+                attendance_percentage_index += 1
+            elif column == "conducted_classes_index":
+                conducted_classes_index += 1
+            elif column == "attended_classes_index":
+                attended_classes_index += 1
+            elif column == "status_index":
+                att_status_index += 1
+        elif vary == "decrease":
+            if column == "course_index":
+                course_name_index -= 1
+            elif column == "att_%_index":
+                attendance_percentage_index -= 1
+            elif column == "conducted_classes_index":
+                conducted_classes_index -= 1
+            elif column == "attended_classes_index":
+                attended_classes_index -= 1
+            elif column == "status_index":
+                att_status_index -= 1
+
+        await user_settings.set_pat_attendance_indexes(
+            course_name_index,
+            conducted_classes_index,
+            attended_classes_index,
+            attendance_percentage_index,
+            att_status_index
+        )
+        MANUAL_PAT_ATTENDANCE_INDEX_TEXT = f"""
+```PAT ATTENDANCE
+
+COURSE NAME INDEX       : {course_name_index}
+
+ATTENDANCE % INDEX      : {attendance_percentage_index}
+
+CONDUCTED CLASSES INDEX : {conducted_classes_index}
+
+ATTENDED CLASSES INDEX  : {attended_classes_index}
+
+STATUS INDEX            : {att_status_index}
+```
+"""
+        MANUAL_PAT_ATTENDANCE_INDEX_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-course_index"), InlineKeyboardButton(course_name_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-course_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-conducted_classes_index"), InlineKeyboardButton(conducted_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-conducted_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-attended_classes_index"), InlineKeyboardButton(attended_classes_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-attended_classes_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-att_%_index"), InlineKeyboardButton(attendance_percentage_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-att_%_index")],
+                    [InlineKeyboardButton("-", callback_data="manager_pat_attendance-decrease-status_index"), InlineKeyboardButton(att_status_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_pat_attendance-increase-status_index")],
+                    [InlineKeyboardButton("SAVE CHANGES",callback_data="manager_save_indexes-pat_attendance")],
+                    [InlineKeyboardButton("BACK", callback_data="manager_manual_configure_index")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            MANUAL_PAT_ATTENDANCE_INDEX_TEXT,
+            reply_markup = MANUAL_PAT_ATTENDANCE_INDEX_BUTTON
+        )
+    elif "manager_bio_attendance" in callback_query.data:
+        vary, column = callback_query.data.split("-")[1:]
+        biometric_index_values = await user_settings.get_biometric_index_values()
+        bio_status_index = int(biometric_index_values['status'])
+        bio_intime_index = int(biometric_index_values['intime'])
+        bio_outtime_index = int(biometric_index_values['outtime'])
+        if vary == "increase":
+            if column == "status_index":
+                bio_status_index = bio_status_index + 1
+                print(bio_status_index)
+                print(bio_intime_index)
+                print(bio_outtime_index)
+            elif column == "intime_index":
+                bio_intime_index = bio_intime_index + 1
+            elif column == "outtime_index":
+                bio_outtime_index = bio_outtime_index + 1
+        elif vary == "decrease":
+            if column == "status_index":
+                bio_status_index = bio_status_index-1
+            elif column == "intime_index":
+                bio_intime_index = bio_intime_index-1
+            elif column == "outtime_index":
+                bio_outtime_index = bio_outtime_index-1
+        await user_settings.set_biometric_indexes(
+            bio_intime_index,
+            bio_outtime_index,
+            bio_status_index
+        )
+        MANUAL_BIO_ATTENDANCE_INDEX_TEXT = f"""
+```BIOMETRIC ATTENDANCE
+
+IN TIME INDEX           : {bio_intime_index}
+
+OUT TIME INDEX          : {bio_outtime_index}
+
+STATUS INDEX            : {bio_status_index}
+```
+"""
+        MANUAL_BIO_ATTENDANCE_INDEX_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("-", callback_data="manager_bio_attendance-decrease-intime_index"), InlineKeyboardButton(bio_intime_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_bio_attendance-increase-intime_index")],
+                [InlineKeyboardButton("-", callback_data="manager_bio_attendance-decrease-outtime_index"), InlineKeyboardButton(bio_outtime_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_bio_attendance-increase-outtime_index")],
+                [InlineKeyboardButton("-", callback_data="manager_bio_attendance-decrease-status_index"), InlineKeyboardButton(bio_status_index, callback_data="None"), InlineKeyboardButton("+", callback_data="manager_bio_attendance-increase-status_index")],
+                [InlineKeyboardButton("SAVE CHANGES", callback_data="manager_save_indexes-bio_attendance")],
+                [InlineKeyboardButton("BACK", callback_data="manager_manual_configure_index")]
+            ]
+        )
+
+        await callback_query.edit_message_text(
+            MANUAL_BIO_ATTENDANCE_INDEX_TEXT,
+            reply_markup = MANUAL_BIO_ATTENDANCE_INDEX_BUTTON
+        )
+    elif "manager_save_indexes" in callback_query.data:
+        column = callback_query.data.split("-")[1:][0]
+        if column == "attendance":
+            attendance_index_values_dictionary = await user_settings.get_attendance_index_values()
+            await pgdatabase.set_attendance_indexes(attendance_index_values_dictionary)
+        elif column == "pat_attendance":
+            pat_attendance_index_values = await user_settings.get_pat_attendance_index_values()
+            await pgdatabase.set_pat_attendance_indexes(pat_attendance_index_values)
+        elif column == "bio_attendance":
+            bio_attendance_index_values = await user_settings.get_biometric_index_values()
+            await pgdatabase.set_biometric_indexes(bio_attendance_index_values)
+        await callback_query.answer()
+    elif "manager_add_maintainer_by_admin" in callback_query.data:
+        _message = callback_query.message
+        data = callback_query.data.split("-")[1:]
+        maintainer_name = data[0]
+        maintainer_chat_id = data[1]
+        await manager_operations.add_maintainer(bot,_message,maintainer_chat_id,maintainer_name)
+        await callback_query.message.delete()
+    elif "manager_cancel_add_maintainer" in callback_query.data:
+       await callback_query.message.delete()
+       await bot.send_message(callback_query.message.chat.id,"Cancelled Adding Maintainer")
+    elif "manager_admins" in callback_query.data:
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        # await managers_handler.fetch_name()
+        admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+        # Prepare the inline keyboard buttons
+        button = []
+        for admin_chat_id in admin_chat_ids:
+            # Fetch the username for each admin chat ID
+            username = await managers_handler.fetch_name(admin_chat_id)
+            # Create a button with the username and callback data including the chat ID
+            button.append([
+                InlineKeyboardButton(
+                    text=username,
+                    callback_data=f"manager_select_admin-{admin_chat_id}"
+                )
+            ])
+        # Adding Back button
+        button.append([InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")])
+        # Create an inline keyboard markup
+        admin_button = InlineKeyboardMarkup(inline_keyboard=button)
+        
+        # Send the message with inline keyboard (or edit the existing message)
+        await callback_query.edit_message_text(
+            "Administrators : ",
+            reply_markup = admin_button
+        )
+    elif "manager_select_admin" in callback_query.data:
+        chat_id = callback_query.message.chat.id
+        admin_chat_id = callback_query.data.split("-")[1:][0]
+        admin_name = await managers_handler.fetch_name(admin_chat_id) # Fetching the name of the manager
+        if chat_id == int(admin_chat_id):
+            SELECT_ADMIN_TEXT = f"Admin Name : **{admin_name}**"
+            SELECT_ADMIN_BUTTON = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton("QUIT RESPONSIBILITY",callback_data=f"manager_quit_admin_responsibilities-{admin_chat_id}")],
+                    [InlineKeyboardButton("BACK",callback_data="manager_admins")]
+                ]
+            )
+        else:
+            SELECT_ADMIN_TEXT = f"Admin Name : **{admin_name}**"
+            SELECT_ADMIN_BUTTON = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton("REMOVE",callback_data=f"manager_remove_admin_responsibilities-{admin_chat_id}")],
+                    [InlineKeyboardButton("BACK",callback_data="manager_admins")]
+                ]
+            )
+
+        await callback_query.edit_message_text(# Editing the message with the updated text and buttons
+            SELECT_ADMIN_TEXT,
+            reply_markup = SELECT_ADMIN_BUTTON
+        )
+    elif "manager_quit_admin_responsibilities" in callback_query.data:
+        admin_chat_id = callback_query.data.split("-")[1:][0]
+        await managers_handler.remove_admin(admin_chat_id)
+        await pgdatabase.remove_admin(admin_chat_id) # Removing admin from the pgdatabase
+        if await managers_handler.remove_cgpa_tracker_details(int(chat_id)): # remove if there is any cgpa tracker from local database
+            await pgdatabase.remove_cgpa_tracker_details(int(chat_id)) # remove tracker if the tracker is found and removed from the local database
+        await callback_query.answer()
+        await callback_query.message.delete()
+        await bot.send_message(admin_chat_id,"Your resignation as an administrator has been processed. We value your efforts and wish you the best.")
+    elif "manager_remove_admin_responsibilities" in callback_query.data :
+        user_chat_id = callback_query.message.chat.id
+        user_name = await manager_operations.get_username(bot,user_chat_id)
+        admin_chat_id = callback_query.data.split("-")[1:][0]
+        admin_name = await manager_operations.get_username(bot,admin_chat_id)
+        await managers_handler.remove_admin(admin_chat_id)
+        await pgdatabase.remove_admin(admin_chat_id) # Removing admin from the pgdatabase
+        if await managers_handler.remove_cgpa_tracker_details(int(chat_id)): # remove if there is any cgpa tracker from local database
+            await pgdatabase.remove_cgpa_tracker_details(int(chat_id)) # remove tracker if the tracker is found and removed from the local database
+        await callback_query.answer()
+        await bot.send_message(user_chat_id,f"You have removed {admin_name} as Admin.")
+        await bot.send_message(admin_chat_id,f"You are no longer an admin, as per {user_name}'s decision.")
+    elif callback_query.data == "None":
+            await callback_query.answer()
