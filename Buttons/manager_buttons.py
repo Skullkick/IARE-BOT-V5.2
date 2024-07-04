@@ -1363,3 +1363,302 @@ STATUS INDEX            : {bio_status_index}
         await bot.send_message(admin_chat_id,f"You are no longer an admin, as per {user_name}'s decision.")
     elif callback_query.data == "None":
             await callback_query.answer()
+    elif callback_query.data == "manager_track_cgpa":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        tracker_details = await managers_handler.get_cgpa_tracker_details(chat_id)
+        if tracker_details:
+            status,current_cgpa = tracker_details
+            if status:
+                CGPA_TRACKER_TEXT = F"""
+```CGPA TRACKER
+Your CGPA tracker is Live.
+
+Your Current CGPA is {current_cgpa}
+
+You will get notified of your result if your results are out.
+
+To stop tracking your CGPA, Click on \"Stop\"
+```
+"""
+                CGPA_TRACKER_BUTTON = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton("Stop",callback_data = "manager_stop_cgpa_tracker")],
+                        [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+                    ]
+                    )
+            else:
+                CGPA_TRACKER_TEXT = f"""
+```
+CGPA Tracker can be used to track the result
+
+This tracks the CGPA every 10 minutes and if there is any change in the CGPA the updated CGPA and SGPA will be sent to your chat
+
+Click on \"Start\" to start the tracker
+
+```
+"""
+                CGPA_TRACKER_BUTTON = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton("Start",callback_data = "manager_start_cgpa_tracker")],
+                        [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+                    ]
+                    )
+        elif tracker_details is None:
+            CGPA_TRACKER_TEXT = f"""
+```
+CGPA Tracker can be used to track the result
+
+This tracks the CGPA every 10 minutes and if there is any change in the CGPA the updated CGPA and SGPA will be sent to your chat
+
+Click on \"Start\" to start the tracker
+```"""
+            CGPA_TRACKER_BUTTON = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton("Start",callback_data = f"manager_start_cgpa_tracker")],
+                    [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+                ]
+                )
+        await callback_query.edit_message_text(
+            CGPA_TRACKER_TEXT,
+            reply_markup = CGPA_TRACKER_BUTTON
+        )
+    elif callback_query.data == "manager_track_cie":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        tracker_details = await managers_handler.get_cie_tracker_details(chat_id=chat_id)
+        if tracker_details:
+            status,current_cie = tracker_details
+            if status:
+                CIE_TRACKER_TEXT = F"""
+```CIE TRACKER
+Your CIE tracker is Live.
+
+Your Current CIE Marks are {current_cie}
+
+You will get notified of your result if your results are out.
+
+To stop tracking your CIE , Click on \"Stop\"
+```
+"""
+                CIE_TRACKER_BUTTON = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton("Stop",callback_data = "manager_stop_cie_tracker")],
+                        [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+                    ]
+                    )
+            else:
+                CIE_TRACKER_TEXT = f"""
+```
+CIE Tracker can be used to track the result
+
+This tracks the CIE every 10 minutes and if there is any change in the CIE marks, the updated CIE marks will be sent to your chat
+
+Click on \"Start\" to start the tracker
+
+```
+"""
+                CIE_TRACKER_BUTTON = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton("Start",callback_data = "manager_start_cie_tracker")],
+                        [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+                    ]
+                    )
+        elif tracker_details is None:
+            CIE_TRACKER_TEXT = f"""
+```
+CIE Tracker can be used to track the result
+
+This tracks the CIE every 10 minutes and if there is any change in the CIE, the updated CIE marks will be sent to your chat
+
+Click on \"Start\" to start the tracker
+```"""
+            CIE_TRACKER_BUTTON = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton("Start",callback_data = f"manager_start_cie_tracker")],
+                    [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+                ]
+                )
+        await callback_query.edit_message_text(
+            CIE_TRACKER_TEXT,
+            reply_markup = CIE_TRACKER_BUTTON
+        )
+    elif callback_query.data == "manager_start_cie_tracker":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_cie = await manager_operations.total_cie_marks(bot,chat_id)
+        await managers_handler.store_cie_tracker_details(chat_id,1,current_cie)
+        await pgdatabase.store_cie_tracker_details(chat_id,True,current_cie)
+        tracker_details = await managers_handler.get_cie_tracker_details(chat_id)
+        status,current_cie = tracker_details
+        CIE_START_TRACKER_TEXT = F"""
+```CIE TRACKER
+Your CIE tracker is Live.
+
+Your Current CIE Marks are {current_cie}
+
+You will get notified of your result if your results are out.
+
+To stop tracking your CIE, Click on \"Stop\"
+```
+"""
+        CIE_START_TRACKER_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Stop",callback_data = f"manager_stop_cie_tracker")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            CIE_START_TRACKER_TEXT,
+            reply_markup = CIE_START_TRACKER_BUTTON
+        )
+    
+    elif callback_query.data == "manager_stop_cie_tracker":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_cie = await manager_operations.total_cie_marks(bot,chat_id)
+        await managers_handler.store_cie_tracker_details(chat_id,0,current_cie)
+        await pgdatabase.store_cie_tracker_details(chat_id,False,current_cie)
+        CIE_STOP_TRACKER_TEXT = f"""
+```CIE TRACKER
+CIE Tracker has been stopped
+
+Hope Tracker helped you to track the latest CIE Marks
+
+```
+"""
+        CIE_STOPPED_TRACKER_BUTTON =  InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Start",callback_data = f"manager_start_cie_tracker")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            CIE_STOP_TRACKER_TEXT,
+            reply_markup = CIE_STOPPED_TRACKER_BUTTON
+        )
+    elif callback_query.data == "manager_start_cgpa_tracker":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
+        await managers_handler.store_cgpa_tracker_details(chat_id,1,current_cgpa)
+        await pgdatabase.store_cgpa_tracker_details(chat_id,True,current_cgpa)
+        tracker_details = await managers_handler.get_cgpa_tracker_details(chat_id)
+        status,current_cgpa = tracker_details
+        CGPA_START_TRACKER_TEXT = F"""
+```CGPA TRACKER
+Your CGPA tracker is Live.
+
+Your Current CGPA is {current_cgpa}
+
+You will get notified of your result if your results are out.
+
+To stop tracking your CGPA, Click on \"Stop\"
+```
+"""
+        CGPA_START_TRACKER_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Stop",callback_data = f"manager_stop_cgpa_tracker")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            CGPA_START_TRACKER_TEXT,
+            reply_markup = CGPA_START_TRACKER_BUTTON
+        )
+    elif callback_query.data == "manager_stop_cgpa_tracker":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
+        await managers_handler.store_cgpa_tracker_details(chat_id,0,current_cgpa)
+        await pgdatabase.store_cgpa_tracker_details(chat_id,False,current_cgpa)
+        CGPA_STOP_TRACKER_TEXT = f"""
+```CGPA TRACKER
+CGPA Tracker has been stopped
+
+Hope Tracker helped you to track the latest GPA
+
+```
+"""
+        CGPA_STOPPED_TRACKER_BUTTON =  InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Start",callback_data = f"manager_start_cgpa_tracker")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            CGPA_STOP_TRACKER_TEXT,
+            reply_markup = CGPA_STOPPED_TRACKER_BUTTON
+        )
+
+    elif callback_query.data == "manager_stop_cgpa_tracker":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_cie = await manager_operations.total_cie_marks(bot,chat_id)
+        await managers_handler.store_cie_tracker_details(chat_id,0,current_cie)
+        await pgdatabase.store_cie_tracker_details(chat_id,False,current_cie)
+        CIE_STOP_TRACKER_TEXT = f"""
+```CIE TRACKER
+CIE Tracker has been stopped
+
+Hope Tracker helped you to track the latest CIE marks
+
+```
+"""
+        CIE_STOPPED_TRACKER_BUTTON =  InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Start",callback_data = f"manager_start_cie_tracker")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            CIE_STOP_TRACKER_TEXT,
+            reply_markup = CIE_STOPPED_TRACKER_BUTTON
+        )
+    elif callback_query.data == "manager_server_stats":
+        SERVER_STATS_MESSAGE = f"""
+```SERVER STATS
+{await manager_operations.get_server_stats()}
+```"""
+        BACK_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            SERVER_STATS_MESSAGE,
+            reply_markup = BACK_BUTTON
+        )
+    elif callback_query.data == "manager_sync_databases":
+        SYNC_DATABASE_TEXT = "Select the databases that you want to sync."
+        SYNC_DATABASE_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("CREDENTIALS",callback_data="manager_select_sync_database-credentials")],
+                [InlineKeyboardButton("USER SETTINGS",callback_data="manager_select_sync_database-user_settings")],
+                [InlineKeyboardButton("REPORTS",callback_data="manager_select_sync_database-reports")],
+                [InlineKeyboardButton("BANNED USERS",callback_data="manager_select_sync_database-banned_users")],
+                [InlineKeyboardButton("INDEX DATA",callback_data="manager_select_sync_database-index_data")],
+                [InlineKeyboardButton("BOT MANAGER DATA",callback_data="manager_select_sync_database-bot_manager_data")],
+                [InlineKeyboardButton("BACK",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            SYNC_DATABASE_TEXT,
+            reply_markup = SYNC_DATABASE_BUTTONS
+        )
+    elif "manager_select_sync_database" in callback_query.data:
+        table_name = callback_query.data.split("-")[1]
+        if table_name == "credentials":
+            await operations.perform_sync_credentials(bot)
+        elif table_name == "user_settings":
+            await operations.perform_sync_user_settings(bot)
+        elif table_name == "reports":
+            await operations.perform_sync_reports(bot)
+        elif table_name == "banned_users":
+            await operations.perform_sync_banned_users(bot)
+        elif table_name == "index_data":
+            await operations.perform_sync_index_data(bot)
+        elif table_name == "bot_manager_data":
+            await operations.perform_sync_bot_manager_data(bot)
+        await callback_query.answer()
+    
