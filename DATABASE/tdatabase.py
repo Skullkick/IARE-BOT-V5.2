@@ -112,3 +112,78 @@ async def create_banned_users_table():
             )
         """)
         conn.commit()
+
+async def fetch_usernames_total_users_db():
+    with sqlite3.connect(TOTAL_USERS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM users")
+        usernames = [row[0] for row in cursor.fetchall()]
+    return usernames
+
+
+async def fetch_number_of_total_users_db():
+    with sqlite3.connect(TOTAL_USERS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_count = cursor.fetchone()[0]
+    return total_count
+        
+
+async def store_user_session(chat_id, session_data, user_id):
+    """
+    Store the user session data in the SQLite database.
+
+    Parameters:
+        chat_id (int): The chat ID of the user.
+        session_data (str): JSON-formatted string containing the session data.
+    """
+    with sqlite3.connect(DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO sessions (chat_id, session_data, user_id) VALUES (?, ?, ?)",
+                       (chat_id, session_data, user_id))
+        
+        conn.commit()
+
+async def load_user_session(chat_id):
+    with sqlite3.connect(DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT session_data FROM sessions WHERE chat_id=?", (chat_id,))
+        result = cursor.fetchone()
+        if result:
+            session_data = json.loads(result[0])
+            # Check if the session data contains the 'username'
+            if 'username' in session_data:
+                return session_data
+            else:
+                return None
+
+async def load_username(chat_id):
+    with sqlite3.connect(DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM sessions WHERE chat_id=?", (chat_id,))
+        row = cursor.fetchone()
+        if row:
+            return row
+        else:
+            return None
+
+async def delete_user_session(chat_id):
+    """
+    Delete the user session data from the SQLite database.
+
+    Parameters:
+        chat_id (int): The chat ID of the user.
+    """
+    with sqlite3.connect(DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sessions WHERE chat_id=?", (chat_id,))
+        conn.commit()
+
+async def clear_sessions_table():
+    """
+    Clear all rows from the sessions table.
+    """
+    with sqlite3.connect(DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sessions")
+        conn.commit()
