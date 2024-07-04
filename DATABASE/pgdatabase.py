@@ -154,3 +154,23 @@ async def create_bot_managers_tables():
         return False
     finally:
         await connection.close()
+
+async def create_indexes_table():
+    """
+    Create the necessary table for the index values in sqlite database
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS index_values(
+            name VARCHAR(40) PRIMARY KEY,
+            index_ VARCHAR(350)
+            )
+            """)
+        return True
+    except Exception as e:
+        print(f"error in creating the indexes_table {e}")
+        return False
+    finally:
+        await connection.close()
