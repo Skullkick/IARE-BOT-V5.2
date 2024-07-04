@@ -62,3 +62,30 @@ async def settings_buttons(bot,message):
         await buttons.start_user_settings(bot, message)
     except Exception as e:
         logging.error("Error in 'settings' command: %s", e)
+
+# @bot.on_message(filters.command(commands=['attendance']))
+async def _attendance(bot,message):
+    await operations.attendance(bot,message)
+    await buttons.start_user_buttons(bot,message)
+# @bot.on_message(filters.command(commands=['biometric']))
+async def _biometric(bot,message):
+    await operations.biometric(bot,message)
+    await buttons.start_user_buttons(bot,message)
+# @bot.on_message(filters.command(commands=['bunk']))
+async def _bunk(bot,message):
+    await operations.bunk(bot,message)
+    await buttons.start_user_buttons(bot,message)
+# @bot.on_message(filters.command(commands=['profile']))
+async def _profile_details(bot,message):
+    await operations.profile_details(bot,message)
+# @bot.on_message(filters.command(commands=['del_save']))
+async def delete_login_details_pgdatabase(bot,message):
+    chat_id = message.chat.id
+    await pgdatabase.remove_saved_credentials(bot,chat_id)
+# @bot.on_message(filters.command(commands="deletepdf"))
+async def delete_pdf(bot,message):
+    chat_id = message.chat.id
+    if await labs_handler.remove_pdf_file(chat_id) is True:
+        await bot.send_message(chat_id,"Deleted Successfully")
+    else:
+        await bot.send_message(chat_id,"Failed")
