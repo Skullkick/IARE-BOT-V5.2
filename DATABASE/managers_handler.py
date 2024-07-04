@@ -360,3 +360,133 @@ async def get_access_data(chat_id):
         """, (chat_id,))
         access_data = cursor.fetchone()
         return access_data
+async def set_access_users_true(chat_id):
+    """
+    This function is used to set the access users to true.
+    :param chat_id: Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET access_users = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_access_users_false(chat_id):
+    """
+    This function is used to set the access users to false
+    :param chat_id: Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET access_users = ? WHERE chat_id = ?",(0,chat_id))
+        conn.commit()
+
+async def set_announcement_access_true(chat_id):
+    """
+    This function is used to set the announcement to true and can be used to know whether the manager has access to the announcements or not.
+    :param chat_id : Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET announcement = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_configure_access_true(chat_id):
+    """
+    This function is used to set the configure value to true.
+    :param chat_id : Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET configure = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_show_reports_access_true(chat_id):
+    """
+    This Function is used to set the show requests access as true.
+    :param chat_id: Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET show_reports = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_reply_reports_access_true(chat_id):
+    """This Function is used to set the reply_reports access as true
+    :param chat_id: Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET reply_reports = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_clear_reports_access_true(chat_id):
+    """
+    This Function is used to set the clear requests access as true
+    :param chat_id: chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET clear_reports = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_ban_username_access_true(chat_id):
+    """
+    This function is used to set the ban username access as true
+    :param chat_id: Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET ban_username = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_unban_username_access_true(chat_id):
+    """
+    This Function is used to set the unban username access as true
+    :param chat_id: Chat id of the user.
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET unban_username = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_manage_maintainers_access_true(chat_id):
+    """
+    This function is used to set the manage_maintainers access as true
+    :param chat_id: Chat id of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET manage_maintainers = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_logs_access_true(chat_id):
+    """
+    This Function is used to set the logs access as true
+    :param chat_id: Chat id of the user.
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET logs = ? WHERE chat_id = ?",(1,chat_id))
+        conn.commit()
+
+async def set_all_access_true(chat_id):
+    """
+    This Function is used to set all access data parameters as true, Mainly used if we want to give full access.
+    :param chat_id: Chat id of the user """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE bot_managers 
+            SET access_users = ?,
+                announcement = ?,
+                configure = ?,
+                show_reports = ?,
+                reply_reports = ?,
+                clear_reports = ?,
+                ban_username = ?,
+                unban_username = ?,
+                manage_maintainers = ?,
+                logs = ?
+            WHERE chat_id = ?
+        """, (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, chat_id))
+        conn.commit()
