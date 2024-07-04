@@ -254,3 +254,21 @@ async def get_username(chat_id):
     finally:
         if connection:
             await connection.close()
+
+async def store_banned_username(username):
+    """
+    This Function is used to store the banned username in the database
+    :param username : Username of the banned user.
+    Note : Store the banned username by converting it to lowercase or uppercase
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute(
+            "INSERT INTO banned_users (username) VALUES (LOWER($1))", username.lower()
+        )
+        return True
+    except Exception as e:
+        print("error occured while storing the banned username into pgdatabase")
+        return False
+    finally:
+        await connection.close()
