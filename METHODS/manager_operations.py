@@ -1,3 +1,10 @@
+# This file containg all the code regarding manager operations on database, testing,etc..
+
+from DATABASE import tdatabase,pgdatabase,managers_handler,user_settings
+from Buttons import buttons,manager_buttons
+import re,requests,json,psutil
+from METHODS import operations
+from bs4 import BeautifulSoup
 import sqlite3,os
 
 # access_users = access_data[0]
