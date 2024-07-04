@@ -1004,6 +1004,83 @@ async def get_certificates(bot,message,profile_pic : bool,aadhar_card : bool,dob
         await message.reply_text(f'Failed to fetch the image: {e}')
     await buttons.start_certificates_buttons(message)
 
+async def profile_details(bot,message):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    profile_url = "https://samvidha.iare.ac.in/home?action=profile"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        profile_response = s.get(profile_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in profile_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            await profile_details(bot,message)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+    soup = BeautifulSoup(profile_response.text,'html.parser')
+    data = {}
+    for dt in soup.find_all('dt'):
+        key = dt.get_text(strip=True)
+        dd = dt.find_next_sibling('dd')
+        if dd:
+            value = dd.get_text(strip=True)
+            data[key] = value
+
+
+    for  strong in soup.find_all('strong'):
+        key = strong.get_text(strip=True)
+        p = strong.find_next_sibling('p')
+        if p:
+            value = p.get_text(strip=True)
+            data[key] = value
+
+
+
+    sections = [
+        ["Name", "Roll Number", "JNTUH AEBAS", "ABC ID"],
+        ["Branch", "Year/Sem", "Section", "Admission No", "EAMCET RANK", "Date of Joining"],
+        ["AAdhar Number", "Date of Birth"],
+        ["Student Phone", "Student Email-id", "Domain Email-id"],
+        ["Parent Phone", "Parent Email-id"]
+    ]
+    if ui_mode[0] == 0:
+        profile_details_message = """
+```Profile Details
+"""
+    elif ui_mode[0] ==1:
+        profile_details_message = """
+**Profile Details**\n
+"""
+
+
+    for section in sections:
+        profile_details_message += "\n---\n"
+        for key in section:
+            value = data.get(key, "N/A")
+            details_message = (f"\n {key}: {value} \n")
+            profile_details_message += details_message 
+    if ui_mode[0] == 0:
+        profile_details_message += '\n---\n```'
+    elif ui_mode[0] == 1:
+        profile_details_message += '\n---\n'
+    return profile_details_message
 
 
 async def report(bot,message):
