@@ -57,3 +57,24 @@ async def create_cgpa_tracker_table():
             )
         """)
         conn.commit()
+
+async def create_cie_tracker_table():
+    """
+    This function is used to create a table in MANAGERS_DATABASE 
+    columns :
+    
+    - chat_id
+    - status
+    - current_cie_marks
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        # Create a table to store user sessions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cie_tracker (
+                chat_id INTEGER PRIMARY KEY,
+                status BOOLEAN DEFAULT 0,
+                current_cie_marks TEXT
+            )
+        """)
+        conn.commit()
