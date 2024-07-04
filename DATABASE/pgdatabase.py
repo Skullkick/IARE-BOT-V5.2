@@ -337,3 +337,25 @@ async def store_cie_tracker_details(chat_id: int, status: bool, current_cie: str
         return True
     except Exception as e:
         print(f"Error storing cie tracker values: {e}")
+
+
+async def remove_cgpa_tracker_details(chat_id):
+    """
+    This function is used to remove the row in cgpa_tracker table based on the chat_id
+    :param chat_id: Chat id of the user
+
+    """
+
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute(
+            "DELETE FROM cgpa_tracker WHERE chat_id = $1",(chat_id)
+        )
+        return True
+
+    except Exception as e:
+        print(f"error while removing the cgpa tracker details {e}. ")
+        return False
+    finally:
+        await connection.close()
