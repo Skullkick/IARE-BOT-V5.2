@@ -535,3 +535,89 @@ async def store_as_admin(name,chat_id):
     
     finally:
         await connection.close()
+
+async def store_as_maintainer(name,chat_id):
+
+    """
+    Perform storing the user as maintainer
+    :param chat_id: Chat id of the maintainer.
+    :param name: Name of the user"""
+
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            await connection.execute("INSERT INTO bot_managers (chat_id,maintainer,name,control_access) VALUES ($1,$2,$3,$4)",int(chat_id),True,name,'limited')
+        return True
+
+    except Exception as e:
+        print(f"error in maintainer table{e}")
+        return False
+
+    finally:
+        await connection.close()
+
+async def update_access_data_pgdatabase(maintainer_chat_id,access_data,announcement,configure,show_reports,reply_reports,clear_reports,ban_username,unban_username,manage_maintainers,logs):
+    connection = await connect_pg_database()
+    try:
+        await connection.execute('''
+            UPDATE bot_managers
+            SET access_users = $1,
+                announcement = $2,
+                configure = $3,
+                show_reports = $4,
+                reply_reports = $5,
+                clear_reports = $6,
+                ban_username = $7,
+                unban_username = $8,
+                manage_maintainers = $9,
+                logs = $10
+            WHERE chat_id = $11
+        ''', access_data, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs, int(maintainer_chat_id))
+        
+    finally:
+        await connection.close()
+
+async def store_reports(unique_id: str, user_id: str, message: str, chat_id: str, 
+                        replied_message: str, replied_maintainer: str, reply_status: str) -> bool:
+    """
+    This function is used to store the reports sent by the user.
+
+    :param unique_id: Unique id which is generated for the specific report
+    :param user_id: User ID of the user
+    :param message: Report sent by the user
+    :param chat_id: Chat ID of the user
+    :param replied_message: Replied message
+    :param replied_maintainer: Replied maintainer
+    :param reply_status: Reply status
+    """
+    connection = await connect_pg_database()
+    try:
+        existing_report = await connection.fetchrow("SELECT * FROM pending_reports WHERE unique_id = $1", unique_id)
+        if existing_report:
+            # Update existing report fields if they are provided
+            if user_id is not None:
+                await connection.execute("UPDATE pending_reports SET user_id = $1 WHERE unique_id = $2", user_id, unique_id)
+            if message is not None:
+                await connection.execute("UPDATE pending_reports SET message = $1 WHERE unique_id = $2", message, unique_id)
+            if chat_id is not None:
+                await connection.execute("UPDATE pending_reports SET chat_id = $1 WHERE unique_id = $2", chat_id, unique_id)
+            if replied_message is not None:
+                await connection.execute("UPDATE pending_reports SET replied_message = $1 WHERE unique_id = $2", replied_message, unique_id)
+            if replied_maintainer is not None:
+                await connection.execute("UPDATE pending_reports SET replied_maintainer = $1 WHERE unique_id = $2", replied_maintainer, unique_id)
+            if reply_status is not None:
+                await connection.execute("UPDATE pending_reports SET reply_status = $1 WHERE unique_id = $2", reply_status, unique_id)
+        else:
+            # Insert new report if it doesn't exist
+            await connection.execute(
+                "INSERT INTO pending_reports (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+                unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status
+            )
+        return True
+
+    except Exception as e:
+        print(f"Error in maintainer table: {e}")
+        return False
+
+    finally:
+        await connection.close()
