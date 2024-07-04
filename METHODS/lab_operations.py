@@ -448,3 +448,142 @@ async def upload_pdf(bot,message,sub_code,user_details,upload_details):
         s.cookies.update(cookies)
     response = requests.post(url, headers=headers, files=files, cookies=cookies)
     return response.json()
+
+
+async def upload_lab_record(bot,message,title,subject_code,week_no):
+    """
+    This Function is used to upload the the pdf to the samvidha by retreiving the required data from the database.
+
+    :param bot: Pyrogram Client.
+    :param message: message sent by the user.
+    :param subject_code: Code of the subject
+    :param week_no: Week number of the selected subject
+    :return: None
+    """
+    # chat_id of the user based on the message sent by the user
+    chat_id = message.chat.id
+    print("started sending intiated message")
+    message_sent_when_started = await bot.send_message(chat_id,"Initiated retrieval of necessary data for uploading.")
+    pdf_folder = "pdfs"
+    print("started sending intiated message : 2")
+    if await labs_handler.check_pdf_size_above_1mb(chat_id) is True:
+        print("PDF above 1 mb")
+        message_of_pdf_operation_start = await bot.edit_message_text(chat_id,message_sent_when_started.id,"PDF Above 1 MB Trying to Compress")
+        if pdf_compressor.use_pdf_compress_scrape is True:
+            pdf_compression = await pdf_compressor.compress_pdf_scrape(bot,message)
+            print(f"pdf compression : {pdf_compression}")
+            compress_pdf_status,status_message = pdf_compression
+            print(f"Compress pdf status : {compress_pdf_status}, status_message : {status_message}")
+            if compress_pdf_status is False:
+                await bot.send_message(chat_id,status_message)
+            else:
+                message_of_pdf_operation = await bot.edit_message_text(chat_id,message_of_pdf_operation_start.id,"Compressed PDF Successfully.")
+
+        else:
+            if await pdf_compressor.compress_pdf(bot,chat_id) is True:
+                print("Compressed pdf successfully")
+                message_of_pdf_operation = await bot.edit_message_text(chat_id,message_of_pdf_operation_start.id,"Compressed Pdf Successfully.")
+                check,size = await labs_handler.check_pdf_size_after_compression(chat_id)
+                if check is True:
+                    failed_message = f"""
+● ERROR : Unable to reduce the PDF file size to less than 1MB.
+
+● PDF Size : {size}"""
+                    await bot.send_message(chat_id,failed_message)
+                    return
+    else:
+        message_of_pdf_operation = message_sent_when_started
+    # title_mode = await user_settings.fetch_extract_title_bool(chat_id)
+    # Retreiving the Entered title, subject_index, week_index
+    # title= await tdatabase.fetch_title_lab_info(chat_id)
+    extracted_user_details = await user_lab_data(bot,chat_id)
+    # if title_mode[0] == 1:
+    #     experiment_names = await fetch_experiment_names_html(user_details=extracted_user_details,sub_code=subject_code)
+    #     title = await get_experiment_title(experiment_names)
+    # if title is None:
+    #     await bot.send_message("Title of the Experiment Not Found, Terminated Lab Upload")
+    #     return
+    labs_data = await fetch_available_labs(bot,message)
+    selected_subject_name = await get_subject_name(subject_code,labs_data)
+    # Folder name containg pdfs
+    pdf_folder = "pdfs"
+    # Check Whether the pdf is present or not, If the pdf is present gets the compression status
+    check_present , check_compress = await labs_handler.check_recieved_pdf_file(bot,chat_id)
+    if check_present:
+        # According to the compression status the pdf file is selected to uplaod
+        if check_compress is True:
+            pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}-comp.pdf")
+        else:
+            pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}.pdf")
+        if check_compress is True:
+            pdf_name = f"C-{chat_id}-comp.pdf"
+        else:
+            pdf_name = f"C-{chat_id}.pdf"
+    pdf_file_path = os.path.abspath(pdf_folder)
+    print(f"Pdf Folder path : {pdf_folder}")
+    pdf_size = await labs_handler.get_pdf_size(bot,chat_id)
+    message_text_before_uploading = f"""
+```UPLOAD INITIATED
+⫸ STATUS : UPLOADING
+
+⫸ UPLOAD DETAILS :
+
+TITLE : {title} 
+
+SUBJECT : {selected_subject_name}
+
+WEEK : {f"Week - {week_no}"}
+
+PDF SIZE : {pdf_size}MB
+```
+"""
+    message_before_start_upload = await bot.edit_message_text(chat_id,message_of_pdf_operation.id,message_text_before_uploading)
+    try:
+        upload_details = await get_upload_details(week_no,title,file_name=pdf_name,file_path=pdf_file_path)
+        print(upload_details)
+        lab_record_upload_json = await upload_pdf(bot,message,subject_code,extracted_user_details,upload_details=upload_details)
+    except Exception as e:
+        print(e)    
+    if lab_record_upload_json['status'] == "error":# Checks if received status code is error or not.
+        UNSUCCESSFULL_UPLOAD_MESSAGE = f"""
+    ```UPLOAD FAILED
+⫸ STATUS : FAILED
+
+⫸ ERROR : {lab_record_upload_json['msg']}
+
+⫸ UPLOAD DETAILS :
+
+● TITLE : {title} 
+
+● SUBJECT : {selected_subject_name}
+
+● WEEK : {f"Week - {week_no}"}
+
+    ```
+    """
+        await labs_handler.remove_pdf_file(bot,chat_id) # Removes the Pdf from the pdf folder
+        await tdatabase.delete_indexes_and_title_info(chat_id) # Delete the selected index values
+        await bot.edit_message_text(chat_id,message_before_start_upload.id,UNSUCCESSFULL_UPLOAD_MESSAGE)
+    else:
+        SUCCESSFULL_UPLOAD_MESSAGE = F"""
+    ```UPLOAD SUCCESS
+⫸ STATUS : {lab_record_upload_json['status'].upper()}
+
+⫸ STATUS MESSAGE : {lab_record_upload_json['msg']}
+
+⫸ Upload details :
+
+● TITLE : {title}
+
+● SUBJECT : {selected_subject_name}
+
+● WEEK : {f"Week - {week_no}"}
+
+● PDF SIZE : {pdf_size}MB
+    ``` 
+    """
+        await labs_handler.remove_pdf_file(bot,chat_id)# Removes the Pdf from the pdf folder
+        await tdatabase.delete_indexes_and_title_info(chat_id)# Delete the selected index values
+        await bot.edit_message_text(chat_id,message_before_start_upload.id,SUCCESSFULL_UPLOAD_MESSAGE)
+    await buttons.start_user_buttons(bot,message) # Starts the user buttons.
+
