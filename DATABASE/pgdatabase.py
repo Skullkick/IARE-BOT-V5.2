@@ -737,3 +737,26 @@ async def update_all_the_threshold_values(attendance_threshold, biometric_thresh
         return False
     finally:
         await connection.close() 
+
+async def update_user_credentials_table_database():
+    """
+    This function is used to alter the table present in the credentials table in postgres database
+    """
+    connection = await connect_pg_database()
+    try:
+        
+            await connection.execute('''
+
+                ALTER TABLE user_credentials
+                ADD COLUMN IF NOT EXISTS attendance_threshold INTEGER DEFAULT 75,
+                ADD COLUMN IF NOT EXISTS biometric_threshold INTEGER DEFAULT 75,
+                ADD COLUMN IF NOT EXISTS traditional_ui BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS extract_title BOOLEAN DEFAULT TRUE
+                ''')
+            return True
+    except Exception as e:
+        print(" error as occured during the creation of table. ")
+        return False
+    
+    finally:
+        await connection.close()
