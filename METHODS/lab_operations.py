@@ -216,3 +216,11 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
         print(f"Error: {error}")
         return False
     
+async def compile_and_save_pdf_batch(image_paths: list, output_path: str):
+    """Compile a batch of image files into a temporary PDF file."""
+    try:
+        images = [Image.open(img_path) for img_path in image_paths]
+        images[0].save(output_path, "PDF", resolution=100.0, save_all=True, append_images=images[1:])
+    except Exception as error:
+        print(f"Error compiling PDF batch: {error}")
+        
