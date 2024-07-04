@@ -717,3 +717,23 @@ async def set_pat_student_true(chat_id):
         return False
     finally:
         await connection.close()
+
+async def update_all_the_threshold_values(attendance_threshold, biometric_threshold, traditional_ui, extract_title, chat_id):
+
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute("""
+            UPDATE user_credentials 
+                SET attendance_threshold = $1,
+                biometric_threshold = $2,
+                traditional_ui = $3,
+                extract_title = $4 
+            WHERE chat_id = $5 
+        """,attendance_threshold, biometric_threshold, traditional_ui, extract_title, chat_id)
+        return True 
+    except Exception as e:
+        print(f"error while upadating the default threshold values {e}")
+        return False
+    finally:
+        await connection.close() 
