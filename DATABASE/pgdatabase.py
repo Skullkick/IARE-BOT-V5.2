@@ -636,3 +636,16 @@ async def clear_banned_users_database():
     finally:
         # Close the database connection
         await connection.close()
+
+async def total_users_pg_database(bot,chat_id):
+    """This Function return the Total Number of users in the database."""
+    connection = await connect_pg_database()
+    try:
+        query = "SELECT COUNT(*) FROM user_credentials"
+        result = await connection.fetchval(query)
+        return result
+    except Exception as e:
+        await bot.send_message(chat_id, f"Error retrieving data: {e}")
+        return None
+    finally:
+        await connection.close()
