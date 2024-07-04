@@ -123,3 +123,34 @@ async def create_banned_users_table():
 
     finally:
         await connection.close()
+
+async def create_bot_managers_tables():
+    # Connect to PostgreSQL database
+    connection = await connect_pg_database()
+    try:
+        # Create table in database
+        await connection.execute('''
+            CREATE TABLE IF NOT EXISTS bot_managers (
+            chat_id BIGINT PRIMARY KEY,
+            admin BOOLEAN DEFAULT FALSE,
+            maintainer BOOLEAN DEFAULT FALSE,
+            name VARCHAR(60),
+            control_access VARCHAR(60),
+            access_users BOOLEAN DEFAULT TRUE,
+            announcement BOOLEAN DEFAULT FALSE,
+            configure BOOLEAN DEFAULT FALSE,
+            show_reports BOOLEAN DEFAULT FALSE,
+            reply_reports BOOLEAN DEFAULT FALSE,
+            clear_reports BOOLEAN DEFAULT FALSE,
+            ban_username BOOLEAN DEFAULT FALSE,
+            unban_username BOOLEAN DEFAULT FALSE,
+            manage_maintainers BOOLEAN DEFAULT FALSE,
+            logs BOOLEAN DEFAULT FALSE
+            )''')
+        return True
+
+    except Exception as e:
+        print(f"Error creating table: {e}")
+        return False
+    finally:
+        await connection.close()
