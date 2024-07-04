@@ -796,4 +796,359 @@ async def get_logs(bot, chat_id):
     else:
         await bot.send_message(chat_id, "No log file found.")
 
+async def total_users(bot,message):
+    chat_id = message.chat.id
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+    if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+        return
+    access_data = await managers_handler.get_access_data(chat_id)
+    if chat_id in maintainer_chat_ids and access_data[0] != 1:
+        await bot.send_message(chat_id,"Access denied. You don't have permission to use this command.")
+        return
+    total_count = await tdatabase.fetch_number_of_total_users_db()
+    await bot.send_message(message.chat.id,f"Total users: {total_count}")
 
+async def clean_pending_reports(bot,message):
+    chat_id = message.chat.id
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+    if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+        return
+    access_data = await managers_handler.get_access_data(chat_id)
+    if chat_id in maintainer_chat_ids and access_data[5] != 1:
+        await bot.send_message(chat_id,"Access denied. You don't have permission to use this command.")
+        return
+    await pgdatabase.clear_pending_reports()
+    await tdatabase.clear_reports()
+    await bot.send_message(chat_id,"Emptied the reports successfully")
+
+
+async def perform_sync_credentials(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        credentials = await pgdatabase.get_all_credentials()
+        if credentials is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from credentials database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from credentials database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from credentials database")
+            return
+        if credentials is not None:
+            for row in credentials:
+                chat_id,username,password = row[0],row[1],row[2]
+                await tdatabase.store_credentials_in_database(chat_id,username,password)
+        else:
+            print("There is no data present in the credential's database to sync with the local database.")
+    except Exception as e:
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing credentials to database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing credentials to database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing credentials to database : {e}")
+
+async def perform_sync_reports(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        reports = await pgdatabase.get_all_reports()
+        if reports is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from reports database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from reports database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from reports database")
+            return
+        if reports is not None:
+            for row in reports:
+                unique_id,user_id,message,chat_id,replied_message,replied_maintainer,reply_status = row
+                await tdatabase.store_reports(unique_id,user_id,message,chat_id,replied_message,replied_maintainer,reply_status)
+        else:
+            print("There is no data present in the report's database to sync with the local database.")
+    except Exception as e:
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing reports to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing reports to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing reports to local database : {e}")
+
+async def perform_sync_banned_users(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        banned_users = await pgdatabase.get_all_banned_usernames()
+        if banned_users is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from banned users database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from banned users database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from banned users database")
+            return
+        if banned_users is not None:
+            print(banned_users)
+            for row in banned_users: # Each row contains data like this <Record username='223235464'>
+                banned_username = row[0] # Extracting username from the record
+                await tdatabase.store_banned_username(banned_username.lower())
+        else:
+            print("There is no data present in the bannned user's database to sync with the local database.")
+    except Exception as e:
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing banned users to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing banned users to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing banned users to local database : {e}")
+
+async def perform_sync_user_settings(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        all_user_settings = await pgdatabase.get_all_user_settings()
+        if all_user_settings is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from user settings database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from user settings database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from user settings database")
+            return
+        if all_user_settings is not None:
+            for row in all_user_settings:
+                chat_id, attendance_threshold,biometric_threshold,traditional_ui,extract_title = row
+                traditional_ui_sqlite = await tdatabase.pg_bool_to_sqlite_bool(traditional_ui)
+                extract_title_sqlite = await tdatabase.pg_bool_to_sqlite_bool(extract_title)
+                await user_settings.store_user_settings(chat_id, attendance_threshold,biometric_threshold,traditional_ui_sqlite,extract_title_sqlite)
+        else:
+            print("There is no data present in the user setting's database to sync with the local database.")
+    except Exception as e :
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing user settings to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing user settings to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing user settings to local database : {e}")
+
+async def perform_sync_bot_manager_data(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        bot_managers_data = await pgdatabase.get_bot_managers_data()
+        if bot_managers_data is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from bot manager database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from bot manager database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from bot manager database")
+            return
+        if bot_managers_data is not None and bot_managers_data is not False:
+            for row in bot_managers_data:
+                chat_id,admin,maintainer,name,control_access,access_users,announcement,configure,show_reports_,reply_reports,clear_reports,ban_username,unban_username,manage_maintainer,logs = row
+                admin_sqlite = await tdatabase.pg_bool_to_sqlite_bool(admin)
+                maintainer_sqlite = await tdatabase.pg_bool_to_sqlite_bool(maintainer)
+                access_users_sqlite = await tdatabase.pg_bool_to_sqlite_bool(access_users)
+                announcement_sqlite = await tdatabase.pg_bool_to_sqlite_bool(announcement)
+                configure_sqlite = await tdatabase.pg_bool_to_sqlite_bool(configure)
+                show_reports_sqlite = await tdatabase.pg_bool_to_sqlite_bool(show_reports_)
+                reply_reports_sqlite = await tdatabase.pg_bool_to_sqlite_bool(reply_reports)
+                clear_reports_sqlite = await tdatabase.pg_bool_to_sqlite_bool(clear_reports)
+                ban_username_sqlite = await tdatabase.pg_bool_to_sqlite_bool(ban_username)
+                unban_username_sqlite = await tdatabase.pg_bool_to_sqlite_bool(unban_username)
+                manage_maintainer_sqlite = await tdatabase.pg_bool_to_sqlite_bool(manage_maintainer)
+                logs_sqlite = await tdatabase.pg_bool_to_sqlite_bool(logs)
+
+                await managers_handler.store_bot_managers_data_in_database(
+                                chat_id = chat_id,
+                                admin=admin_sqlite,
+                                maintainer= maintainer_sqlite,
+                                name= name,
+                                control_access= control_access,
+                                access_users=access_users_sqlite,
+                                announcement= announcement_sqlite,
+                                configure= configure_sqlite,
+                                show_reports= show_reports_sqlite,
+                                reply_reports=reply_reports_sqlite,
+                                clear_reports=clear_reports_sqlite,
+                                ban_username= ban_username_sqlite,
+                                unban_username= unban_username_sqlite,
+                                manage_maintainers=manage_maintainer_sqlite,
+                                logs= logs_sqlite
+                            )
+        else:
+            print("There is no data present in the bot manager's database to sync with the local database.")
+    except Exception as e:
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing bot managers data to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing bot managers data to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing bot managers data to local database : {e}")
+
+async def perform_sync_index_data(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        all_indexes = await pgdatabase.get_all_index_values()
+        if all_indexes is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from index database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from index database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from index database")
+            return
+        if all_indexes is not None:
+            for row in all_indexes:
+                name,indexes_dictionary = row
+                await user_settings.store_index_values_to_restore(name,json.loads(indexes_dictionary))
+        else:
+            print("There is no data present in the index's database to sync with the local database.")
+    except Exception as e :
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing index to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing index to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing index to local database : {e}")
+
+async def perform_sync_cgpa_tracker(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        all_tracker_details = await pgdatabase.get_all_cgpa_trackers()
+        if all_tracker_details is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from cgpa_tracker database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from cgpa_trackers database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from cgpa_tracker database")
+            return
+        if all_tracker_details is not None:
+            for row in all_tracker_details:
+                chat_id,status,current_cgpa = row
+                status_sqlite = await tdatabase.pg_bool_to_sqlite_bool(status)
+                await managers_handler.store_cgpa_tracker_details(chat_id,status_sqlite,current_cgpa)
+        else:
+            print("There is no data present in the cgpa_tracker database to sync with the local database.")
+    except Exception as e :
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing cgpa_tracker data to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing cgpa_tracker data to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing cgpa_tracker data to local database : {e}")
+
+async def perform_sync_cie_tracker(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        all_tracker_details = await pgdatabase.get_all_cie_tracker_data()
+        if all_tracker_details is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from cie_tracker database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from cie_trackers database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from cie_tracker database")
+            return
+        if all_tracker_details is not None:
+            for row in all_tracker_details:
+                chat_id,status,current_cie_marks = row
+                status_sqlite = await tdatabase.pg_bool_to_sqlite_bool(status)
+                await managers_handler.store_cie_tracker_details(chat_id,status_sqlite,current_cie_marks)
+        else:
+            print("There is no data present in the cie_tracker database to sync with the local database.")
+    except Exception as e :
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing cie_tracker data to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing cie_tracker data to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing cie_tracker data to local database : {e}")
+
+async def perform_sync_labs_data(bot):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        labs_data = await pgdatabase.get_all_lab_subjects_and_weeks_data()
+        if labs_data is False:
+            if admin_chat_ids:
+                for chat_id in admin_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from labs_data database")
+            if maintainer_chat_ids:
+                for chat_id in maintainer_chat_ids:
+                    await bot.send_message(chat_id,"Error retrieving data from labs_data database")
+            if not admin_chat_ids and not maintainer_chat_ids:
+                print("Error retrieving data from cie_tracker database")
+            return
+        if labs_data is not None:
+            for row in labs_data:
+                chat_id,subject,weeks = row
+                await tdatabase.store_lab_info(chat_id,subject_index= None,week_index=None,subjects=subject,weeks=weeks)
+        else:
+            print("There is no data present in the cgpa_tracker database to sync with the local database.")
+    except Exception as e :
+        if admin_chat_ids:
+            for chat_id in admin_chat_ids:
+                await bot.send_message(chat_id,f"Error storing cgpa_tracker data to local database : {e}")
+        if maintainer_chat_ids:
+            for chat_id in maintainer_chat_ids:
+                await bot.send_message(chat_id,f"Error storing cgpa_tracker data to local database : {e}")
+        if not admin_chat_ids and not maintainer_chat_ids:
+            print(f"Error storing cgpa_tracker data to local database : {e}")
+
+async def sync_databases(bot):
+    """
+    This Function is used to execute all the functions which sync the local database with the Postgres database.
+    
+    :param bot: Pyrogram client
+    """
+    await perform_sync_index_data(bot)
+    await perform_sync_bot_manager_data(bot)
+    await perform_sync_credentials(bot)
+    await perform_sync_user_settings(bot)
+    # await perform_sync_labs_data(bot)
+    await perform_sync_banned_users(bot)
+    await perform_sync_cgpa_tracker(bot)
+    await perform_sync_cie_tracker(bot)
+    await perform_sync_reports(bot)
