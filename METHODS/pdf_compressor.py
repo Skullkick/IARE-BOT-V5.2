@@ -21,10 +21,10 @@ use_pdf_compress_scrape = True
 async def compress_pdf_scrape(bot,message):
 
     download_wait_time = 120  # Maximum time to wait for the download to complete
-    extension_folder = "EXTENSION"
-    ublock_file = "ublock.crx"
-    ublock_path = os.path.join(extension_folder,ublock_file)
-    ublock_complete_path = os.path.abspath(ublock_path)
+    #extension_folder = "EXTENSION"
+    #ublock_file = "ublock.crx"
+    #ublock_path = os.path.join(extension_folder,ublock_file)
+    #ublock_complete_path = os.path.abspath(ublock_path)
     #ublock_crx_path = ublock_complete_path#r"D:\BOT -Adding Compression\EXTENSION\ublock.crx"  # Update this to the path of your uBlock Origin .crx file
     chat_id = message.chat.id
     check_file = await labs_handler.check_recieved_pdf_file(bot, chat_id)
