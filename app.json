@@ -47,9 +47,6 @@
       },
       {
         "url" : "https://buildpack-registry.s3.amazonaws.com/buildpacks/heroku/google-chrome.tgz"
-      },
-      {
-        "url" : "https://buildpack-registry.s3.amazonaws.com/buildpacks//ublock.tgz"
       }
     ]
  }
