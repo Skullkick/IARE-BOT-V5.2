@@ -237,3 +237,46 @@ async def get_cie_tracker_details(chat_id):
     except Exception as e:
         print(f"Error retrieving the cie tracker details : {e}")
         return False
+
+async def store_as_admin(name,chat_id):
+    """
+    Perform storing the user as admin.
+    :param chat_id: chat id based on the message
+    :param name: Name of the user
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""INSERT OR REPLACE INTO bot_managers 
+                       (chat_id,admin,name,control_access) VALUES (?,?,?,?)""",(chat_id,1,name,'Full'))
+        conn.commit()
+
+async def store_as_maintainer(name,chat_id):
+    """
+    Perform storing the user as maintainer
+    :param chat_id: Chat id of the maintainer.
+    :param name: Name of the user"""
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO bot_managers (chat_id,maintainer,name,control_access) VALUES (?,?,?,?)",(chat_id,1,name,'limited'))
+        conn.commit()
+
+async def fetch_admin_chat_ids():
+    """
+    Fetch the admin chat_ids
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT chat_id FROM bot_managers WHERE admin = ?",(1,))
+        admin_chat_ids = [row[0] for row in cursor.fetchall()]
+        return admin_chat_ids
+
+async def fetch_maintainer_chat_ids():
+    """
+    Fetch the Maintainer chat ids
+    :return: returns all the maintainer chat_ids in a tuple
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT chat_id FROM bot_managers WHERE maintainer = ?",(1,))
+        maintainer_chat_ids = [row[0] for row in cursor.fetchall()]
+        return maintainer_chat_ids
