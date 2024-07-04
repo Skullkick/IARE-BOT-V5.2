@@ -253,3 +253,119 @@ async def manager_callback_function(bot,callback_query):
             USERS_TEXT,
             reply_markup = USERS_BUTTONS
         )
+
+    elif callback_query.data == "manager_total_users":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        total_count = await tdatabase.fetch_number_of_total_users_db()
+        total_user_in_pgdatabase = await pgdatabase.total_users_pg_database(bot,chat_id)
+        TOTAL_USERS_TEXT = f"""
+```
+TOTAL USERS  : {total_user_in_pgdatabase}
+
+TOTAL USERS (PAST 24 HR'S)  : {total_count}
+```
+"""
+        TOTAL_USERS_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="manager_users")],
+            ]
+        )
+        await callback_query.edit_message_text(
+            TOTAL_USERS_TEXT,
+            reply_markup = TOTAL_USERS_BUTTON
+        )
+    elif callback_query.data == "manager_list_of_users":
+        await callback_query.answer()
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        await operations.list_users(bot,chat_id)
+    elif callback_query.data == "manager_database":
+        DATABASE_TEXT = "Select the database that you want to interact with."
+        DATABASE_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("SQLite3",callback_data="manager_sqlite3")],
+                [InlineKeyboardButton("PostgresSQL",callback_data="manager_postgres_sql")],
+                [InlineKeyboardButton("Backup Credentials",callback_data="manager_backup_credentials_settings")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            DATABASE_TEXT,
+            reply_markup = DATABASE_BUTTONS
+        )
+    elif callback_query.data == "manager_backup_credentials_settings":
+        _message = callback_query.message
+        print("started backup")
+        await manager_operations.backup_all_credentials_and_settings(bot,_message)
+        await callback_query.answer()
+    elif callback_query.data == "manager_sqlite3":
+        SQLITE3_TEXT = "Here are few SQLITE3 operations."
+        SQLITE3_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("User Sessions",callback_data="manager_select_sqlite3-user_sessions")],
+                [InlineKeyboardButton("Credentials",callback_data="manager_select_sqlite3-user_credentials")],
+                [InlineKeyboardButton("Banned Users",callback_data="manager_select_sqlite3-banned_users")],
+                [InlineKeyboardButton("User Settings",callback_data=f"manager_select_sqlite3-user_settings")],
+                [InlineKeyboardButton("Index values",callback_data=f"manager_select_sqlite3-index_values")],
+                [InlineKeyboardButton("Subjects and Weeks",callback_data="manager_select_sqlite3-subject_weeks")],
+                [InlineKeyboardButton("Bot Manager",callback_data="manager_select_sqlite3-bot_manager")],
+                [InlineKeyboardButton("Back",callback_data="manager_database")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            SQLITE3_TEXT,
+            reply_markup =  SQLITE3_BUTTONS
+        )
+    elif "manager_select_sqlite3" in callback_query.data:
+        table_name = callback_query.data.split("-")[1]
+        SQLITE3_RESET_TEXT = f"Here are few operations that you can perform.\n\n\ttable - {table_name} table"
+        SQLITE3_RESET_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard= [
+                [InlineKeyboardButton("Reset",callback_data=f"manager_reset_sqlite3-{table_name}")],
+                [InlineKeyboardButton("Back", callback_data="manager_sqlite3")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            SQLITE3_RESET_TEXT,
+            reply_markup =  SQLITE3_RESET_BUTTONS
+        )
+    elif "manager_reset_sqlite3" in callback_query.data:
+        table_name = callback_query.data.split("-")[1]
+        SQLITE3_FINAL_RESET_DATABASE_TEXT = f"""Are you sure?\n\nWould you like to reset {table_name} table"""
+        SQLITE3_FINAL_RESET_DATABASE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Yes",callback_data=f"manager_reset_final_sqlite3-{table_name}")],
+                [InlineKeyboardButton("Back",callback_data="manager_sqlite3")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            SQLITE3_FINAL_RESET_DATABASE_TEXT,
+            reply_markup =  SQLITE3_FINAL_RESET_DATABASE_BUTTON
+        )
+    elif "manager_reset_final_sqlite3" in callback_query.data:
+        table_name = callback_query.data.split("-")[1]
+        if table_name == "user_sessions":
+            await tdatabase.clear_sessions_table()
+        elif table_name == "user_credentials":
+            await tdatabase.clear_credentials_table()
+        elif table_name == "banned_users":
+            await tdatabase.clear_banned_usernames_table()
+        elif table_name == "user_settings":
+            await user_settings.clear_user_settings_table()
+        elif table_name == "index_values":
+            await user_settings.clear_indexes_table()
+        elif table_name == "bot_manager":
+            await managers_handler.clear_bot_managers_data()
+        elif table_name == "subject_weeks":
+            await tdatabase.delete_labs_subjects_weeks_all_users()
+        SQLITE3_FINAL_RESET_DATABASE_TEXT = f"""{table_name} has been reset."""
+        SQLITE3_FINAL_RESET_DATABASE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="manager_sqlite3")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            SQLITE3_FINAL_RESET_DATABASE_TEXT,
+            reply_markup =  SQLITE3_FINAL_RESET_DATABASE_BUTTON
+        )
