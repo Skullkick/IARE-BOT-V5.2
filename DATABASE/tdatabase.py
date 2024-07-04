@@ -506,3 +506,27 @@ async def clear_credentials_table():
         cursor.execute("DELETE FROM credentials")
         conn.commit()
         return True
+
+
+async def get_chat_ids_of_the_banned_username(username):
+    """
+    This Function is used to get the chat_id of the banned username from the credentails database
+    :param username: Username of the user
+    :return: Returns chat id of the username
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT chat_id FROM credentials WHERE LOWER(username) LIKE LOWER(?) || '%'",(f"{username}",))
+        chat_ids = [row[0] for row in cursor.fetchall()]
+        return chat_ids
+
+async def delete_banned_username_credentials_data(username):
+    """
+    This function is used to delete the row of banned user from the credentials database
+    :username: Username of the banned user
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM credentials WHERE LOWER(?) LIKE LOWER(username || '%')",(f"{username}",))
+        print("deleted successfully")
+        conn.commit()
