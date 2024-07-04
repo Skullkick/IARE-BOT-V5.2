@@ -698,3 +698,10 @@ async def clear_reports():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM pending_reports")
         conn.commit()
+
+async def pg_bool_to_sqlite_bool(pgbool):
+    """
+    This function is used to convert the boolean values from TRUE to 1, and FALSE to 0
+    :return: returns boolean values in the form of 0's and 1's
+    """
+    return 1 if pgbool else 0
