@@ -1152,3 +1152,109 @@ async def sync_databases(bot):
     await perform_sync_cgpa_tracker(bot)
     await perform_sync_cie_tracker(bot)
     await perform_sync_reports(bot)
+
+async def help_command(bot,message):
+    """
+    Handler function for the /help command.
+    Provides information about the available commands.
+    """
+    chat_id = message.chat.id
+    help_msg = """Available commands:
+
+    /login username password - Log in with your credentials.
+
+    /logout - Log out from the current session.
+
+    /report {your report} - Send a report to the bot developer.
+
+    /settings - Access user settings and preferences.
+
+    Note: Replace {username}, {password}, and {your report} with actual values.
+    """
+    help_admin_msg = """
+    Available commands:
+
+    /login {username} {password} - Log in with your credentials.
+    
+    /logout - Log out from the current session.    
+    
+    /report {your report} - Send a report to the bot developer.
+
+    /settings - Access user settings and preferences.
+
+    Note: Replace {username}, {password}, {your report} and {your reply} with actual values.
+
+    As an Admin :
+
+    /admin - Access authorized operations.
+
+    /reset - Reset the User Sessions Sqlite3 Database
+
+    /reply {your reply} - Send a reply to the report by replying to it.
+
+    /ban {username} - Ban a user or users from the system.
+
+    /unban {username} - Unban a user from the system.
+
+    /announce {your announcement} - Send an announcement.
+
+    /add_maintainer {chat_id} - Add a maintainer.
+
+    /rshow - View reports.  
+
+    /lusers - Generate a QR code of active users in a day.
+
+    /tusers - Display total active users in a day.
+
+    /rclear - Clear reports.
+    """
+    help_maintainer_msg = """
+    Available commands:
+
+    /login {username} {password} - Log in with your credentials.
+    
+    /logout - Log out from the current session.    
+    
+    /report {your report} - Send a report to the bot developer.
+
+    Note: Replace {username}, {password}, {your report} and {your reply} with actual values.
+
+    As a Maintainer :
+    
+    /maintainer -  Access authorized operations.
+
+    /ban {username} - Ban a user or users from the system.  
+
+    /unban {username} - Unban a user from the system.  
+
+    /announce {your announcement} - Send an announcement.  
+
+    /rshow - View reports.  
+
+    /lusers - Generate a QR code of active users in a day.
+
+    /tusers - Display total active users in a day.
+
+    /rclear - Clear reports.
+
+    Note : \n\nMaintainers require authorization from the admin to ensure that the commands function properly.
+"""
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    if chat_id in admin_chat_ids:
+        await bot.send_message(chat_id,text=help_admin_msg)
+        await buttons.start_user_buttons(bot,message)
+    elif chat_id in maintainer_chat_ids:
+        await bot.send_message(chat_id,text=help_maintainer_msg)
+        await buttons.start_user_buttons(bot,message)
+    else:
+        await bot.send_message(chat_id,text=help_msg)
+        if await is_user_logged_in(chat_id,message) is True or await pgdatabase.check_chat_id_in_pgb(chat_id):
+            await buttons.start_user_buttons(bot,message)
+
+async def reset_user_sessions_database(bot,message):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    chat_id = message.chat.id
+    if chat_id in admin_chat_ids:
+        await tdatabase.clear_sessions_table()
+        await message.reply("Reset done")
