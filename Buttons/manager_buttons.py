@@ -187,3 +187,69 @@ async def start_maintainer_button(bot,message):
     )
     await message.reply_text(f"Hey {maintainer_name}\n\nThese are your maintainer controls.",reply_markup = maintainer_buttons)
         
+async def manager_callback_function(bot,callback_query):
+    if callback_query.data == "manager_log_file":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        await callback_query.answer()
+        await operations.get_logs(bot,chat_id)
+        
+    elif callback_query.data == "manager_reports":
+        REPORTS_TEXT = "Here are some operations that you can perform on reports."
+        REPORTS_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Pending reports",callback_data="manager_show_reports")],
+                [InlineKeyboardButton("Replied reports",callback_data="manager_show_replied_reports")],
+                [InlineKeyboardButton("Clear All reports",callback_data="manager_clear_reports")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            REPORTS_TEXT,
+            reply_markup = REPORTS_BUTTONS
+        )
+    elif callback_query.data == "manager_show_reports":
+        await callback_query.answer()
+        _message = callback_query.message
+        await operations.show_reports(bot,_message)
+    elif callback_query.data == "manager_show_replied_reports":
+        _message = callback_query.message
+        await operations.show_replied_reports(bot,_message)
+        await callback_query.answer()
+    elif callback_query.data == "manager_clear_reports":
+        await callback_query.answer()
+        _message = callback_query.message
+        await operations.clean_pending_reports(bot,_message)
+
+    elif callback_query.data == "manager_back_to_admin_operations":
+        chat_id = callback_query.message.chat.id
+        username = await managers_handler.fetch_name(chat_id)
+        admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+        maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+        if chat_id in admin_chat_ids:
+            await callback_query.edit_message_text(
+                ADMIN_MESSAGE,
+                reply_markup = ADMIN_BUTTONS
+            )
+        elif chat_id in maintainer_chat_ids:
+            maintainer_buttons = await generate_maintainer_buttons(chat_id)
+            maintainer_buttons = InlineKeyboardMarkup(
+                inline_keyboard=maintainer_buttons
+            )
+            await callback_query.edit_message_text(
+                f"Hey {username}\n\nThese are your maintainer controls.",
+                reply_markup = maintainer_buttons
+            )
+    elif callback_query.data == "manager_users":
+        USERS_TEXT = "Here are some operations that you can perform."
+        USERS_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Total users", callback_data="manager_total_users")],
+                [InlineKeyboardButton("List of users(QR)",callback_data="manager_list_of_users")],
+                [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")],
+            ]
+        )
+        await callback_query.edit_message_text(
+            USERS_TEXT,
+            reply_markup = USERS_BUTTONS
+        )
