@@ -1,0 +1,52 @@
+{
+    "name": "IARE BOT",
+    "env": {
+      "API_ID": {
+        "description": "Add your telegram API_ID",
+        "value": ""
+      },
+      "API_HASH": {
+        "description": "Add your telegram API_HASH",
+        "value": ""
+      },
+      "ADMIN_AUTHORIZATION_PASS": {
+        "description": "Add your ADMIN_AUTHORIZATION_PASS",
+        "value": ""
+      },
+      "BOT_TOKEN": {
+        "description": "Your bot token, as a string.",
+        "value": ""
+      },
+      "POSTGRES_USER_ID": {
+        "description": "Add your Postgres User Id.",
+        "value": ""
+      },
+      "POSTGRES_PASSWORD": {
+        "description":"Add your Postgres Password.",
+        "value": ""
+      },
+      "POSTGRES_DATABASE": {
+        "description": "Add your database value.",
+        "value": ""
+      },
+      "POSTGRES_HOST": {
+        "description": "Add your host value.",
+        "value": ""
+      },
+      "POSTGRES_PORT": {
+        "description": "Add Postgres Port value",
+        "value": ""
+      }
+    },
+    "buildpacks": [
+      {
+        "url": "heroku/python"
+      },
+      {
+        "url" : "https://buildpack-registry.s3.amazonaws.com/buildpacks/heroku/pillow.tgz"
+      },
+      {
+        "url" : "https://buildpack-registry.s3.amazonaws.com/buildpacks/heroku/google-chrome.tgz"
+      }
+    ]
+ }
