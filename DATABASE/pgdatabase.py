@@ -359,3 +359,69 @@ async def remove_cgpa_tracker_details(chat_id):
         return False
     finally:
         await connection.close()
+
+
+async def remove_cie_tracker_details(chat_id: int):
+    """
+    This function is used to remove the row in cie_tracker table based on the chat_id.
+    :param chat_id: Chat id of the user
+    """
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute(
+            "DELETE FROM cie_tracker WHERE chat_id = $1", chat_id
+        )
+        return True
+
+    except Exception as e:
+        print(f"Error while removing the cie tracker details: {e}.")
+        return False
+    finally:
+        await connection.close()
+
+
+async def set_attendance_indexes(all_attendance_indexes):
+    """This Function is used to set the index values of the attendance table
+    :param all_attendance_indexes: Dictionary containing all attendance table index values
+    
+    :Dictionary: {
+        'course_name': course_name_index,
+        'attendance_percentage': attendance_percentage_index,
+        'conducted_classes': conducted_classes_index,
+        'attended_classes': attended_classes_index,
+        'status': status_index
+    }"""
+
+    connection = await connect_pg_database()
+    name = "ATTENDANCE_INDEX_VALUES"
+    try:
+        data = await connection.fetchrow("SELECT * FROM index_values WHERE name = $1", name)
+        if data:
+            await connection.execute("UPDATE index_values SET index_ = $1 WHERE name = $2", json.dumps(all_attendance_indexes), name)
+        else:
+            await connection.execute("INSERT INTO index_values (name, index_) VALUES ($1, $2)", name, json.dumps(all_attendance_indexes))
+    except Exception as e:
+        print(f"Error updating the attendance index values : {e}")
+
+async def set_biometric_indexes(all_biometric_index):
+    """This function is used to set the biometric index values manually
+    :param all_biometric_index: Dictionary containing all the biometric index values
+    
+    :Dictionary: {
+        'status': status_index,
+        'intime': intime_index,
+        'outtime': outtime_index
+    }
+"""
+
+    connection = await connect_pg_database()
+    name = "BIOMETRIC_INDEX_VALUES"
+    try:
+        data = await connection.fetchrow("SELECT * FROM index_values WHERE name = $1", name)
+        if data:
+            await connection.execute("UPDATE index_values SET index_ = $1 WHERE name = $2", json.dumps(all_biometric_index), name)
+        else:
+            await connection.execute("INSERT INTO index_values (name, index_) VALUES ($1, $2)", name, json.dumps(all_biometric_index))
+    except Exception as e:
+        print(f"Error updating biometric index values : {e}")
