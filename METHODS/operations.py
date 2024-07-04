@@ -594,3 +594,206 @@ async def bunk(bot,message):
     else:
         await message.reply("Data not found.")
     await buttons.start_user_buttons(bot,message)
+async def generate_unique_id():
+    """
+    Generate a unique identifier using UUID version 4.
+
+    Returns:
+        str: A string representation of the UUID.
+    """
+    return str(uuid.uuid4())
+
+
+
+
+async def report(bot,message):
+    chat_id = message.from_user.id
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        auto_login_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # LOGIN MESSAGE
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+        else:
+            session_data = await tdatabase.load_user_session(chat_id)
+
+    user_report = " ".join(message.text.split()[1:])
+    if not user_report:
+        no_report_message = f"""
+```EMPTY MESSAGE
+⫸ ERROR : MESSAGE CANNOT BE EMPTY
+
+⫸ How to use command:
+
+●  /report We are encountering issues with the attendance feature.
+It seems that attendance records are not updating correctly after submitting.
+```
+"""
+        await message.reply(no_report_message)
+        return
+    getuname = await tdatabase.load_username(chat_id)
+
+    username = getuname[2]
+
+    user_unique_id = await generate_unique_id()
+
+    await tdatabase.store_reports(user_unique_id,username,user_report,chat_id,None,None,0)
+    await pgdatabase.store_reports(user_unique_id,username,user_report,chat_id,None,None,False)
+    forwarded_message = f"New User Report from @{username} (ID: {user_unique_id}):\n\n{user_report}"
+    all_admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    all_maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    if all_admin_chat_ids+all_maintainer_chat_ids:
+        for chat_id in all_admin_chat_ids+all_maintainer_chat_ids:
+            await bot.send_message(chat_id,text=forwarded_message)
+        await bot.send_message(chat_id,"Thank you for your report! Your message has been forwarded to the developer.")
+    else:
+        await bot.send_message(chat_id,"Although an error occurred while sending, your request has been successfully stored in the database.")
+async def reply_to_user(bot,message):
+    chat_id = message.chat.id
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+    if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+        return
+    access_data = await managers_handler.get_access_data(chat_id)
+    if chat_id in maintainer_chat_ids and access_data[4] != 1:
+        await bot.send_message(chat_id,"Access denied. You don't have permission to use this command.")
+        return
+
+    maintainer_name = await managers_handler.fetch_name(chat_id)
+    if not message.reply_to_message:
+        await message.reply("Please reply to a user's report to send a reply.")
+        return
+    
+    reply_text = message.reply_to_message.text
+    unique_id_keyword = "ID: "
+    if unique_id_keyword not in reply_text:
+        await message.reply("The replied message does not contain the unique ID.")
+        return
+
+
+    unique_id_start_index = reply_text.find(unique_id_keyword) + len(unique_id_keyword)
+    unique_id_end_index = reply_text.find(")", unique_id_start_index)
+    report_id = reply_text[unique_id_start_index:unique_id_end_index].strip()
+    pending_reports = await tdatabase.load_reports(report_id)
+
+    if report_id not in pending_reports:
+        await message.reply("Invalid or unknown unique ID.")
+        return
+
+    user_chat_id = pending_reports[3]
+
+    developer_reply = message.text.split("/reply", 1)[1].strip()
+
+    reply_message = f"{developer_reply}\n\nThis is a reply from the bot developer."
+
+    try:
+
+        await bot.send_message(chat_id=user_chat_id, text=reply_message)
+
+        developer_chat_id = message.chat.id
+        await bot.send_message(chat_id=developer_chat_id, text="Message sent successfully.")
+
+        await tdatabase.store_reports(report_id,None,None,None,reply_message,maintainer_name,1)
+        await pgdatabase.store_reports(report_id,None,None,None,reply_message,maintainer_name,True)
+    except Exception as e:
+        error_message = f"An error occurred while sending the message to the user: {e}"
+        await bot.send_message(chat_id=developer_chat_id, text=error_message)
+
+async def show_reports(bot,message):
+    chat_id = message.chat.id
+    reports = await tdatabase.load_allreports()
+    # if message.chat.id != BOT_DEVELOPER_CHAT_ID and message.chat.id != BOT_MAINTAINER_CHAT_ID:
+    #     return
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+    if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+        return
+    access_data = await managers_handler.get_access_data(chat_id)
+    if chat_id in maintainer_chat_ids and access_data[3] != 1:
+        await bot.send_message(chat_id,"Access denied. You don't have permission to use this command.")
+        return
+    if len(reports) == 0:
+        await bot.send_message(chat_id,text="There are no pending reports.")
+        return
+    for report in reports:
+        unique_id, user_id, message, report_chat_id = report
+        report_message = f"User report from @{user_id} (ID: {unique_id}):\n\n{message}"
+        await bot.send_message(chat_id, text=report_message)
+
+async def show_replied_reports(bot,message):
+    chat_id = message.chat.id
+    reports = await tdatabase.load_all_replied_reports()
+    # if message.chat.id != BOT_DEVELOPER_CHAT_ID and message.chat.id != BOT_MAINTAINER_CHAT_ID:
+    #     return
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+    if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+        return
+    access_data = await managers_handler.get_access_data(chat_id)
+    if chat_id in maintainer_chat_ids and access_data[3] != 1:
+        await bot.send_message(chat_id,"Access denied. You don't have permission to use this command.")
+        return
+    if len(reports) == 0:
+        await bot.send_message(chat_id,text="There are no Replied reports.")
+        return
+    for report in reports:
+        unique_id, user_id, message, report_chat_id,replied_message,replied_maintainer,reply_status = report
+        replied_message = replied_message.split("This is a reply from the bot developer.")[0]
+        report_message = f"User report from @{user_id} (ID: {unique_id}):\n\n{message}\n\nReplied By : {replied_maintainer}\n\nReplied Message : {replied_message}"
+        await bot.send_message(chat_id, text=report_message)
+
+async def list_users(bot,chat_id):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
+    if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+        return
+    access_data = await managers_handler.get_access_data(chat_id)
+    if chat_id in maintainer_chat_ids and access_data[0] != 1:
+        await bot.send_message(chat_id,"Access denied. You don't have permission to use this command.")
+        return
+    usernames = await tdatabase.fetch_usernames_total_users_db()   
+    users_list = ";".join(usernames)
+    qr_code = pyqrcode.create(users_list)
+    qr_image_path = "list_users_qr.png"
+    qr_code.png(qr_image_path, scale=5)
+    await bot.send_photo(chat_id, photo=open(qr_image_path, 'rb'))
+    os.remove(qr_image_path)
+
+
+async def get_logs(bot, chat_id):
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()  # Fetch all admin chat ids
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()  # Fetch all maintainer chat ids
+    if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
+        return
+    access_data = await managers_handler.get_access_data(chat_id)
+    if chat_id in maintainer_chat_ids and access_data[9] != 1:
+        await bot.send_message(chat_id, "Access denied. You don't have permission to use this command.")
+        return
+    
+    log_file_name = "bot_errors.log"
+    temp_log_file_name = "temp_bot_errors.log"
+    
+    if log_file_name in os.listdir():
+        try:
+            # Copy the log file to a temporary file
+            shutil.copy(log_file_name, temp_log_file_name)
+            
+            # Send the temporary log file
+            await bot.send_document(chat_id, temp_log_file_name)
+            
+            # Remove the temporary log file after sending
+            os.remove(temp_log_file_name)
+        except Exception as e:
+            await bot.send_message(chat_id, f"Error: {e}")
+    else:
+        await bot.send_message(chat_id, "No log file found.")
+
+
