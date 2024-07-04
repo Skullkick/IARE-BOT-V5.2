@@ -236,3 +236,21 @@ async def check_chat_id_in_pgb(chat_id):
         return False
     finally:
         await connection.close()
+
+
+async def get_username(chat_id):
+    """Retrieve username from the PostgreSQL database"""
+    connection = await connect_pg_database()
+    try:
+        
+        result = await connection.fetchval(
+            "SELECT username FROM user_credentials WHERE chat_id = $1",
+            chat_id
+        )
+        return result
+    except Exception as e:
+        print(f"Error retrieving username from database: {e}")
+        return None
+    finally:
+        if connection:
+            await connection.close()
