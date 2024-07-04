@@ -174,3 +174,24 @@ async def create_indexes_table():
         return False
     finally:
         await connection.close()
+
+async def create_cgpa_tracker_table():
+    """
+    Create the necessary table for the cgpa tracker in sqlite database
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cgpa_tracker(
+                chat_id BIGINT PRIMARY KEY,
+                status BOOLEAN DEFAULT FALSE,
+                current_cgpa VARCHAR(10)
+            )
+            """)
+        return True
+    except Exception as e:
+        print(f"error in creating the cgpa_tracker {e}")
+        return False
+    finally:
+        await connection.close()
