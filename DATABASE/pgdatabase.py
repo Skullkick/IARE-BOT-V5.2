@@ -1179,3 +1179,18 @@ async def clear_bot_manager_table():
     finally:
         # Close the database connection
         await connection.close()
+async def clear_index_values_database():
+    connection = await connect_pg_database()
+    try:
+        # Execute the SQL command to delete index values data from database
+        await connection.execute("DELETE FROM index_values")
+        print("Index values removed successfully! from the database")
+        return True
+    
+    except Exception as e:
+        print(f"Error while clearing index values from the database: {e}")
+        return False
+    
+    finally:
+        # Close the database connection
+        await connection.close()
