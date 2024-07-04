@@ -195,3 +195,24 @@ async def create_cgpa_tracker_table():
         return False
     finally:
         await connection.close()
+
+async def create_cie_tracker_table():
+    """
+    Create the necessary table for the cie tracker in sqlite database
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cie_tracker(
+                chat_id BIGINT PRIMARY KEY,
+                status BOOLEAN DEFAULT FALSE,
+                current_cie VARCHAR(10)
+            )
+            """)
+        return True
+    except Exception as e:
+        print(f"error in creating the cie_tracker {e}")
+        return False
+    finally:
+        await connection.close()
