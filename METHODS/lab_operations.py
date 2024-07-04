@@ -323,3 +323,50 @@ async def user_lab_data(bot,chat_id):
         'lab_batch_no': lab_batch_no,
     }
     return user_details
+
+async def fetch_experiment_names_html(bot,chat_id,user_details, sub_code)->str:
+    """
+    Can be used to fetch the html response which contains all the experiment names based on the subject code
+    :return: html code to extract the experiment names
+    """
+    url = 'https://samvidha.iare.ac.in/pages/student/lab_records/ajax/day2day.php'
+    headers = {
+        'accept': '*/*',
+        'accept-language': 'en-GB,en;q=0.5',
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'origin': 'https://samvidha.iare.ac.in',
+        'referer': 'https://samvidha.iare.ac.in/home?action=labrecord_std',
+        'sec-ch-ua': '"Not/A)Brand";v="8", "Chromium";v="126", "Brave";v="126"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest',
+    }
+    data = {
+        'ay': user_details['ay'],
+        'sub_code': sub_code,
+        'action': 'get_exp_list',
+    }
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id) 
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # Login message if no user found in database based on chat_id
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=operations.login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=operations.login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    with requests.session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+    response = requests.post(url, headers=headers, data=data, cookies=cookies)
+    return response.text
