@@ -108,3 +108,13 @@ async def get_week_details(experiment_names,submitted_lab_records,all_weeks_numb
         return can_upload_list_updated
     if can_delete_weeks_bool is True:
         return submitted_lab_records[1]
+    
+async def get_marks_by_week(submitted_lab_records, week_no):
+    records, exempted_weeks = submitted_lab_records
+    week_key = str(week_no)
+    if week_key in records and week_no not in exempted_weeks:
+        week_records = records[week_key]
+        # Assuming there's only one record per week
+        if week_records:
+            return week_records[0]['mark']
+    return None
