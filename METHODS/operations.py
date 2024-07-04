@@ -1176,6 +1176,44 @@ Error : {e}
         elif ui_mode[0] == 1:
             return f"**PAYMENT DETAILS**\n\nError : {e}"
  
+async def get_sem_count(bot,chat_id):
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database(bot,"",chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    cie_marks_url = "https://samvidha.iare.ac.in/home?action=cie_marks_ug"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        cie_marks_response = s.get(cie_marks_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            return await get_sem_count(bot,chat_id)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+    try:
+        soup = BeautifulSoup(cie_marks_response.text, 'html.parser')
+        # Find all tables and reverse the list to get the semesters in ascending order i.e semester 1 to 8 
+        tables = soup.find_all('table')
+        # Count the number of semesters available
+        semester_count = len(tables) - 1
+        return semester_count
+    except:
+        return None
 
 
 async def report(bot,message):
