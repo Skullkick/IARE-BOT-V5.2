@@ -89,3 +89,94 @@ async def delete_pdf(bot,message):
         await bot.send_message(chat_id,"Deleted Successfully")
     else:
         await bot.send_message(chat_id,"Failed")
+@bot.on_message(filters.command(commands=['reply']))
+async def _reply(bot,message):
+    try:
+        await operations.reply_to_user(bot, message)
+    except Exception as e:
+        logging.error("Error in 'reply' command: %s", e)
+@bot.on_message(filters.command(commands=['rshow']))
+async def _show_requests(bot,message):
+    try:
+        await operations.show_reports(bot, message)
+    except Exception as e:
+        logging.error("Error in 'rshow' command: %s", e)
+
+@bot.on_message(filters.command(commands=['announce']))
+async def _announce(bot,message):
+    try:
+        await manager_operations.announcement_to_all_users(bot, message)
+    except Exception as e:
+        logging.error("Error in 'announce' command: %s", e)
+
+@bot.on_message(filters.command(commands=['lusers']))
+async def _users_list(bot,message):
+    try:
+        await operations.list_users(bot, message.chat.id)
+    except Exception as e:
+        logging.error("Error in 'lusers' command: %s", e)
+@bot.on_message(filters.command(commands=['tusers']))
+async def _total_users(bot,message):
+    try:
+        await operations.total_users(bot, message)
+    except Exception as e:
+        logging.error("Error in 'tusers' command: %s", e)
+@bot.on_message(filters.command(commands=['rclear']))
+async def _clear_requests(bot,message):
+    try:
+        await operations.clean_pending_reports(bot, message)
+    except Exception as e:
+        logging.error("Error in 'rclear' command: %s", e)
+@bot.on_message(filters.command(commands=['reset']))
+async def _reset_sqlite(bot,message):
+    try:
+        await operations.reset_user_sessions_database(bot, message)
+    except Exception as e:
+        logging.error("Error in 'reset' command: %s", e)
+# @bot.on_message(filters.command(commands=["pgtusers"]))
+async def _total_users_pg_database(bot,message):
+    chat_id = message.chat.id
+    await pgdatabase.total_users_pg_database(bot,chat_id)
+@bot.on_message(filters.command(commands="admin"))
+async def admin_buttons(bot,message):
+    chat_id = message.chat.id
+    try:
+        admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+        if chat_id in admin_chat_ids:
+            await manager_buttons.start_admin_buttons(bot, message)
+    except Exception as e:
+        logging.error("Error in 'admin' command: %s", e)
+
+@bot.on_message(filters.command(commands="maintainer"))
+async def maintainer_buttons(bot,message):
+    try:
+        await manager_buttons.start_maintainer_button(bot, message)
+    except Exception as e:
+        logging.error("Error in 'maintainer' command: %s", e)
+@bot.on_message(filters.command(commands="ban"))
+async def ban_username(bot,message):
+    try:
+        await manager_operations.ban_username(bot, message)
+    except Exception as e:
+        logging.error("Error in 'ban' command: %s", e)
+
+@bot.on_message(filters.command(commands="unban"))
+async def unban_username(bot,message):
+    try:
+        await manager_operations.unban_username(bot, message)
+    except Exception as e:
+        logging.error("Error in 'unban' command: %s", e)
+
+@bot.on_message(filters.command(commands="authorize"))
+async def authorize_and_add_admin(bot,message):
+    try:
+        await manager_operations.add_admin_by_authorization(bot, message)
+    except Exception as e:
+        logging.error("Error in 'authorize' command: %s", e)
+@bot.on_message(filters.forwarded | filters.command(commands="add_maintainer"))
+async def add_maintainer(bot, message):
+    try:
+        await labs_handler.download_pdf(bot, message, pdf_compress_scrape=pdf_compressor.use_pdf_compress_scrape)
+        await manager_operations.verification_to_add_maintainer(bot, message)
+    except Exception as e:
+        logging.error("Error in 'add_maintainer' command: %s", e)
