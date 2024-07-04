@@ -1082,6 +1082,101 @@ async def profile_details(bot,message):
         profile_details_message += '\n---\n'
     return profile_details_message
 
+async def payment_details(bot,message):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    profile_url = "https://samvidha.iare.ac.in/home?action=fee_payment"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        payment_details_response = s.get(profile_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in payment_details_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            await payment_details(bot,message)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+    try:
+        soup = BeautifulSoup(payment_details_response.text,'html.parser')
+        rows = soup.table.thead.find_all('tr')
+        fee_row = rows[1].find_all('td')
+        rollno = fee_row[1].text[12:-1]
+        track_id = fee_row[2].text
+        payment_date = fee_row[3].text
+        amount = fee_row[4].text
+        status = "Not Paid"
+        if track_id != "":
+            status = "Paid"
+        if status == "Paid":
+            payment_message_updated_ui = f"""
+```Tution Fee
+RollNo: {rollno}
+Amount: {amount}
+Status: Paid 
+Payment Date: {payment_date}
+Track ID: {track_id}
+```
+"""
+            payment_message_traditional_ui = f"""
+**TUITION FEE**
+            
+RollNo: {rollno}\n
+Amount: {amount}\n
+Status: Paid \n
+Payment Date: {payment_date}\n
+Track ID: {track_id}
+"""
+        else:
+            payment_message_updated_ui = f"""
+```TUITION FEE
+RollNo: {rollno}
+Amount : {amount}
+Status: Not Paid
+
+Pay As Soon As Possible 
+To Avoid Penalty...
+```
+"""
+            payment_message_traditional_ui = f"""
+**TUITION FEE**
+
+RollNo: {rollno}\n
+Amount : {amount}\n
+Status: Not Paid\n
+
+Pay As Soon As Possible 
+To Avoid Penalty...
+"""
+        if ui_mode[0] == 0:
+            return payment_message_updated_ui
+        elif ui_mode[0] == 1:
+            return payment_message_traditional_ui
+    except Exception as e:
+        if ui_mode[0] == 0:
+            return f"""
+```TUITION FEE
+Error : {e}
+```"""
+        elif ui_mode[0] == 1:
+            return f"**PAYMENT DETAILS**\n\nError : {e}"
+ 
+
 
 async def report(bot,message):
     chat_id = message.from_user.id
