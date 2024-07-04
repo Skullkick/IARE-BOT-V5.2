@@ -969,3 +969,102 @@ async def sqlite_bool_to_pg_bool(sqlbool):
     :return: returns boolean values in the form of True and False
     """
     return True if sqlbool else False
+
+async def remove_saved_credentials(bot,chat_id):
+    """This Function removes the Column based on chat_id. 
+    This is used to remove the saved credentials."""
+    connection = await connect_pg_database()
+    try:
+        
+        await connection.execute("DELETE FROM user_credentials WHERE chat_id = $1", chat_id)
+        
+        await bot.send_message(chat_id,"Data deleted successfully!")
+    
+    except Exception as e:
+        await bot.send_message(chat_id,f"Error deleting data: {e}")
+    
+    finally:
+        await connection.close()
+
+async def remove_saved_credentials_silent(chat_id):
+    """
+    This Function is mainly used to remove saved credentials of the banned usernames
+    :param chat_id: Chat id of the banned username
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute("DELETE FROM user_credentials WHERE chat_id = $1", chat_id)
+        return True
+    except Exception as e:
+        print(f"Error deleting data: {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def remove_banned_username_credentials(username):
+    """
+    THIS FUNCTION DIDN'T PERFORM WELL UNDER MULTIPLE TESTCASES
+    RECOMMENDED NOT TO USE THIS FUNCTION.
+    
+    This function is used to remove the credentials if the username matches with the given username
+    :username: Username of the banned user.
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute('DELETE FROM banned_users WHERE LOWER($1) LIKE LOWER(username|| \'%\')',f'{username}')
+        return True
+    except Exception as e:
+        print(f"error in removing banned user : {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def remove_banned_username(username):
+    """
+    This Function is used to remove the banned username,
+    Basically this means unban of the user
+    :param username : Username of the user
+    Note : While deleting send the username in the same letter case when it is stored in the database
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute('DELETE FROM banned_users WHERE username = $1',username)
+        return True
+    except Exception as e:
+        print("error in removing banned user")
+        return False
+    
+    finally:
+        await connection.close()
+
+async def remove_maintainer(chat_id):
+    """
+    Remove a maintainer based on the chat_id
+    :param chat_id: Chat id of the maintainer
+    """
+    connection = await connect_pg_database()
+    try:
+        await connection.execute("DELETE FROM bot_managers WHERE chat_id= $1 AND maintainer = $2",int(chat_id),True)
+        return True
+    except Exception as e:
+        print(f"error raised while relieving the maintainer from his duty {e}")
+        return False
+    finally:
+        await connection.close()
+
+async def remove_admin(chat_id):
+    """
+    Remove a admin based on the chat_id
+    :param chat_id : Chat id of the admin
+    """
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            await connection.execute(
+                " DELETE FROM bot_managers WHERE chat_id =$1 AND admin=$1",int(chat_id),True)
+            return True
+    except Exception as e:
+        print(f"error in removing admin from his duty {e} ")
+        return False
+    finally:
+        await connection.close()
