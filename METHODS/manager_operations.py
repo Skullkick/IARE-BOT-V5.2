@@ -555,7 +555,8 @@ async def cie_marks(bot,chat_id):
             cie1_marks_message +="\n"
         # print(cie1_marks_message)
         await bot.send_message(chat_id,cie1_marks_message)
-
+    except Exception as e:
+        await bot.send_message(chat_id,f"Error retrieving cie marks : {e}")
 
 
 async def cgpa_tracker(bot,chat_id):
