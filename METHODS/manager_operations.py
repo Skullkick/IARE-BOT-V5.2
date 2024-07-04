@@ -287,3 +287,204 @@ async def announcement_to_all_users(bot, message):
 """ 
     # Send success percentage message
     await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
+
+
+
+
+async def cgpa_tracker(bot,chat_id):
+    current_cgpa = await get_cgpa(bot,chat_id)
+    if not current_cgpa:
+        return
+    all_tracker_data = await managers_handler.get_cgpa_tracker_details(chat_id)
+    if all_tracker_data:
+        status,previous_cgpa = all_tracker_data
+    if status:
+        if str(previous_cgpa) != current_cgpa:
+            UPDATED_CGPA_TEXT = f"""
+```UPDATED CGPA
+SEE Results are out!!
+
+PREVIOUS CGPA : {previous_cgpa}
+
+CURRENT CGPA  : {current_cgpa}
+```
+"""
+            await bot.send_message(chat_id,UPDATED_CGPA_TEXT)
+            await gpa(bot,chat_id)
+            await managers_handler.remove_cgpa_tracker_details(chat_id) # Turning off Tracker on local database
+            await pgdatabase.remove_cgpa_tracker_details(chat_id) # Turning off otrracker on pgdatabase
+            await bot.send_message(chat_id,"""
+```
+The CGPA tracker has been reset. We hope you are happy with your semester results. 
+                                   
+🎉📋
+```
+""")
+
+
+async def cie_tracker(bot,chat_id):
+    current_cie_marks = await total_cie_marks(bot,chat_id)
+    if not current_cie_marks:
+        return
+    all_tracker_data = await managers_handler.get_cie_tracker_details(chat_id)
+    if all_tracker_data:
+        status,previous_cie_marks = all_tracker_data
+    if status:
+        if str(previous_cie_marks) != current_cie_marks:
+            UPDATED_CIE_TEXT = f"""
+```UPDATED CIE
+CIE Results are out!!
+
+PREVIOUS CIE : {previous_cie_marks}
+
+CURRENT CIE  : {current_cie_marks}
+```
+"""
+            await bot.send_message(chat_id,UPDATED_CIE_TEXT)
+            await cie_marks(bot,chat_id)
+            await managers_handler.remove_cie_tracker_details(chat_id) # Turning off Tracker on local database
+            await pgdatabase.remove_cie_tracker_details(chat_id) # Turning off otrracker on pgdatabase
+            await bot.send_message(chat_id,"""
+```
+The CIA tracker has been reset. We hope you are happy with your CIA results. 
+                                   
+🎉📋
+```
+""")
+
+
+async def auto_login_by_database_silent(bot,chat_id):
+    # username,password = await pgdatabase.retrieve_credentials_from_database(chat_id) This Can be used if you want to take credentials from cloud database.
+    username,password = await tdatabase.fetch_credentials_from_database(chat_id) # This can be used to Fetch credentials from the Local database.
+    # Initializes settings for the user if the settings are not present
+    await user_settings.set_user_default_settings(chat_id)
+    if username != None:
+        username = username[:10]
+        if await tdatabase.get_bool_banned_username(username) is True: # Checks whether the username is in banned users or not.
+            # await tdatabase.delete_banned_username_credentials_data(username)
+            banned_username_chat_ids = await tdatabase.get_chat_ids_of_the_banned_username(username)
+            for chat_id in banned_username_chat_ids:
+                if await tdatabase.delete_user_credentials(chat_id) is True:
+                    if await pgdatabase.remove_saved_credentials_silent(chat_id) is True:
+                        return False
+        session_data = await operations.perform_login(username, password)
+        if session_data:
+            await tdatabase.store_user_session(chat_id, json.dumps(session_data), username)  # Implement store_user_session function
+            await tdatabase.store_username(username)
+            return True
+        else:
+            return False
+    else:
+        return False
+
+async def silent_logout(chat_id):
+    session_data = await tdatabase.load_user_session(chat_id)
+    logout_url = 'https://samvidha.iare.ac.in/logout'
+    cookies,headers = session_data['cookies'], session_data['headers']
+    requests.get(logout_url, cookies=cookies, headers=headers)
+    await tdatabase.delete_user_session(chat_id)
+
+async def get_server_stats():
+    try:# CPU stats
+        cpu_percent = psutil.cpu_percent(interval=1)
+        cpu_freq = psutil.cpu_freq().current
+
+        # Memory stats
+        mem = psutil.virtual_memory()
+        mem_used = mem.used / (1024 * 1024)  # Convert bytes to MB
+        mem_total = mem.total / (1024 * 1024)  # Convert bytes to MB
+
+        # Disk stats
+        disk = psutil.disk_usage('/')
+        disk_percent = disk.percent
+
+        # Network stats
+        net = psutil.net_io_counters()
+        bytes_sent = net.bytes_sent / (1024 * 1024)  # Convert bytes to MB
+        bytes_recv = net.bytes_recv / (1024 * 1024)  # Convert bytes to MB
+
+        # Construct message
+        message = f"CPU: {cpu_percent}% ({cpu_freq} MHz)\n\n"
+        message += f"Memory: {mem_used:.2f} MB / {mem_total:.2f} MB\n\n"
+        message += f"Disk: {disk_percent}%\n\n"
+        message += f"Network: Sent {bytes_sent:.2f} MB, Received {bytes_recv:.2f} MB"
+
+        return message
+    except Exception as e:
+        return f"Error : {e}"
+
+async def backup_all_credentials_and_settings(bot,message):
+    user_chat_id = message.chat.id
+    # admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    print("fetched admin chat ids")
+    # if chat_id not in admin_chat_ids:
+    #     print("chat id not in admin chat_ids")
+    #     await bot.send_message(user_chat_id,"You are not authorized to perform this operation")
+    #     return
+    print("Chat id is present in the admin chat id")
+    user_credentials_and_settings_sqlite = "user_credentials_settings_backup.db"
+    print("User credentials database name is assigned")
+    with sqlite3.connect(user_credentials_and_settings_sqlite) as conn:
+        print("Connection with the sqlite3 database is successfully done")
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_credentials (
+                chat_id INTEGER PRIMARY KEY,
+                username TEXT,
+                password TEXT,
+                pat_student BOOLEAN,
+                attendance_threshold INTEGER,
+                biometric_threshold INTEGER,
+                traditional_ui BOOLEAN,
+                title_extract BOOLEAN
+            )
+        """)
+        print("Successfully created the table which is required for the backup file")
+        credentials_settings = await pgdatabase.get_all_credentials()
+        for row in credentials_settings:
+            chat_id,username,password,pat_student,attendance_threshold,biometric_threshold,traditional_ui,extract_title = row
+            cursor.execute("INSERT INTO user_credentials (chat_id,username,password,pat_student,attendance_threshold,biometric_threshold,traditional_ui,title_extract) VALUES (?,?,?,?,?,?,?,?)",(chat_id,username,password,pat_student,attendance_threshold,biometric_threshold,traditional_ui,extract_title))
+        conn.commit()
+
+    try:
+            # Ensure the file exists before sending
+            # chat_id = message.chat.id
+            if os.path.exists(user_credentials_and_settings_sqlite):
+                await bot.send_document(user_chat_id, document=user_credentials_and_settings_sqlite, caption="Backup of user credentials and settings")
+            else:
+                await bot.send_message(user_chat_id, "Error: Backup file not found.")
+    except Exception as e:
+            await bot.send_message(user_chat_id, f"Error sending backup file: {e}")
+            # print(e)
+
+
+# This Function can be used to send the Announcement file in future.
+# async def download_announcement_file(bot,message):
+#     if message.chat.id != BOT_DEVELOPER_CHAT_ID and message.chat.id != BOT_MAINTAINER_CHAT_ID:
+#         return
+#     download_document_directory = "Announcements"
+#     chat_id  = message.chat.id
+#     if message.document or message.video:
+#         try:
+#             if not os.path.exists(download_document_directory):
+#                 os.makedirs(download_document_directory)
+#             started_receiving_document_text = f"""
+#     ```DOC STATUS
+#     ● Status : Receiving
+#     ```
+#     """
+#             message_before_recieving = await bot.send_message(chat_id,started_receiving_document_text)
+#             file_name_ = message.document.file_name
+#             await message.download(
+#                         file_name=os.path.join(download_document_directory, file_name_),
+#                     )
+#             received_document_text = f"""
+#     ```DOC STATUS
+#     ● Status : Received
+
+#     ● Filename : {file_name_}
+#     ```
+#     """
+#             await bot.edit_message_text(chat_id,message_before_recieving.id,received_document_text)
+#         except Exception as e:
+#             await bot.send_message(chat_id,f"Error receiving file : {e}")
