@@ -1068,3 +1068,63 @@ async def remove_admin(chat_id):
         return False
     finally:
         await connection.close()
+
+async def get_bot_managers_data():
+    """
+    This function is used to get all the data present in the bot managers table.
+    :param chat_id : Chat id of the user 
+    :return: Returns a tuple containg boolean access data values.
+    :tuple boolean values: access_users,announcement,configure,show_reports,reply_reports,clear_reports,
+    ban_username,unban username,manage_maintainers,logs
+    """
+    connection = await connect_pg_database()
+    try:
+        
+        access_data = await connection.fetch(
+                """
+                SELECT * FROM bot_managers
+                """)
+
+        if access_data:
+            return access_data
+        else:
+            return None           
+    except Exception as e:
+        print(f"Error getting bot managers data : {e}")
+    finally:
+        await connection.close()
+
+async def get_all_reports():
+    connection = await connect_pg_database()
+    try:
+    
+        all_messages = await connection.fetch("SELECT * FROM pending_reports")
+        if all_messages:
+            return all_messages
+        else:
+            return None
+    
+    except Exception as e:
+        print(f"error while running the get_all_reports function {e} ")
+        return False
+    
+    finally:
+        await connection.close()
+
+async def delete_report(unique_id):
+    """
+    This function is used to delete a specific report based on unique id.
+    :param unique_id: Unique id is generated specifically for a report instead of chat_id
+    """
+    connection =  await connect_pg_database()
+    try:
+        await connection.execute(
+                "DELETE FROM pending_reports WHERE unique_id = $1",
+                (unique_id))
+        return True
+    
+    except Exception as e:
+        print(f"failed to complete the delete_report process {e}")
+        return False
+    finally:
+        await connection.close()
