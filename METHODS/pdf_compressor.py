@@ -25,7 +25,7 @@ async def compress_pdf_scrape(bot,message):
     ublock_file = "ublock.crx"
     ublock_path = os.path.join(extension_folder,ublock_file)
     ublock_complete_path = os.path.abspath(ublock_path)
-    ublock_crx_path = ublock_complete_path#r"D:\BOT -Adding Compression\EXTENSION\ublock.crx"  # Update this to the path of your uBlock Origin .crx file
+    #ublock_crx_path = ublock_complete_path#r"D:\BOT -Adding Compression\EXTENSION\ublock.crx"  # Update this to the path of your uBlock Origin .crx file
     chat_id = message.chat.id
     check_file = await labs_handler.check_recieved_pdf_file(bot, chat_id)
     pdf_folder = "pdfs"
@@ -56,7 +56,7 @@ async def compress_pdf_scrape(bot,message):
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
 
-    options.add_extension(ublock_crx_path)
+    #options.add_extension(ublock_crx_path)
 
     # Initialize WebDriver
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
