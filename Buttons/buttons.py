@@ -199,3 +199,47 @@ Title : Introduction to Python
 
 ``` 
 """
+
+# Function to start the user buttons.
+async def start_user_buttons(bot,message):
+    """
+    This Function is used to start the user buttons with the text.
+    :param bot: Client session
+    :param message: Message of the user"""
+    await message.reply_text(USER_MESSAGE,reply_markup = USER_BUTTONS)
+
+async def start_certificates_buttons(message):
+    """This Function is used to start the Certificates buttons
+    :param message: Message of the user
+    """
+    await message.reply_text(CERTIFICATES_TEXT,reply_markup = CERTIFICATES_BUTTONS)
+
+async def start_user_settings(bot,message):
+    """This Function is used to start the settings buttons of a user
+    :param bot: Client session
+    :param message: Message of the user
+    """
+    await message.reply_text(SETTINGS_TEXT,reply_markup = SETTINGS_BUTTONS)
+
+
+async def start_save_credentials_buttons(username,password):
+    SAVE_USER_BUTTON = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton("Yes",callback_data=f"save_credentials-{username}-{password}")],
+            [InlineKeyboardButton("No",callback_data="no_save")]
+        ]
+    )
+    return SAVE_USER_BUTTON
+
+async def start_student_profile_buttons(message):
+    STUDENT_PROFILE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("GPA",callback_data="user_gpa")],
+                [InlineKeyboardButton("CIE",callback_data="user_cie")],
+                [InlineKeyboardButton("Certificates",callback_data="certificates_start")],
+                [InlineKeyboardButton("Payment Details",callback_data="payment_details")],
+                [InlineKeyboardButton("Profile",callback_data="student_profile")],
+                [InlineKeyboardButton("Back",callback_data="user_back")]
+            ]
+        )
+    await message.reply_text("Select one from the available ones.",reply_markup = STUDENT_PROFILE_BUTTON)
