@@ -327,7 +327,91 @@ async def get_cgpa(bot,chat_id):
     cgpa = round(sum(sgpa_values) / len(sgpa_values) , 3)
     await silent_logout(chat_id)
     return str(cgpa)
-    
+
+async def total_cie_marks(bot,chat_id):
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database_silent(bot,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=operations.login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=operations.login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        return
+    cie_marks_url = "https://samvidha.iare.ac.in/home?action=cie_marks_ug"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        cie_response = s.get(cie_marks_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in cie_response.text:
+        if chat_id_in_local_database:
+            await operations.silent_logout_user_if_logged_out(bot,chat_id)
+            return await total_cie_marks(bot,chat_id)
+        else:
+            await operations.logout_user_if_logged_out(bot,chat_id)
+        return
+    try:
+        soup = BeautifulSoup(cie_response.text, 'html.parser')
+        # Find all tables 
+        tables = soup.find_all('table')
+        # Select the latest semester table 
+        cie_table = tables[1].find_all('tr')
+        # Initialize a list to store the relevant data
+        subject_marks_data = []
+        # Iterate over each row in the selected semester table
+        for row in cie_table:
+            cells = row.find_all('td')
+            row_data = [cell.get_text(strip=True) for cell in cells]
+            # Break if 'Laboratory Marks (Practical)' is found -> to get only subject marks
+            if 'Laboratory Marks (Practical)' in row_data:
+                break
+            # Append row data if it's not empty -> to get only subject marks
+            if row_data:
+                subject_marks_data.append(row_data)
+        # Initialize dictionaries and total mark variables
+        cie1_marks_dict = {}
+        cie2_marks_dict = {}
+        total_cie1_marks = 0
+        total_cie2_marks = 0
+
+        # Process each row data
+        for marks_row in subject_marks_data:
+            subject_name = marks_row[2]
+            cie1_marks = marks_row[3]
+            cie2_marks = marks_row[5]
+
+            cie1_marks_dict[subject_name] = cie1_marks
+            cie2_marks_dict[subject_name] = cie2_marks
+            excluded_marks = ['-', '0', '0.0'] 
+
+            if cie1_marks not in excluded_marks:
+                total_cie1_marks += float(cie1_marks)
+
+            if cie2_marks not in excluded_marks:
+                total_cie2_marks += float(cie2_marks)
+
+        
+        
+        total_cie_marks = total_cie1_marks + total_cie2_marks
+
+        # print(f"Total CIE 1 Marks: {total_cie1_marks}")
+        # print(f"Total CIE 2 Marks: {total_cie2_marks}")
+        # print(f"Total CIE Marks: {total_cie_marks}")
+
+        return str(total_cie_marks)
+    except Exception as e:
+        return e
+
+
 
 
 async def cgpa_tracker(bot,chat_id):
