@@ -955,3 +955,10 @@ async def get_tables_and_columns():
 
     finally:
         await connection.close()
+
+async def sqlite_bool_to_pg_bool(sqlbool):
+    """
+    This function is used to convert the boolean values from 1 to True, and 0 to False
+    :return: returns boolean values in the form of True and False
+    """
+    return True if sqlbool else False
