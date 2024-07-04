@@ -388,3 +388,12 @@ async def get_experiment_title(experiment_names_html, week_no):
         return experiment_title
     except:
         return None
+
+async def get_upload_details(week_no, exp_title, file_name, file_path):
+    upload_details = {
+        'week_no': week_no,
+        'exp_title': exp_title,
+        'file_name': file_name,
+        'file_path': file_path
+    }
+    return upload_details
