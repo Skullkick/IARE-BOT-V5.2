@@ -1168,7 +1168,7 @@ async def clear_bot_manager_table():
     connection = await connect_pg_database()
     try:
         # Execute the SQL command to delete banned users data
-        await connection.execute("DELETE FROM bot_manager")
+        await connection.execute("DELETE FROM bot_managers")
         print("bot_manager values have been removed successfully! from the database")
         return True
         # handles the exceptional errors .
