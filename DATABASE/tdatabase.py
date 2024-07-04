@@ -530,3 +530,86 @@ async def delete_banned_username_credentials_data(username):
         cursor.execute("DELETE FROM credentials WHERE LOWER(?) LIKE LOWER(username || '%')",(f"{username}",))
         print("deleted successfully")
         conn.commit()
+async def fetch_row_count_banned_user_database():
+    """
+    This function is used to fetch the number of rows present in the banned users database
+    :return: Returns the number of rows in int.
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM banned_users")
+        total_count = cursor.fetchone()[0]
+    return total_count
+
+async def clear_banned_usernames_table():
+    """
+    This function is used to clear all the rows in banned_users table in the database
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM banned_users")
+        conn.commit()
+        return True
+
+async def store_banned_username(username):
+    """
+    This Function is used to store the banned username in the database
+    :param username : Username of the banned user.
+    Note : Store the banned username by converting it to lowercase or uppercase
+    """
+    banned_username = username.lower()  # Convert username to lowercase
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        try:
+            # Check if the username already exists in the database
+            cursor.execute('SELECT 1 FROM banned_users WHERE username = ?', (banned_username,))
+            if cursor.fetchone() is None:
+                # Insert the username if it does not exist in the database
+                cursor.execute('INSERT INTO banned_users (username) VALUES (?)', (banned_username,))
+                conn.commit()
+                print("Username banned successfully")
+            else:
+                print("Username already banned")
+        except sqlite3.IntegrityError as e:
+            print(f"Error storing banned users to local database: {e}")
+
+async def get_all_banned_usernames():
+    """
+    This Function is used to get all the banned usernames
+    :return: Returns a tuple containing all the usernames
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM banned_users")
+        # print(cursor.fetchall())
+        banned_usernames = [row[0] for row in cursor.fetchall()]
+        return banned_usernames
+
+async def remove_banned_username(username):
+    """
+    This Function is used to remove the banned username,
+    Basically this means unban of the user
+    :param username : Username of the user
+    Note : While deleting send the username in the same letter case when it is stored in the database
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM banned_users WHERE username = ?',(username,))
+        conn.commit()
+
+async def get_bool_banned_username(username):
+    """
+    This function is used to know whether a username is banned username or not.
+    :param username: Username of the user.
+    :return: Boolean value.
+    True - User is banned
+    False - User is not banned
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM banned_users WHERE LOWER(?) LIKE LOWER(username || "%")',(f"{username}",))
+        row = cursor.fetchone()
+        if row:
+            return True
+        else:
+            return False
