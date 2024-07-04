@@ -61,3 +61,107 @@ async def compress_pdf_scrape(bot,message):
     # Initialize WebDriver
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
     
+    def rename_downloaded_file(download_directory,chat_id):
+        """
+        Rename the downloaded file to the specified filename
+        :param download_directory: Directory of the downloaded file
+        :param chat_id: Chat id of the user
+
+        """
+        pdf_folder = "pdfs"
+        pdf_folder = os.path.abspath(pdf_folder)
+        file_name_compressed = f"C-{chat_id}-comp.pdf"
+        all_pdf_files = os.listdir(pdf_folder)
+        if file_name_compressed in all_pdf_files:
+            pdf_path = os.path.join(pdf_folder,file_name_compressed)
+            os.remove(os.path.abspath(pdf_path))
+        
+        compressed_file_downloaded_path = os.path.join(download_directory,f"C-{chat_id}_11zon.pdf")
+        rename_compressed_file_path = os.path.join(download_directory,f"C-{chat_id}-comp.pdf")
+        os.rename(compressed_file_downloaded_path,rename_compressed_file_path)
+        normal_filename = f"C-{chat_id}.pdf"
+        old_pdf_location = os.path.join(pdf_folder,normal_filename)
+        os.remove(os.path.abspath(old_pdf_location))
+
+    try:
+        # Navigate to the website
+        driver.get("https://bigpdf.11zon.com/en/compress-pdf")
+
+        # Close the popup (if any)
+        try:
+            close_popup_button = WebDriverWait(driver,1).until(
+                EC.element_to_be_clickable((By.ID, "zon-donation-popup-close"))
+            )
+            close_popup_button.click()
+        except Exception as e:
+            print("No popup found or failed to close popup:", e)
+
+        # Upload the PDF file
+        driver.execute_script(f"document.querySelector('input[type=file]').setAttribute('style', 'display: block');")
+        file_input = driver.find_element(By.CSS_SELECTOR, "input[type=file]")
+        file_input.send_keys(input_path)
+        time.sleep(2)  # Wait for file to be uploaded
+
+        # Iterate over compression levels
+        compression_levels_to_try = [60, 70, 80, 90, 100]
+        successful_compression = False
+        new_filename = f"C-{chat_id}-comp.pdf"
+        
+        for compression_level in compression_levels_to_try:
+            try:
+                # Set the compression level using the slider
+                driver.execute_script(f"document.getElementById('compress-range').value = {compression_level};")
+                time.sleep(1)  # Wait for the slider to update
+
+                # Click the "Compress" button
+                compress_button = WebDriverWait(driver,1).until(
+                    EC.element_to_be_clickable((By.ID, "apply-button"))
+                )
+                compress_button.click()
+
+                # Wait for compression to complete
+                time.sleep(10)
+                
+                # Check the new size after compression
+                new_size_element = WebDriverWait(driver,0).until(
+                    EC.visibility_of_element_located((By.ID, "zon-bottom-txt-cl0"))
+                )
+                new_size_text = new_size_element.text
+                if "KB" in new_size_text:
+                    new_size_kb = float(new_size_text.split()[2])
+                    new_size_mb = new_size_kb / 1024
+                elif "MB" in new_size_text:
+                    new_size_mb = float(new_size_text.split()[2])
+                
+                print(f"Compression at {compression_level}% resulted in file size: {new_size_mb:.2f} MB")
+
+                # Check if size is below 1 MB
+                if new_size_mb < 1:
+                    print(f"Compression successful. Final file size: {new_size_mb:.2f} MB")
+
+                    download_button = WebDriverWait(driver,5).until(
+                        EC.element_to_be_clickable((By.ID, "zon-download-cbtn0"))
+                    )
+                    driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
+                    try:
+                        download_button.click()
+                    except Exception as e:
+                        print(f"Direct click failed, using JavaScript click due to: {e}")
+                        driver.execute_script("arguments[0].click();", download_button)
+                    time.sleep(1)  # Wait for download to start
+
+                    # Rename the downloaded file
+                    rename_downloaded_file(download_dir,chat_id)
+                    return True,""
+                
+            except Exception as ex:
+                return False,f"Error during compression at {compression_level}%", ex
+
+        if not successful_compression:
+            return False,"Unable to compress PDF below 1 MB even at maximum compression."
+        else:
+            return True,f"Compressed file {new_filename} is available in the directory: {download_dir}"
+
+    finally:
+        # Close the browser
+        driver.quit()
