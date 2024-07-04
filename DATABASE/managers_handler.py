@@ -280,3 +280,83 @@ async def fetch_maintainer_chat_ids():
         cursor.execute("SELECT chat_id FROM bot_managers WHERE maintainer = ?",(1,))
         maintainer_chat_ids = [row[0] for row in cursor.fetchall()]
         return maintainer_chat_ids
+async def fetch_name(chat_id):
+    """
+    Fetch the Name of the user from database based on chat_id
+    :param chat_id: Chat id of the manager.
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM bot_managers WHERE chat_id = ?",(chat_id,))
+        name = cursor.fetchone()
+        if name is not None:
+            return name[0]
+
+async def store_name(chat_id,name):
+    """
+    Perform storing the name of the manager
+    :param chat_id: Chat id of the manager.
+    :param name: Name of the manager
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE bot_managers SET name = ? WHERE chat_id = ?",(name,chat_id))
+        conn.commit()
+
+async def remove_maintainer(chat_id):
+    """
+    Remove a maintainer based on the chat_id
+    :param chat_id: Chat id of the maintainer
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM bot_managers WHERE chat_id= ? AND maintainer = ?",(chat_id,1))
+        conn.commit()
+
+async def remove_admin(chat_id):
+    """
+    Remove a admin based on the chat_id
+    :param chat_id : Chat id of the admin
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM bot_managers WHERE chat_id = ? AND admin = ?",(chat_id,1))
+        conn.commit()
+
+async def get_control_access(chat_id):
+    """
+    This Function is used to get the details of the control access.
+    :param chat_id : Chat id of the user.
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT control_access FROM bot_managers WHERE chat_id = ?",(chat_id,))
+        control_access  = cursor.fetchone()
+        if control_access is not None:
+            return control_access[0]
+
+async def get_access_data(chat_id):
+    """
+    This function is used to get the access data based on the chat_id
+    :param chat_id : Chat id of the user 
+    :return: Returns a tuple containg boolean access data values.
+    :tuple boolean values: access_users,announcement,configure,show_reports,reply_reports,clear_reports,
+    ban_username,unban username,manage_maintainers,logs
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT access_users,
+                   announcement,
+                   configure,
+                   show_reports,
+                   reply_reports,
+                   clear_reports,
+                   ban_username,
+                   unban_username,
+                   manage_maintainers,
+                   logs 
+            FROM bot_managers 
+            WHERE chat_id = ?
+        """, (chat_id,))
+        access_data = cursor.fetchone()
+        return access_data
