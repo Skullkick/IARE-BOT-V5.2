@@ -750,7 +750,140 @@ async def generate_unique_id():
     """
     return str(uuid.uuid4())
 
+# CHECKS IF REGISTERED FOR PAT
 
+async def check_pat_student(bot,message):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+    if not session_data:
+        auto_login_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # if chat_id_in_local_database is False:
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    pat_attendance_url = "https://samvidha.iare.ac.in/home?action=Attendance_std"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+
+        pat_attendance_response = s.get(pat_attendance_url)
+    data = BeautifulSoup(pat_attendance_response.text, 'html.parser')
+    td_tags = re.findall(r'<td\s*[^>]*>.*?</td>', str(data), flags=re.DOTALL)
+
+    # Count the number of <td> tags found
+    num_td_tags = len(td_tags)
+    # print("Number of <td> tags:", num_td_tags)
+
+    if(num_td_tags > 2):
+        return True
+    else:
+        return False
+
+pat-attendance
+# PAT ATTENDENCE IF REGISTERED
+
+async def pat_attendance(bot,message):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    pat_attendance_url = "https://samvidha.iare.ac.in/home?action=Attendance_std"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        pat_attendance_response = s.get(pat_attendance_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in pat_attendance_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            await pat_attendance(bot,message)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+    pat_att_heading = f"""
+```PAT ATTENDANCE
+@iare_unofficial_bot
+```
+"""
+    await bot.send_message(chat_id,pat_att_heading)
+    data = BeautifulSoup(pat_attendance_response.text, 'html.parser')
+    tables = data.find_all('table')
+    all_pat_attendance_indexes = await user_settings.get_pat_attendance_index_values()
+    if all_pat_attendance_indexes:
+        course_name_index = all_pat_attendance_indexes['course_name']
+        conducted_classes_index = all_pat_attendance_indexes['conducted_classes']
+        attended_classes_index = all_pat_attendance_indexes['attended_classes']
+        attendance_percentage_index = all_pat_attendance_indexes['attendance_percentage']
+        attendance_status_index = all_pat_attendance_indexes['status']
+    else:
+        course_name_index = 2
+        conducted_classes_index = 3
+        attended_classes_index = 4
+        attendance_percentage_index = 5
+        attendance_status_index = 6
+    sum_of_attendance = 0
+    count_of_attendance = 0
+    for table in tables:
+        rows = table.find_all('tr')
+
+        for row in rows:
+            columns = row.find_all('td')
+            if len(columns) >= 7:
+                course_name = columns[course_name_index].text.strip()
+                conducted_classes = columns[conducted_classes_index].text.strip()
+                attended_classes = columns[attended_classes_index].text.strip()  
+                attendance_percentage = columns[attendance_percentage_index].text.strip()
+                att_status = columns[attendance_status_index].text.strip()
+                att_msg_updated_ui = f"""
+```{course_name}
+
+● Conducted         -  {conducted_classes}
+             
+● Attended          -  {attended_classes}  
+         
+● Attendance %      -  {attendance_percentage} 
+            
+● Status            -  {att_status}  
+         
+```
+"""
+                
+                att_msg_traditional_ui = f"""
+\n**{course_name}**
+
+● Conducted         -  {conducted_classes}
+             
+● Attended            -  {attended_classes}   
+         
+● Attendance %    -  {attendance_percentage} 
+            
+● Status                 -  {att_status}
+"""
+                sum_of_attendance+=float(attendance_percentage)
+                if int(conducted_classes) > 0:
+                        count_of_attendance += 1
+                if ui_mode[0] == 0:
+                    await bot.send_message(chat_id,att_msg_updated_ui)
+                else:
+                    await bot.send_message(chat_id,att_msg_traditional_ui)
+    aver_attendance = round(sum_of_attendance/count_of_attendance, 2)
+    over_all_attendance = f"**Overall PAT Attendance is {aver_attendance}**"
+    await bot.send_message(chat_id,over_all_attendance)
+    await buttons.start_user_buttons(bot,message)
 
 
 async def report(bot,message):
