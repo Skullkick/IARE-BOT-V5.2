@@ -412,3 +412,97 @@ async def delete_lab_upload_data(chat_id):
         cursor = conn.cursor()
         cursor.execute("DELETE FROM lab_upload_info WHERE chat_id=?",(chat_id,))
         conn.commit()
+
+async def store_credentials_in_database(chat_id, username, password):
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        # Check if the chat_id already exists
+        cursor.execute('SELECT * FROM credentials WHERE chat_id = ?', (chat_id,))
+        existing_row = cursor.fetchone()
+        if existing_row:
+            # If chat_id exists, update the row
+            cursor.execute('UPDATE credentials SET username = ?, password = ? WHERE chat_id = ?',
+                           (username, password, chat_id))
+        else:
+            # If chat_id does not exist, insert a new row
+            cursor.execute("INSERT INTO credentials (chat_id, username, password) VALUES (?, ?, ?)",
+                           (chat_id, username, password))
+        conn.commit()
+
+async def fetch_row_count_credentials_database():
+    """
+    This Function is used to fetch the number of rows present in the credentials database.
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM credentials")
+        total_count = cursor.fetchone()[0]
+    return total_count
+
+async def fetch_credentials_from_database(chat_id):
+    """
+    This Function is used to fetch the username and password based on the chat_id of the user from the database.
+    :param chat_id: Chat_id of the user based on the message
+    :return: returns tuple containing username and password"""
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username,password FROM credentials WHERE chat_id = ?", (chat_id,))
+        credentials = cursor.fetchone()
+        if credentials is None:
+            return None,None
+        return credentials
+
+async def fetch_username_from_credentials(chat_id):
+    """
+    This Function is used to fetch the username from the local database
+    :param chat_id: Chat_id of the user
+    :return: Returns the username"""
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username FROM credentials WHERE chat_id = ?",(chat_id,))
+        username = cursor.fetchone()
+        if username is None:
+            return None
+        return username[0]
+
+async def check_chat_id_in_database(chat_id):
+    """
+    This Function is used to check whether the chat_id is present in the database or not.
+    If the chat_id is present in the database then it returns true
+    :chat_id: Chat id of the user based on the message recieved
+    :return: return a boolean value"""
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT EXISTS (SELECT 1 FROM credentials WHERE chat_id = ?)",
+            (chat_id,)
+        )
+        result = cursor.fetchone()
+        return bool(result[0]) if result else False
+    
+async def delete_user_credentials(chat_id):
+    """
+    Delete the user credentials data from the SQLite database.
+
+    Parameters:
+        chat_id (int): The chat ID of the user.
+    """
+    try:
+        with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM credentials WHERE chat_id=?", (chat_id,))
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error removing creddentials from the database : {e}")
+        return False
+
+async def clear_credentials_table():
+    """
+    This function is used to clear all the rows in credentials table in the database
+    """
+    with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM credentials")
+        conn.commit()
+        return True
