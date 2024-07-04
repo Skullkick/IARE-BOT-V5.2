@@ -37,3 +37,23 @@ async def create_bot_managers_tables():
             )
         """)
         conn.commit()
+async def create_cgpa_tracker_table():
+    """
+    This function is used to create a table in MANAGERS_DATABASE 
+    columns :
+    
+    - chat_id
+    - status
+    - current_cgpa
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        # Create a table to store user sessions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cgpa_tracker (
+                chat_id INTEGER PRIMARY KEY,
+                status BOOLEAN DEFAULT 0,
+                current_cgpa TEXT
+            )
+        """)
+        conn.commit()
