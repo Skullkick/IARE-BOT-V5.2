@@ -35,3 +35,23 @@ async def connect_pg_database():
 #     finally:
         
 #         await conn.close()
+
+async def create_all_pgdatabase_tables():
+    """
+    This Function is used to create all the necessary tables in the pgdatabase
+
+    - user credentials table
+    - banned users table
+    - bot managers table
+    - reports table
+    - indexes table
+
+    """
+    await create_user_credentials_table()
+    await create_banned_users_table()
+    await create_bot_managers_tables()
+    await create_reports_table()
+    await create_indexes_table()
+    await create_cgpa_tracker_table()
+    await create_cie_tracker_table()
+    
