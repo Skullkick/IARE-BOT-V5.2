@@ -288,7 +288,46 @@ async def announcement_to_all_users(bot, message):
     # Send success percentage message
     await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
 
-
+async def get_cgpa(bot,chat_id):
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database_silent(bot,chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=operations.login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=operations.login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        return
+    gpa_url = "https://samvidha.iare.ac.in/home?action=credit_register"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        gpa_response = s.get(gpa_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_response.text:
+        if chat_id_in_local_database:
+            await operations.silent_logout_user_if_logged_out(bot,chat_id)
+            await get_cgpa(bot,chat_id)
+        else:
+            await operations.logout_user_if_logged_out(bot,chat_id)
+        return
+    pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
+    sgpa_values = re.findall(pattern,gpa_response.text)
+    sgpa_values = [float(x) for x in sgpa_values]
+    if not sgpa_values:
+        return "0.00"
+    cgpa = round(sum(sgpa_values) / len(sgpa_values) , 3)
+    await silent_logout(chat_id)
+    return str(cgpa)
+    
 
 
 async def cgpa_tracker(bot,chat_id):
