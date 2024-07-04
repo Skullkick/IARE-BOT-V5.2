@@ -369,3 +369,146 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             SQLITE3_FINAL_RESET_DATABASE_TEXT,
             reply_markup =  SQLITE3_FINAL_RESET_DATABASE_BUTTON
         )
+
+    elif callback_query.data == "manager_postgres_sql":
+        POSTGRES_TEXT = "Here are few Postgres operations."
+        POSTGRES_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Banned Users",callback_data="manager_select_postgres-banned_users")],
+                [InlineKeyboardButton("Index values",callback_data="manager_select_postgres-index_values")],
+                [InlineKeyboardButton("Credentials and Settings",callback_data="manager_select_postgres-user_credentials_settings")],
+                [InlineKeyboardButton("Bot Managers",callback_data="manager_select_postgres-bot_managers")],
+                [InlineKeyboardButton("Subjects and Weeks",callback_data="manager_select_postgres-subject_weeks")],
+                [InlineKeyboardButton("Back",callback_data="manager_database")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            POSTGRES_TEXT,
+            reply_markup = POSTGRES_BUTTONS
+        )
+    elif "manager_select_postgres" in callback_query.data:
+        table_name = callback_query.data.split("-")[1]
+        POSTGRES_RESET_TEXT = f"Here are few operations that you can perform in Postgres Database.\n\n\ttable - {table_name} table"
+        POSTGRES_RESET_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard= [
+                [InlineKeyboardButton("Reset",callback_data=f"manager_reset_postgres-{table_name}")],
+                [InlineKeyboardButton("Back", callback_data="manager_postgres_sql")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            POSTGRES_RESET_TEXT,
+            reply_markup = POSTGRES_RESET_BUTTONS
+        )
+    elif "manager_reset_postgres" in callback_query.data:
+        table_name = callback_query.data.split("-")[1]
+        POSTGRES_FINAL_RESET_DATABASE_TEXT = f"""Are you sure?\n\nWould you like to reset {table_name} table in Postgres database."""
+        POSTGRES_FINAL_RESET_DATABASE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Yes",callback_data=f"manager_reset_final_postgres-{table_name}")],
+                [InlineKeyboardButton("Back",callback_data="manager_postgres_sql")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            POSTGRES_FINAL_RESET_DATABASE_TEXT,
+            reply_markup =  POSTGRES_FINAL_RESET_DATABASE_BUTTON
+        )
+    elif "manager_reset_final_postgres" in callback_query.data:
+        table_name = callback_query.data.split("-")[1]
+        if table_name == "user_credentials_settings":
+            await pgdatabase.clear_credentials_and_settings_database()
+        elif table_name == "index_values":
+            await pgdatabase.clear_index_values_database()
+        elif table_name == "banned_users":
+            await pgdatabase.clear_banned_users_database()
+        elif table_name == "bot_managers":
+            await pgdatabase.clear_bot_manager_table()
+        elif table_name == "subject_weeks":
+            await pgdatabase.delete_labs_data_for_all()
+        POSTGRES_FINAL_RESET_DATABASE_TEXT = f"""{table_name} has been reset in Postgres database."""
+        POSTGRES_FINAL_RESET_DATABASE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="manager_postgres_sql")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            POSTGRES_FINAL_RESET_DATABASE_TEXT,
+            reply_markup =  POSTGRES_FINAL_RESET_DATABASE_BUTTON
+        )
+#     elif callback_query.data == "manager_pgtusers":
+#         await callback_query.answer()
+#         _message = callback_query.message
+#         chat_id = _message.chat.id
+#         total_user_in_pgdatabase = await pgdatabase.total_users_pg_database(bot,chat_id)
+#         TOTAL_USERS_PGDATABASE_TEXT = f"""
+# ```
+# TOTAL USERS  : {total_user_in_pgdatabase}
+# ```
+# """
+#         TOTAL_USERS_BUTTON = InlineKeyboardMarkup(
+#             inline_keyboard=[
+#                 [InlineKeyboardButton("Back",callback_data="manager_users")],
+#             ]
+#         )
+#         await callback_query.edit_message_text(
+#             TOTAL_USERS_PGDATABASE_TEXT,
+#             reply_markup = TOTAL_USERS_BUTTON
+#         )
+    elif callback_query.data == "manager_pg_reset":
+        PG_RESET_FINAL_TEXT = "Are you sure?"
+        PG_RESET_FINAL_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard= [
+                [InlineKeyboardButton("YES",callback_data="manager_reset_pg_final")],
+                [InlineKeyboardButton("Back", callback_data="manager_database")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            PG_RESET_FINAL_TEXT,
+            reply_markup =  PG_RESET_FINAL_BUTTONS
+        )
+    elif callback_query.data == "manager_reset_pg_final":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        await pgdatabase.clear_database()
+        await callback_query.answer()
+    elif callback_query.data == "manager_maintainers":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        # await managers_handler.fetch_name()
+        maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+        # Prepare the inline keyboard buttons
+        button = []
+        for maintainer_chat_id in maintainer_chat_ids:
+            # Fetch the username for each maintainer chat ID
+            username = await managers_handler.fetch_name(maintainer_chat_id)
+            # Create a button with the username and callback data including the chat ID
+            button.append([
+                InlineKeyboardButton(
+                    text=username,
+                    callback_data=f"manager_select_maintainer-{maintainer_chat_id}"
+                )
+            ])
+        # Adding Back button
+        button.append([InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")])
+        # Create an inline keyboard markup
+        maintainers_button = InlineKeyboardMarkup(inline_keyboard=button)
+        
+        # Send the message with inline keyboard (or edit the existing message)
+        await callback_query.edit_message_text(
+            "Maintainers : ",
+            reply_markup = maintainers_button
+        )
+    elif "manager_select_maintainer" in callback_query.data:
+        chat_id = callback_query.data.split("-")[1] # Get the chat id from the callback query
+        maintainer_name = await managers_handler.fetch_name(chat_id) # Fetching the name of the manager
+        SELECT_MAINTAINER_TEXT = f"Maintainer Name : **{maintainer_name}**"
+        SELECT_MAINTAINER_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Permissions",callback_data=f"manager_Permission_view-{chat_id}")],
+                [InlineKeyboardButton("Remove",callback_data=f"manager_remove_maintainer-{chat_id}")],
+                [InlineKeyboardButton("Back",callback_data="manager_maintainers")]
+            ]
+        )
+        await callback_query.edit_message_text(# Editing the message with the updated text and buttons
+            SELECT_MAINTAINER_TEXT,
+            reply_markup = SELECT_MAINTAINER_BUTTON
+        )
