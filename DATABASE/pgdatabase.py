@@ -13,3 +13,25 @@ async def connect_pg_database():
         port=PORT_CRED
     )
     return connection
+
+# async def create_user_credentials_table():  
+#     """This function is used to create a table in postgres database if it dosent exist"""
+#     conn = await connect_pg_database() 
+#     try:
+#         await conn.execute(
+#             '''
+#             CREATE TABLE IF NOT EXISTS user_credentials (
+#                 chat_id BIGINT PRIMARY KEY,
+#                 username VARCHAR(25),
+#                 password VARCHAR(30),
+#                 pat_student BOOLEAN DEFAULT false
+#             )
+#             '''
+#         )
+#         return True
+#     except Exception as e:
+#         print(f"Error creating table: {e}")
+#         return False
+#     finally:
+        
+#         await conn.close()
