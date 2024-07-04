@@ -512,3 +512,94 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             SELECT_MAINTAINER_TEXT,
             reply_markup = SELECT_MAINTAINER_BUTTON
         )
+    elif "manager_remove_maintainer" in callback_query.data:
+        chat_id = callback_query.data.split("-")[1]# Get the chat id from the callback query
+        maintainer_name = await managers_handler.fetch_name(chat_id)# Fetching the name of the manager
+        await managers_handler.remove_maintainer(chat_id) # Removing the maintainer from the database
+        await pgdatabase.remove_maintainer(chat_id) # Remove the maintainer from the postgres database
+        if await managers_handler.remove_cgpa_tracker_details(int(chat_id)): # remove if there is any cgpa tracker from local database
+            await pgdatabase.remove_cgpa_tracker_details(int(chat_id)) # remove tracker if the tracker is found and removed from the local database
+        await bot.send_message(chat_id,"You have been relieved of your Maintainer duties.")
+        REMOVED_MAINTAINER_TEXT = f"Removed Maintainer **{maintainer_name}**"
+        REMOVED_MAINTAINER_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="manager_maintainers")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            REMOVED_MAINTAINER_TEXT,
+            reply_markup = REMOVED_MAINTAINER_BUTTON
+        )
+    elif "Permission_view" in callback_query.data:
+        chat_id = callback_query.data.split("-")[1]# Get the chat id from the callback query
+        maintainer_name = await managers_handler.fetch_name(chat_id)# Fetching the name of the manager
+        access_data = await managers_handler.get_access_data(chat_id) # get all the Boolean access data values
+        access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs = access_data
+        PERMISSION_VIEW_TEXT = f"Manage access for {maintainer_name}"
+        PERMISSION_VIEW_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard= await generate_permission_buttons(chat_id,access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs)
+        )
+        await callback_query.edit_message_text(
+            PERMISSION_VIEW_TEXT,
+            reply_markup = PERMISSION_VIEW_BUTTONS
+        )
+    elif "manager_access_data" in callback_query.data:
+        data = callback_query.data.split("-")[1:]
+        access_data_bool, chat_id = data[0] ,data[1]
+        if access_data_bool == '1':
+            await managers_handler.set_access_users_false(chat_id) # Set the access users as false
+            value = "Removed"
+        elif access_data_bool == '0':
+            await managers_handler.set_access_users_true(chat_id) # set the access users as true
+            value = "Added"
+        maintainer_name = await managers_handler.fetch_name(chat_id)# Fetching the name of the manager
+        access_data = await managers_handler.get_access_data(chat_id) # get all the Boolean access data values
+        access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs = access_data
+        PERMISSION_CHANGE_TEXT = f"Manage access for {maintainer_name}\n\n {value} User Rights"
+        PERMISSION_CHANGE_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard= await generate_permission_buttons(chat_id,access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs)
+        )
+        await callback_query.edit_message_text(
+            PERMISSION_CHANGE_TEXT,
+            reply_markup = PERMISSION_CHANGE_BUTTONS
+        )
+    elif "manager_announcement_data" in callback_query.data:
+        data = callback_query.data.split("-")[1:]
+        access_announcement_bool, chat_id = data
+        if access_announcement_bool == '1':
+            await managers_handler.set_announcement_access_false(chat_id) # Set the access to announcement as false
+            value = "Removed"
+        elif access_announcement_bool == '0':
+            await managers_handler.set_announcement_access_true(chat_id)# Set the access to announcement as true
+            value = "Added" 
+        maintainer_name = await managers_handler.fetch_name(chat_id)# Fetching the name of the manager
+        access_data = await managers_handler.get_access_data(chat_id) # get all the Boolean access data values
+        access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs = access_data
+        PERMISSION_CHANGE_TEXT = f"Manage access for {maintainer_name} \n\n {value} Announcement Rights ."
+        PERMISSION_CHANGE_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard= await generate_permission_buttons(chat_id,access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs)
+        )
+        await callback_query.edit_message_text(
+            PERMISSION_CHANGE_TEXT,
+            reply_markup = PERMISSION_CHANGE_BUTTONS
+        )
+    elif "manager_configure_data" in callback_query.data:
+        data = callback_query.data.split("-")[1:]
+        access_configure_bool, chat_id = data[0] ,data[1]
+        if access_configure_bool == '1':
+            await managers_handler.set_configure_access_false(chat_id) # Set the access to configure as false
+            value = "Removed"
+        elif access_configure_bool == '0':
+            await managers_handler.set_configure_access_true(chat_id) # Set the access to configure as true
+            value = "Added"
+        maintainer_name = await managers_handler.fetch_name(chat_id)# Fetching the name of the manager
+        access_data = await managers_handler.get_access_data(chat_id) # get all the Boolean access data values
+        access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs = access_data
+        PERMISSION_CHANGE_TEXT = f"Manage access for {maintainer_name}\n\n {value} Configuration Rights."
+        PERMISSION_CHANGE_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard= await generate_permission_buttons(chat_id,access_users, announcement, configure, show_reports, reply_reports, clear_reports, ban_username, unban_username, manage_maintainers, logs)
+        )
+        await callback_query.edit_message_text(
+            PERMISSION_CHANGE_TEXT,
+            reply_markup = PERMISSION_CHANGE_BUTTONS
+        )
