@@ -187,3 +187,228 @@ async def clear_sessions_table():
         cursor = conn.cursor()
         cursor.execute("DELETE FROM sessions")
         conn.commit()
+async def store_lab_info(chat_id,title,subject_code,week_index,get_title:bool):
+    """Store lab information in the database.
+    
+    :param chat_id: Chat ID of the user.
+    :param title: Title of the experiment.
+    :param subject_code: Selected subject index.
+    :param week_index: Selected week index.
+    """
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            if subject_code is not None:
+                cursor.execute('UPDATE lab_upload_info SET subject = ? WHERE chat_id = ?', (subject_code, chat_id))
+            if week_index is not None:
+                cursor.execute('UPDATE lab_upload_info SET week_index = ? WHERE chat_id = ?', (week_index, chat_id))
+            if get_title is True:
+                if title is not None:
+                    cursor.execute('UPDATE lab_upload_info SET title = ? WHERE chat_id = ?', (title, chat_id))
+            # if subjects is not None:
+            #     cursor.execute('UPDATE lab_upload_info SET subjects = ? WHERE chat_id = ?', (subjects, chat_id))
+        else:
+            if get_title is True:
+                cursor.execute('INSERT INTO lab_upload_info (chat_id, title, subject, week_index) VALUES (?, ?, ?)',
+                        (chat_id, title, subject_code, week_index))
+            else:
+                cursor.execute('INSERT INTO lab_upload_info (chat_id, subject, week_index) VALUES (?, ?, ?)',
+                        (chat_id, subject_code, week_index))
+
+        conn.commit()
+
+async def store_subject_code(chat_id,subject_code):
+    """This function is used to store the subject in the database to retrieve later
+
+    :param chat_id: chat_id of the user based on the message received from the user.
+    :param subject_code: Selected subject_code is stored in the database"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET subject = ? WHERE chat_id = ?', (subject_code, chat_id))
+        conn.commit()
+async def delete_subject_code(chat_id):
+    """
+    This function is used to delete the stored subject code from the database
+    
+    :param subject_code: Code of the selected subject
+    """
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET subject = ? WHERE chat_id = ?', (None, chat_id))
+            return True
+        else:
+            return False
+
+
+async def store_week_index(chat_id,week_index):
+    """This function is used to store the week_index in the database to retrieve later
+
+    :param chat_id: chat_id of the user based on the message received from the user.
+    :param week_index: Selected week_index is stored in the database"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET week_index = ? WHERE chat_id = ?', (week_index, chat_id))
+        conn.commit()
+
+async def store_title(chat_id,title):
+    """This function is used to store the title in the database to use later
+
+    :param chat_id: chat_id of the user based on the message received from the user.
+    :param title: Title is stored in the database"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET title = ? WHERE chat_id = ?', (title, chat_id))
+        else:
+            cursor.execute('INSERT INTO lab_upload_info (chat_id, title) VALUES (?, ?)',
+            (chat_id, title))
+        conn.commit()
+
+async def store_pdf_status(chat_id,status):
+    """This function is used to store the pdf status
+
+    :param chat_id: chat_id of the user based on the message received from the user.
+    :param status: Boolean"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET pdf_status = ? WHERE chat_id = ?', (status, chat_id))
+        else:
+            cursor.execute('INSERT INTO lab_upload_info (chat_id, pdf_status) VALUES (?, ?)',
+            (chat_id, status))
+        conn.commit()
+
+async def store_title_status(chat_id,status):
+    """This function is used to store the title status
+
+    :param chat_id: chat_id of the user based on the message received from the user
+    :param status: Boolean"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET get_title = ? WHERE chat_id = ?', (status, chat_id))
+        else:
+            cursor.execute('INSERT INTO lab_upload_info (chat_id, get_title) VALUES (?, ?)',
+            (chat_id, status))
+        conn.commit()
+
+async def fetch_required_lab_info(chat_id):
+    """This function is used to fetch the title,subject,week_index from the database
+
+    :param chat_id: chat_id of the user based on the messagee."""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT title,subject, week_index FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        lab_info = cursor.fetchone()
+        if lab_info:
+            return lab_info
+        else:
+            return None
+
+async def  fetch_title_lab_info(chat_id):
+    """This Function is used to fetch the title from the lab_upload_info
+
+    :param chat_id: The chat_id of the user
+    :return: title_info"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT title FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        title_info = cursor.fetchone()
+        if title_info:
+            return title_info
+        else:
+            return None
+
+
+async def fetch_pdf_status(chat_id):
+    """This Function is used to get the status of the pdf, This is necessary for receiving the pdf from the user
+
+    :param chat_id: chat_id of the user based on message.
+    :return: pdf_status"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT pdf_status FROM lab_upload_info WHERE chat_id = ?',(chat_id,))
+        pdf_status = cursor.fetchone()
+        if pdf_status:
+            return pdf_status[0]
+        else:
+            return None
+
+async def fetch_title_status(chat_id):
+    """This Function is used to get the status of the title, This is necessary for receiving the title from the user
+
+    :param chat_id: chat_id of the user based on message.
+    :return: title_status"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT get_title FROM lab_upload_info WHERE chat_id = ?',(chat_id,))
+        title_status = cursor.fetchone()
+        if title_status:
+            return title_status[0]
+        else:
+            return None
+
+async def delete_title_status_info(chat_id):
+    """This function removes the status of the title from the database
+
+    :param chat_id: chat_id of the user based on the message received."""
+
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET get_title = ? WHERE chat_id = ?', (None, chat_id))
+            return True
+        else:
+            return False
+async def delete_pdf_status_info(chat_id):
+    """This Function is used to remove the pdf status of a specified user in the database
+    
+    :param chat_id: chat_id of the user
+    :return: Boolean"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET pdf_status = ? WHERE chat_id = ?', (None, chat_id))
+            return True
+        else:
+            return False
+
+async def delete_indexes_and_title_info(chat_id):
+    """This function deletes the selected index values and the title information stored in the database
+    :param chat_id: chat_id of the user"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
+        existing_data = cursor.fetchone()
+        if existing_data:
+            cursor.execute('UPDATE lab_upload_info SET title = ?, subject = ?, week_index = ? WHERE chat_id = ?', (None,None,None, chat_id))
+            conn.commit()
+            return True
+
+async def delete_lab_upload_data(chat_id):
+    """This function is used to delete the row of a user based on chat_id in lab_upload_info table"""
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM lab_upload_info WHERE chat_id=?",(chat_id,))
+        conn.commit()
