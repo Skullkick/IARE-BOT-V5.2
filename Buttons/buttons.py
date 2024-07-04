@@ -700,3 +700,121 @@ BIOMETRIC
             USERINTERFACE_TEXT,
             reply_markup = USERINTERFACE_BUTTONS
         )
+
+    elif callback_query.data == "save_changes_settings":
+        chat_id = callback_query.message.chat.id
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if chat_id_in_local_database is False:
+            await bot.send_message(chat_id,"This can be used by saved login users only.")
+            return
+        # print(await user_settings.fetch_user_settings(chat_id))
+        chat_id,attendance_threshold,bio_threshold,ui,title = await user_settings.fetch_user_settings(chat_id)
+        ui_pgdatabase = await pgdatabase.sqlite_bool_to_pg_bool(ui)
+        title_pgdatabase = await pgdatabase.sqlite_bool_to_pg_bool(title)
+        if await pgdatabase.update_all_the_threshold_values(attendance_threshold,bio_threshold,ui_pgdatabase,title_pgdatabase,chat_id) is True:
+            await callback_query.answer()
+    elif callback_query.data == "certificates_start":
+        await callback_query.edit_message_text(
+            CERTIFICATES_TEXT,
+            reply_markup = CERTIFICATES_BUTTONS
+        )
+    elif callback_query.data == "get_profile_pic":
+        _message = callback_query.message
+        await operations.get_certificates(bot,_message,True,False,False,False,False,False)
+        await callback_query.answer()
+        await callback_query.message.delete()
+    elif callback_query.data == "get_aadhar_pic":
+        _message = callback_query.message
+        await operations.get_certificates(bot,_message,False,True,False,False,False,False)
+        await callback_query.answer()
+        await callback_query.message.delete()
+    elif callback_query.data == "get_dob_certificate":
+        _message = callback_query.message
+        await operations.get_certificates(bot,_message,False,False,True,False,False,False)
+        await callback_query.answer()
+        await callback_query.message.delete()
+    elif callback_query.data == "get_income_certificate":
+        _message = callback_query.message
+        await operations.get_certificates(bot,_message,False,False,False,True,False,False)
+        await callback_query.answer()
+        await callback_query.message.delete()
+
+    elif callback_query.data == "get_ssc_memo":
+        _message = callback_query.message
+        await operations.get_certificates(bot,_message,False,False,False,False,True,False)
+        await callback_query.answer()
+        await callback_query.message.delete()
+
+    elif callback_query.data == "get_inter_memo":
+        _message = callback_query.message
+        await operations.get_certificates(bot,_message,False,False,False,False,False,True)
+        await callback_query.answer()
+        await callback_query.message.delete()
+
+    elif callback_query.data == "payment_details":
+        _message = callback_query.message
+        PAYMENT_DETAILS_TEXT = f"{await operations.payment_details(bot,_message)}"
+        BACK_TO_STUDENT_INFO =InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="student_info")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            PAYMENT_DETAILS_TEXT,
+            reply_markup = BACK_TO_STUDENT_INFO
+        )
+    elif callback_query.data == "user_gpa":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        USER_GPA_TEXT = await operations.gpa(bot,_message)
+        BACK_TO_STUDENT_INFO =InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="student_info")]
+            ]
+        )
+        await callback_query.edit_message_text(
+                USER_GPA_TEXT,
+                reply_markup = BACK_TO_STUDENT_INFO
+        )
+    elif callback_query.data == "student_profile":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        USER_PROIFLE_TEXT = await operations.profile_details(bot,_message)
+        BACK_TO_STUDENT_INFO =InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data="student_info")]
+            ]
+        )
+        await callback_query.edit_message_text(
+                USER_PROIFLE_TEXT,
+                reply_markup = BACK_TO_STUDENT_INFO
+        )
+    elif callback_query.data == "student_info":
+        STUDENT_PROFILE_TEXT = f"Select one from the available ones."
+        STUDENT_PROFILE_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("GPA",callback_data="user_gpa")],
+                [InlineKeyboardButton("CIE",callback_data="user_cie")],
+                [InlineKeyboardButton("Certificates",callback_data="certificates_start")],
+                [InlineKeyboardButton("Payment Details",callback_data="payment_details")],
+                [InlineKeyboardButton("Profile",callback_data="student_profile")],
+                [InlineKeyboardButton("Back",callback_data="user_back")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            STUDENT_PROFILE_TEXT,
+            reply_markup = STUDENT_PROFILE_BUTTON
+        )
+    elif callback_query.data == "user_cie":
+        chat_id = callback_query.message.chat.id
+        no_of_sems = await operations.get_sem_count(bot,chat_id)
+        STUDENT_CIE = f"Choose a semester from the available {no_of_sems} semesters."
+        STUDENT_SELECT_SEM =  [
+            [InlineKeyboardButton(f"SEM - {index+1}", callback_data=f"selected_sem_cie-{index}")]
+            for index in range(no_of_sems)
+        ]
+        STUDENT_SELECT_SEM.append([InlineKeyboardButton("Back",callback_data="student_info")])
+        await callback_query.edit_message_text(
+            STUDENT_CIE,
+            reply_markup = InlineKeyboardMarkup(STUDENT_SELECT_SEM)
+        )
