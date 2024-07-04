@@ -548,3 +548,155 @@ async def callback_function(bot,callback_query):
             BIOMETRIC_THRESHOLD_TEXT,
             reply_markup = BIOMETRIC_THRESHOLD_BUTTONS
         )
+    elif callback_query.data == "title_extract":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        TITLE_BOOL = await user_settings.fetch_extract_title_bool(chat_id)
+        TITLE_EXTRACT_TEXT = "Title Modes:\n\n\tAutomatic : Title is taken from the Experiment Details \n\n\tMANUAL : Title needs to be given by the user to the bot\n\n"
+        if TITLE_BOOL[0] == 1:
+            TITLE_EXTRACT_BUTTONS = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton("● AUTOMATIC",callback_data="set_auto_title")],
+                    [InlineKeyboardButton("MANUAL",callback_data="set_man_title")],
+                    [InlineKeyboardButton("Back",callback_data="back_settings")]
+                ]
+            )
+        else:
+            TITLE_EXTRACT_BUTTONS = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton("AUTOMATIC",callback_data="set_auto_title")],
+                    [InlineKeyboardButton("● MANUAL",callback_data="set_man_title")],
+                    [InlineKeyboardButton("Back",callback_data="back_settings")]
+                ]
+            )
+        await callback_query.edit_message_text(
+            TITLE_EXTRACT_TEXT,
+            reply_markup = TITLE_EXTRACT_BUTTONS
+        )
+    elif callback_query.data == "back_settings":
+        await callback_query.edit_message_text(
+            SETTINGS_TEXT,
+            reply_markup = SETTINGS_BUTTONS
+        )
+    elif callback_query.data == "set_auto_title":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        TITLE_EXTRACT_TEXT = "Title Modes:\n\n\tAutomatic : Title is taken from the Experiment Details \n\n\tMANUAL : Title needs to be given by the user to the bot\n\n\tYou Have Selected Automatic Mode."
+        TITLE_EXTRACT_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("● AUTOMATIC",callback_data="set_auto_title")],
+                [InlineKeyboardButton("MANUAL",callback_data="set_man_title")],
+                [InlineKeyboardButton("Save Changes",callback_data="save_changes_settings")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await user_settings.set_extract_title_as_true(chat_id)
+        await callback_query.edit_message_text(
+                TITLE_EXTRACT_TEXT,
+                reply_markup = TITLE_EXTRACT_BUTTONS
+        )
+    elif callback_query.data == "set_man_title":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        TITLE_EXTRACT_TEXT = "Title Modes:\n\n\tAutomatic : Title is taken from the Experiment Details \n\n\tMANUAL : Title needs to be given by the user to the bot\n\n\tYou Have Selected Manual Mode."
+        TITLE_EXTRACT_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("AUTOMATIC",callback_data="set_auto_title")],
+                [InlineKeyboardButton("● MANUAL",callback_data="set_man_title")],
+                [InlineKeyboardButton("Save Changes",callback_data="save_changes_settings")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await user_settings.set_extract_title_as_false(chat_id)
+        await callback_query.edit_message_text(
+                TITLE_EXTRACT_TEXT,
+                reply_markup = TITLE_EXTRACT_BUTTONS
+        )
+    elif callback_query.data == "ui":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        current_ui = await user_settings.fetch_ui_bool(chat_id)
+        USERINTERFACE_TEXT = "Switch effortlessly between traditional and updated UI for a refreshed experience.\n\n Customize your view with just a click!"    
+        # "Switch effortlessly between traditional and updated UI for a refreshed experience. Customize your view with just a click!" 
+        if current_ui[0] == 0:
+            traditional_ui = "Traditional"
+            updated_ui = "● Updated"
+        elif current_ui[0] == 1:
+            traditional_ui = "● Traditional"
+            updated_ui = "Updated"
+        USERINTERFACE_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(traditional_ui,callback_data="traditional_set_ui")],
+                [InlineKeyboardButton(updated_ui,callback_data="updated_set_ui")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            USERINTERFACE_TEXT,
+            reply_markup = USERINTERFACE_BUTTONS
+        )
+    elif "set_ui" in callback_query.data:
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        query = callback_query.data.split("_")[0]
+        if query == "traditional":
+            await user_settings.set_traditional_ui_true(chat_id)
+        if query == "updated":
+            await user_settings.set_traditional_ui_as_false(chat_id)
+        current_ui = await user_settings.fetch_ui_bool(chat_id)
+        if current_ui[0] == 0:
+            traditional_ui = "Traditional"
+            updated_ui = "● Updated"
+            USERINTERFACE_TEXT = f"""
+UPDATED UI : 
+
+```biometric
+⫷
+
+● Total Days             -  50
+                    
+● Days Present           -  41  
+                
+● Days Absent            -  9
+                    
+● Biometric %            -  82.0
+
+● Biometric % (6h gap)   -  70.0
+
+⫸
+
+@iare_unofficial_bot
+
+```"""
+        elif current_ui[0] == 1:
+            traditional_ui = "● Traditional"
+            updated_ui = "Updated"
+            USERINTERFACE_TEXT = f"""
+TRADITIONAL UI :
+
+BIOMETRIC
+
+⫷
+● Total Days                     -  50
+                                        
+● Days Present                -  41  
+
+● Days Absent                  -  9
+
+● Biometric %                   -  82.0
+
+● Biometric % (6h gap)   -  70.0
+
+⫸"""
+        USERINTERFACE_BUTTONS = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(traditional_ui,callback_data="traditional_set_ui")],
+                [InlineKeyboardButton(updated_ui,callback_data="updated_set_ui")],
+                [InlineKeyboardButton("Save Changes",callback_data="save_changes_settings")],
+                [InlineKeyboardButton("Back",callback_data="back_settings")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            USERINTERFACE_TEXT,
+            reply_markup = USERINTERFACE_BUTTONS
+        )
