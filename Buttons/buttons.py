@@ -243,3 +243,80 @@ async def start_student_profile_buttons(message):
             ]
         )
     await message.reply_text("Select one from the available ones.",reply_markup = STUDENT_PROFILE_BUTTON)
+
+async def callback_function(bot,callback_query):
+    """
+    This Function performs operations based on the callback data from the user
+    :param bot: Client session.
+    :param callback_query: callback data of the user.
+
+    :return: This returns nothing, But performs operations.
+    
+    """
+    if callback_query.data == "attendance":# If callback_query data is attendance
+        message = callback_query.message
+        chat_id = message.chat.id
+        
+        # Check if the user is a PAT student
+        if await operations.check_pat_student(bot, message) is True:
+            # Display PAT options
+            PAT_BUTTONS = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton("PAT Attendance", callback_data="pat_attendance")],
+                    [InlineKeyboardButton("Attendance", callback_data="attendance_in_pat_button")],
+                    [InlineKeyboardButton("Back", callback_data="user_back")]
+                ]
+            )
+            # Edit the previous buttons with the added pat attendance button.
+            await callback_query.edit_message_text(USER_MESSAGE, reply_markup=PAT_BUTTONS)
+        else:
+            # proceed with regular attendance
+            await operations.attendance(bot, message)
+            await callback_query.answer()
+            await callback_query.message.delete() # delete the older buttons message
+            
+    elif callback_query.data == "attendance_in_pat_button":
+        _message = callback_query.message
+        await operations.attendance(bot,_message)  
+        await callback_query.answer()  
+        await callback_query.message.delete()
+    elif callback_query.data == "pat_attendance":
+        _message = callback_query.message
+        await operations.pat_attendance(bot,_message)
+        await callback_query.answer()
+        await callback_query.message.delete()
+    elif callback_query.data == "bunk":
+        _message = callback_query.message
+        await operations.bunk(bot,_message)
+        await callback_query.answer()
+        await callback_query.message.delete()
+    elif callback_query.data == "biometric":
+        _message = callback_query.message
+        await operations.biometric(bot,_message)
+        await callback_query.answer()
+        await callback_query.message.delete()
+    elif callback_query.data == "logout":
+        _message = callback_query.message
+        await operations.logout(bot,_message)
+        await callback_query.answer()
+    elif callback_query.data == "saved_username":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        USERNAME = await tdatabase.fetch_username_from_credentials(chat_id)
+        # USERNAME = await pgdatabase.get_username(chat_id=_message.chat.id)
+        if USERNAME is not None:
+            SAVED_USERNAME_TEXT = "Here are your saved credentials."
+            USERNAME = USERNAME.upper()
+            SAVED_USERNAME_BUTTONS = InlineKeyboardMarkup(
+                inline_keyboard= [
+                    [InlineKeyboardButton(f"{USERNAME}",callback_data="username_saved_options")],
+                    [InlineKeyboardButton("Back",callback_data="user_back")]
+                ]
+            )
+            await callback_query.edit_message_text(
+                SAVED_USERNAME_TEXT,
+                reply_markup = SAVED_USERNAME_BUTTONS
+            )
+        else:
+            await callback_query.answer()
+            await callback_query.edit_message_text(NO_SAVED_LOGIN_TEXT,reply_markup = BACK_TO_USER_BUTTON)
