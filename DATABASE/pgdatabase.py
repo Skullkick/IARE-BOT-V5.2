@@ -103,3 +103,23 @@ async def create_reports_table():
         return False
     finally:
         await connection.close()
+
+async def create_banned_users_table():
+    connection = await connect_pg_database()
+    
+    # Create the banned_users table in the PSQL database.
+    try:
+        await connection.execute(
+            '''
+            CREATE TABLE IF NOT EXISTS banned_users (
+                username TEXT PRIMARY KEY
+                )
+            ''')
+        return True
+
+    except Exception as e:
+        print(f"Error creating banned_users table : {e}")
+        return False
+
+    finally:
+        await connection.close()
