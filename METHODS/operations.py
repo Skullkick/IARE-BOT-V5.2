@@ -1215,6 +1215,121 @@ async def get_sem_count(bot,chat_id):
     except:
         return None
 
+async def cie_marks(bot,message,sem_no):
+    chat_id = message.chat.id
+    session_data = await tdatabase.load_user_session(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
+    if not session_data:
+        auto_login_by_database_status = await auto_login_by_database(bot,"",chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_by_database_status is False and chat_id_in_local_database is False:
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    cie_marks_url = "https://samvidha.iare.ac.in/home?action=cie_marks_ug"
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+        cie_marks_response = s.get(cie_marks_url)
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_response.text:
+        if chat_id_in_local_database:
+            await silent_logout_user_if_logged_out(bot,chat_id)
+            await cie_marks(bot,chat_id,sem_no)
+        else:
+            await logout_user_if_logged_out(bot,chat_id)
+        return
+    try:
+        soup = BeautifulSoup(cie_marks_response.text, 'html.parser')
+        # Find all tables and reverse the list to get the semesters in ascending order i.e semester 1 to 8 
+        tables = soup.find_all('table')
+        reversed_tables = tables[::-1] 
+        # Select the required semester table 
+        cie_table = reversed_tables[sem_no].find_all('tr')
+        # Initialize a list to store the relevant data
+        subject_marks_data = []
+        # Iterate over each row in the selected semester table
+        for row in cie_table:
+            cells = row.find_all('td')
+            row_data = [cell.get_text(strip=True) for cell in cells]
+            # Break if 'Laboratory Marks (Practical)' is found -> to get only subject marks
+            if 'Laboratory Marks (Practical)' in row_data:
+                break
+            # Append row data if it's not empty -> to get only subject marks
+            if row_data:
+                subject_marks_data.append(row_data)
+        # Initialize dictionaries and total mark variables
+        cie1_marks_dict = {}
+        cie2_marks_dict = {}
+        total_cie1_marks = 0
+        total_cie2_marks = 0
+        # Process each row data
+        for marks_row in subject_marks_data:
+            subject_name = marks_row[2]
+            cie1_marks = marks_row[3]
+            cie2_marks = marks_row[5]
+            cie1_marks_dict[subject_name] = cie1_marks
+            cie2_marks_dict[subject_name] = cie2_marks
+            excluded_marks = ['-', '0', '0.0'] 
+            if cie1_marks not in excluded_marks:
+                total_cie1_marks += float(cie1_marks)
+            if cie2_marks not in excluded_marks:
+                total_cie2_marks += float(cie2_marks)
+        # Default total marks as each subject has a maximum of 10 marks
+        default_total_marks = float(len(cie1_marks_dict) * 10)
+        cie1_marks_message_updated = f"""
+```CIE  Marks
+""" 
+        cie1_marks_message_traditional = f"""
+**CIE Marks**
+"""
+        if ui_mode[0] == 0:
+            cie1_marks_message = cie1_marks_message_updated
+        elif ui_mode[0] == 1:
+            cie1_marks_message = cie1_marks_message_traditional
+        for subject_name, marks in cie1_marks_dict.items():
+            cie1_marks_message += f"{subject_name}\n⫸ {marks}\n\n"
+            1
+        cie1_marks_message += "----\n"
+        cie1_marks_message += f"Total Marks - {total_cie1_marks} / {default_total_marks} \n"
+        if ui_mode[0] == 0:
+            cie1_marks_message += "\n```"
+        elif ui_mode[0] == 1:
+            cie1_marks_message +="\n"
+        await bot.send_message(chat_id,cie1_marks_message)
+
+            # Print CIE-2 marks message as markdown
+        cie2_marks_message_updated = f"""
+```CIE 2 Marks
+""" 
+        cie2_marks_message_traditional = f"""
+**CIE 2 Marks
+"""
+        if ui_mode[0] == 0:
+            cie2_marks_message = cie2_marks_message_updated
+        elif ui_mode[0] == 1:
+            cie2_marks_message = cie2_marks_message_traditional
+        
+        for subject_name, marks in cie2_marks_dict.items():
+            cie2_marks_message += f"{subject_name}\n⫸ {marks}\n\n"
+            1
+        cie2_marks_message += "----\n"
+        cie2_marks_message += f"Total Marks - {total_cie2_marks} / {default_total_marks} \n"
+        cie2_marks_message += "\n```"
+        await bot.send_message(chat_id,cie2_marks_message)
+        total_cie_marks = total_cie1_marks + total_cie2_marks
+        await bot.send_message(chat_id,f"Total CIE Marks: {total_cie_marks} / {default_total_marks * 2}")
+        await buttons.start_student_profile_buttons(message)
+    except Exception as e:
+        await bot.send_message(chat_id,f"Error retrieving cie marks : {e}")
+        await buttons.start_student_profile_buttons(message)
+
 
 async def report(bot,message):
     chat_id = message.from_user.id
