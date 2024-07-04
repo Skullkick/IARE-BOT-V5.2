@@ -922,3 +922,159 @@ BIOMETRIC
             LAB_WEEK_TEXT,
             reply_markup = LAB_WEEK_BUTTONS_MARKUP
         )
+    elif "select_week" in callback_query.data:
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        subject_code_and_week_number = callback_query.data.split("select_week")[1]
+        subject_code,week_no = subject_code_and_week_number.split("-")
+        title_mode = await user_settings.fetch_extract_title_bool(chat_id)
+        if title_mode[0] == 0:
+            await tdatabase.store_title_status(chat_id,1)
+            await tdatabase.store_pdf_status(chat_id,1)
+            await tdatabase.store_lab_info(chat_id,None,subject_code,week_no,get_title=False)
+            SEND_DETAILS_TEXT = f"● Send the PDF File\n\n● Send the title\n\n⫸ Title Format :\n\n● How To Send Title:\n\nTitle : Title of Experiment\n\n● Example:\n\nTitle : Introduction to Python"
+        elif title_mode[0] == 1:
+            await tdatabase.store_pdf_status(chat_id,1)
+            user_data = await lab_operations.user_lab_data(bot,chat_id)
+            experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_data,subject_code)
+            title_of_experiment = await lab_operations.get_experiment_title(experiment_names,week_no)
+            await tdatabase.store_lab_info(chat_id,title_of_experiment,subject_code,week_no,get_title=True)
+            SEND_DETAILS_TEXT = f"● Send the PDF File"
+        await callback_query.message.delete()
+        await bot.send_message(chat_id,SEND_DETAILS_TEXT)
+    elif "view_lab_record_" in callback_query.data:
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        selected_subject = callback_query.data.split("view_lab_record_")[1]
+        lab_details = await lab_operations.fetch_available_labs(bot,message_)
+        subject_name = await lab_operations.get_subject_name(selected_subject,lab_details)
+        user_lab_details = await lab_operations.user_lab_data(bot,chat_id)
+        experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,selected_subject)
+        all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,selected_subject)
+        week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,True,False,False)
+        if week_details:
+            LAB_WEEK_TEXT = f"Select the week to view\n\nSelected : \n{subject_name}"
+        else:
+            LAB_WEEK_TEXT = f"There are no weeks available to view."
+        if len(week_details) > 5:
+            LAB_WEEK_BUTTONS = []
+        # Iterate through week_details to create the buttons
+            for i,week_no in enumerate(week_details):
+                # Create a new button
+                button = InlineKeyboardButton(f"Week-{week_no}", callback_data=f"view_selected_week_{selected_subject}-{week_no}")
+
+                # If there are more than 5 buttons, arrange them side by side
+                if i % 2 == 0:
+                    # Start a new row
+                    LAB_WEEK_BUTTONS.append([button])
+                else:
+                    # Add to the last row
+                    LAB_WEEK_BUTTONS[-1].append(button)
+        else:
+            LAB_WEEK_BUTTONS = [
+                [InlineKeyboardButton(f"Week-{week_no}",callback_data=f"view_selected_week_{selected_subject}-{week_no}")]
+                for week_no in week_details
+            ]
+        LAB_WEEK_BUTTONS.append([InlineKeyboardButton("Back",callback_data=f"lab_record_select_{selected_subject}")])
+        LAB_WEEK_BUTTONS_MARKUP = InlineKeyboardMarkup(LAB_WEEK_BUTTONS)
+        await callback_query.edit_message_text(
+            LAB_WEEK_TEXT,
+            reply_markup = LAB_WEEK_BUTTONS_MARKUP
+        )
+    elif "view_selected_week_" in callback_query.data:
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        subject_and_week = callback_query.data.split("view_selected_week_")[1]
+        subject_code,week_no = subject_and_week.split("-")
+        lab_details = await lab_operations.fetch_available_labs(bot,message_)
+        subject_name = await lab_operations.get_subject_name(subject_code,lab_details)
+        user_lab_details = await lab_operations.user_lab_data(bot,chat_id)
+        lab_record_url = await lab_operations.get_view_pdf_url(subject_code,user_lab_details,week_no)
+        all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,subject_code)
+        marks = await lab_operations.get_marks_by_week(all_submitted_lab_records,week_no)
+        VIEW_LAB_RECORD = f"LAB : \n\n{subject_name}\n\nWEEK : {week_no}\n\nMARKS : {marks}"
+        VIEW_LAB_RECORD_BUTTON = [
+            [InlineKeyboardButton("VIEW",url=lab_record_url)]
+        ]
+        VIEW_LAB_RECORD_BUTTON.append([InlineKeyboardButton("Back",callback_data=f"view_lab_record_{subject_code}")])
+        await callback_query.edit_message_text(
+            VIEW_LAB_RECORD,
+            reply_markup = InlineKeyboardMarkup(VIEW_LAB_RECORD_BUTTON)
+        )
+    elif "delete_lab_record_" in callback_query.data:
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        subject_code = callback_query.data.split("delete_lab_record_")[1]
+        lab_details = await lab_operations.fetch_available_labs(bot,message_)
+        subject_name = await lab_operations.get_subject_name(subject_code,lab_details)
+        user_lab_details = await lab_operations.user_lab_data(bot,chat_id)
+        experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,subject_code)
+        all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,subject_code)
+        week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,False,False,True)
+        if week_details:
+            LAB_DELETE_WEEK_TEXT = f"Select the week to delete\n\nSelected : \n{subject_name}"
+        else:
+            LAB_DELETE_WEEK_TEXT = f"No weeks are available for deletion."
+        if len(week_details) > 5:
+            LAB_DELETE_WEEK_BUTTONS = []
+        # Iterate through week_details to create the buttons
+            for i,week_no in enumerate(week_details):
+                # Create a new button
+                button = InlineKeyboardButton(f"Week-{week_no}", callback_data=f"delete_selected_lab_{subject_code}-{week_no}")
+                # If there are more than 5 buttons, arrange them side by side
+                if i % 2 == 0:
+                    # Start a new row
+                    LAB_DELETE_WEEK_BUTTONS.append([button])
+                else:
+                    # Add to the last row
+                    LAB_DELETE_WEEK_BUTTONS[-1].append(button)
+        else:
+            LAB_DELETE_WEEK_BUTTONS = [
+                [InlineKeyboardButton(f"Week-{week_no}",callback_data=f"delete_selected_lab_{subject_code}-{week_no}")]
+                for week_no in week_details
+            ]
+        LAB_DELETE_WEEK_BUTTONS.append([InlineKeyboardButton("Back",callback_data=f"lab_record_select_{subject_code}")])
+        LAB_DELETE_WEEK_BUTTONS_MARKUP = InlineKeyboardMarkup(LAB_DELETE_WEEK_BUTTONS)
+        await callback_query.edit_message_text(
+            LAB_DELETE_WEEK_TEXT,
+            reply_markup = LAB_DELETE_WEEK_BUTTONS_MARKUP
+        )
+    elif "delete_selected_lab_" in callback_query.data:
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        subject_and_week = callback_query.data.split("delete_selected_lab_")[1]
+        subject_code,week_no = subject_and_week.split("-")
+        DELETE_LAB_RECORD = "Are you sure?"
+        DELETE_LAB_RECORD_BUTTON = [
+            [InlineKeyboardButton("Yes",callback_data=f"confirm_delete_{subject_and_week}")]
+        ]
+        DELETE_LAB_RECORD_BUTTON.append([InlineKeyboardButton("Back",callback_data=f"delete_lab_record_{subject_code}")])
+        await callback_query.edit_message_text(
+            DELETE_LAB_RECORD,
+            reply_markup = InlineKeyboardMarkup(DELETE_LAB_RECORD_BUTTON)
+        )
+    elif "confirm_delete_" in callback_query.data:
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        subject_and_week = callback_query.data.split("confirm_delete_")[1]
+        subject_code,week_no = subject_and_week.split("-")
+        user_data = await lab_operations.user_lab_data(bot,chat_id)
+        deletion_data = await lab_operations.delete_lab_record(bot,chat_id,subject_code,user_data,week_no)
+        status = deletion_data['status'].upper()
+        status_message = deletion_data['msg']
+        DELETION_TEXT = f"""
+```DELETION {status}
+STATUS : {status}
+
+STATUS MESSAGE : {status_message}
+```
+"""
+        DELETED_LAB_BUTTON = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton("Back",callback_data=f"delete_lab_record_{subject_code}")]
+            ]
+        )
+        await callback_query.edit_message_text(
+            DELETION_TEXT,
+            reply_markup = DELETED_LAB_BUTTON
+        )
