@@ -912,3 +912,46 @@ async def delete_labs_data_for_all():
     
     finally:
         await connection.close()
+
+async def get_tables_and_columns():
+    """
+    This function prints all tables and their columns from the PostgreSQL database in a visual format.
+    """
+
+    connection = await connect_pg_database()  # Assuming this function connects to the PostgreSQL database
+
+    try:
+        # Fetch all tables and their columns
+        tables_query = """
+            SELECT table_name, column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+        """
+
+        async with connection.transaction():
+            tables_columns = {}
+            async for row in connection.cursor(tables_query):
+                table_name = row['table_name']
+                column_name = row['column_name']
+                
+                if table_name in tables_columns:
+                    tables_columns[table_name].append(column_name)
+                else:
+                    tables_columns[table_name] = [column_name]
+
+            # Print tables and their columns in a visual format
+            for table, columns in tables_columns.items():
+                print(f"+{'=' * (len(table) + 2)}+")
+                print(f"| {table} |")
+                print(f"+{'=' * (len(table) + 2)}+")
+                for column in columns:
+                    print(f"| {column} |")
+                    print(f"+{'-' * (len(column) + 2)}+")
+                print()
+
+    except Exception as e:
+        print(f"Error while fetching tables and columns: {e}")
+
+    finally:
+        await connection.close()
