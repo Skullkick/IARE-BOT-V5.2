@@ -889,3 +889,26 @@ async def delete_labs_data_for_user(chat_id:int)->bool:
     
     finally:
         await connection.close()
+
+
+async def delete_labs_data_for_all():
+    """
+    This is used to delete all the labs data for every user in the database
+    """
+    connection = await connect_pg_database()
+
+    try:
+        await connection.execute(
+
+            """
+                DELETE lab_subjects_data,lab_weeks_data FROM user_credentials
+            
+            """)
+        return True
+
+    except Exception as e:
+        print(f"failed to delete lab_subjects_data and lab_weeks_data from user credentials table by the admin {e}. ")
+        return False
+    
+    finally:
+        await connection.close()
