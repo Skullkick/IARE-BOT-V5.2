@@ -649,3 +649,16 @@ async def total_users_pg_database(bot,chat_id):
         return None
     finally:
         await connection.close()
+async def get_all_chat_ids():
+    """This Function Gets all the Chat_ids Present in the database"""
+    conn = await connect_pg_database()
+    try:
+        query = "SELECT chat_id FROM user_credentials"
+        result = await conn.fetch(query)
+        # Returns the data in list.
+        return [record['chat_id'] for record in result]
+    except Exception as e:
+        print(f"Error fetching chat IDs: {e}")
+        return []
+    finally:
+        await conn.close()
