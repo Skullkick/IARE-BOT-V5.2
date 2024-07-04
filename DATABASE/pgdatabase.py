@@ -682,3 +682,38 @@ async def get_all_credentials():
     finally:
         if connection:
             await connection.close()
+async def get_pat_student(chat_id):
+    """This Function checks whether the pat_student column is True or False, Based on chat_id of the user"""
+    connection = await connect_pg_database()
+    try:
+        
+        result = await connection.fetchrow(
+            "SELECT pat_student FROM user_credentials WHERE chat_id = $1",
+            chat_id
+        )
+        if result:
+            return result['pat_student']
+        else:
+            return False
+    except Exception as e:
+        print(f"Error retrieving credentials from database: {e}")
+        return False
+    finally:
+        if connection:
+            await connection.close()
+async def set_pat_student_true(chat_id):
+    """This Function Sets the pat_student Colum to True"""
+    connection = await connect_pg_database()
+    try:
+        # Execute UPDATE query to set pat_student to True for the specified user_id
+        await connection.execute('''
+            UPDATE user_credentials
+            SET pat_student = TRUE
+            WHERE chat_id = $1
+        ''', chat_id)
+        return True
+    except asyncpg.PostgresError as e:
+        print(f"Error setting pat_student to True: {e}")
+        return False
+    finally:
+        await connection.close()
