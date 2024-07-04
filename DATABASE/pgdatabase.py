@@ -81,3 +81,25 @@ async def create_user_credentials_table():
         return False
     finally:
         await connection.close()
+
+
+async def create_reports_table():
+    connection = await connect_pg_database()
+    try:  
+        await connection.execute("""
+        CREATE TABLE IF NOT EXISTS pending_reports(
+            unique_id VARCHAR(75) PRIMARY KEY,
+            user_id VARCHAR(25),
+            message TEXT,
+            chat_id BIGINT,
+            replied_message TEXT,
+            replied_maintainer TEXT,
+            reply_status BOOLEAN
+        )
+    """)
+        return True
+    except Exception as e:
+        print(f"error creating report table : {e}")
+        return False
+    finally:
+        await connection.close()
