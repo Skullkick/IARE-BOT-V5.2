@@ -1144,3 +1144,22 @@ async def clear_pending_reports():
         return False
     finally:
         await connection.close()
+
+
+async def clear_credentials_and_settings_database():
+    """This Function Clears the Postgres database."""
+    # Connecting to the PSQL database
+    connection = await connect_pg_database()
+    try:
+        async with connection.transaction():
+            # Execute the SQL command to delete data
+            await connection.execute("DELETE FROM user_credentials")
+
+        print("Data erased successfully!")
+        return True
+    except Exception as e:
+        print(f"Error clearing database: {e}")
+        return False
+    finally:
+        # Close the database connection
+        await connection.close()
