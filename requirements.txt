@@ -1,0 +1,15 @@
+BeautifulSoup4==4.12.3
+soupsieve==2.5
+requests==2.32.3
+python-dotenv==1.0.1
+pytz==2024.1
+pypng==0.20220715.0
+PyQRCode==1.2.1
+pyrogram==2.0.106
+tgcrypto==1.2.5
+asyncpg==0.29.0
+selenium==4.21.0
+webdriver_manager==4.0.1
+psutil==5.9.8
+pillow==10.3.0
+pdf2image==1.17.0
