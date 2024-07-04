@@ -1128,3 +1128,19 @@ async def delete_report(unique_id):
         return False
     finally:
         await connection.close()
+
+
+async def clear_pending_reports():
+    connection =  await connect_pg_database()
+
+    try:
+        await connection.execute(
+                "DELETE FROM pending_reports"
+                )
+        return True
+    
+    except Exception as e:
+        print(f"failed to complete the delete_report process {e}")
+        return False
+    finally:
+        await connection.close()
