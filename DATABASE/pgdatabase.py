@@ -216,3 +216,23 @@ async def create_cie_tracker_table():
         return False
     finally:
         await connection.close()
+
+
+async def check_chat_id_in_pgb(chat_id):
+    """
+    param : This function checks whether the chat_id of the user is already present in the database or not
+    and returns true or false values
+    
+    """
+    connection = await connect_pg_database()
+    try:
+        
+        result = await connection.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM user_credentials WHERE chat_id = $1)",
+            chat_id
+        )
+        return result
+    except Exception as e:
+        return False
+    finally:
+        await connection.close()
