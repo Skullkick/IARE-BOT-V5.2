@@ -574,3 +574,51 @@ async def set_logs_access_false(chat_id):
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET logs = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
+async def store_bot_managers_data_in_database(chat_id, admin, maintainer,name,control_access,access_users,announcement,
+                                              configure,show_reports,reply_reports,clear_reports,ban_username,unban_username,manage_maintainers,logs):
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        # Check if the chat_id already exists
+        cursor.execute('SELECT * FROM bot_managers WHERE chat_id = ?', (chat_id,))
+        existing_row = cursor.fetchone()
+        if existing_row:
+            # If chat_id exists, update the row
+            cursor.execute("""UPDATE bot_managers 
+            SET admin = ?,
+                maintainer = ?,
+                name = ?,
+                control_access = ?,
+                access_users = ?,
+                announcement = ?,
+                configure = ?,
+                show_reports = ?,
+                reply_reports = ?,
+                clear_reports = ?,
+                ban_username = ?,
+                unban_username = ?,
+                manage_maintainers = ?,
+                logs = ?
+            WHERE chat_id = ?
+        """,
+                           (admin, maintainer,name,control_access,access_users,announcement,
+                          configure,show_reports,reply_reports,clear_reports,ban_username,unban_username,manage_maintainers,logs, chat_id))
+        else:
+            # If chat_id does not exist, insert a new row
+            cursor.execute("""INSERT INTO bot_managers 
+                            (chat_id, admin, maintainer, name, control_access, access_users, announcement,
+                            configure, show_reports, reply_reports, clear_reports, ban_username, unban_username,
+                            manage_maintainers, logs) 
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (chat_id, admin, maintainer, name, control_access, access_users, announcement,
+                            configure, show_reports, reply_reports, clear_reports, ban_username, unban_username,
+                            manage_maintainers, logs))
+        conn.commit()
+
+async def clear_bot_managers_data():
+    """
+    This function is used to clear the bot Managers data from the Managers database
+    """
+    with sqlite3.connect(MANAGERS_DATABASE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM bot_managers")
+        conn.commit()
