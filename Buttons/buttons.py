@@ -320,3 +320,118 @@ async def callback_function(bot,callback_query):
         else:
             await callback_query.answer()
             await callback_query.edit_message_text(NO_SAVED_LOGIN_TEXT,reply_markup = BACK_TO_USER_BUTTON)
+
+    elif callback_query.data == "lab_upload_start":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if chat_id_in_pgdatabase is False:
+            await bot.send_message(chat_id,"This feature is currently available to Saved Credential users")
+            await callback_query.answer()
+            return
+        await tdatabase.store_pdf_status(chat_id,"Recieve")
+        title_mode = await user_settings.fetch_extract_title_bool(chat_id)
+        if title_mode[0] == 0:
+            await tdatabase.store_title_status(chat_id,"Recieve")
+            if ui_mode[0] == 0:
+                await callback_query.edit_message_text(START_LAB_UPLOAD_MESSAGE_TITLE_MANUAL_UPDATED,reply_markup = START_LAB_UPLOAD_BUTTONS)
+            elif ui_mode[0] == 1:
+                await callback_query.edit_message_text(START_LAB_UPLOAD_MESSAGE_TITLE_MANUAL_TRADITIONAL,reply_markup = START_LAB_UPLOAD_BUTTONS)
+        elif title_mode[0] == 1:
+            if ui_mode[0] == 0:
+                await callback_query.edit_message_text(START_LAB_UPLOAD_MESSAGE_TITLE_AUTOMATIC_UPDATED,reply_markup = START_LAB_UPLOAD_BUTTONS)
+            elif ui_mode[0] == 1:
+                await callback_query.edit_message_text(START_LAB_UPLOAD_MESSAGE_TITLE_AUTOMATIC_TRADITIONAL,reply_markup = START_LAB_UPLOAD_BUTTONS)
+    elif callback_query.data == "lab_upload":
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        await callback_query.message.delete()
+        
+        # The amount of time it should check whether the pdf is downloaded or not
+        timeout,count = 10,0
+        CHECK_FILE = await labs_handler.check_recieved_pdf_file(bot,chat_id)
+        while not CHECK_FILE[0]:
+        # Sleep briefly before checking again
+            if timeout != count:
+                count += 2
+                await asyncio.sleep(1)
+            else:
+                await bot.send_message(chat_id,"Unable to find the pdf file. Please try sending the pdf file again.")
+                await start_user_buttons(bot,_message)
+                return
+        # Checks it the title is present or not.
+        current_title = await tdatabase.fetch_title_lab_info(chat_id)
+        title_mode = await user_settings.fetch_extract_title_bool(chat_id) # Whether the title retrieval is automatic or not.
+        if title_mode[0] == 0:
+            if current_title[0] is None:
+                await bot.send_message(chat_id,NO_TITLE_MESSAGE)
+                await start_user_buttons(bot,_message)
+                return
+        # Fetch the subjects from the sqlite3 database
+        lab_details = await lab_operations.fetch_available_labs(bot,_message)
+        # Deserialize the lab_details data
+        # lab_details = json.loads(lab_details[0])
+        LAB_SUBJECT_TEXT = "Select the subject that you want to upload"
+        # Generate InlineKeyboardButtons for lab subjects selection
+        LAB_SUBJECT_BUTTONS = [
+            [InlineKeyboardButton(subject_name, callback_data=f"subject_{subject_code}")]
+            for subject_name, subject_code in lab_details
+        ]
+        LAB_SUBJECT_BUTTONS.append([InlineKeyboardButton("Back", callback_data="user_back")])
+
+        LAB_SUBJECT_BUTTONS_MARKUP = InlineKeyboardMarkup(LAB_SUBJECT_BUTTONS)
+
+        await bot.send_message(
+            chat_id,
+            text=LAB_SUBJECT_TEXT,
+            reply_markup=LAB_SUBJECT_BUTTONS_MARKUP
+        )
+    elif "subject_" in callback_query.data:
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        selected_subject = callback_query.data.split("subject_")[1]
+        # # Store selected Subject index in the labuploads database
+        await tdatabase.store_subject_code(chat_id,selected_subject)
+        user_details = await lab_operations.user_data(bot,chat_id)
+        experiment_names = await lab_operations.fetch_experiment_names(user_details,selected_subject)
+        all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_details,selected_subject)
+        week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,False,True,False)
+        LAB_WEEK_TEXT = "Select the week"
+        LAB_WEEK_BUTTONS = [
+            [InlineKeyboardButton(f"Week-{week_no}",callback_data=f"Week-{week_no}")]
+            for week_no in week_details
+        ]
+
+        LAB_WEEK_BUTTONS.append([InlineKeyboardButton("Back",callback_data="lab_upload")])
+        LAB_WEEK_BUTTONS_MARKUP = InlineKeyboardMarkup(LAB_WEEK_BUTTONS)
+        await callback_query.message.edit_text(
+                    LAB_WEEK_TEXT,
+                    reply_markup=LAB_WEEK_BUTTONS_MARKUP
+                )
+    elif "Week-" in callback_query.data:
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        selected_week = callback_query.data.split("Week-")[1]
+        # Store the index of selected week in database
+        await tdatabase.store_week_index(chat_id,selected_week)
+        await callback_query.message.delete()
+        # if await tdatabase.fetch_title_lab_info(chat_id):
+        #     await labs_driver.upload_lab_pdf(bot,_message)
+        await lab_operations.upload_lab_record(bot,_message)
+
+    elif "save_credentials" in callback_query.data:
+        _message = callback_query.message
+        chat_id = _message.chat.id
+        # Splitting the username and password from the callback_query
+        user_credentials = callback_query.data.split("-")
+        username = user_credentials[1].lower()
+        password = user_credentials[2]
+        try:
+            # Saving the credentials to the database
+            await pgdatabase.save_credentials_to_databse(chat_id,username,password) # saving credentials in postgres database
+            await tdatabase.store_credentials_in_database(chat_id,username,password) # saving credentials in temporary database
+            await callback_query.message.edit_text("Your credentails have been saved successfully.")
+        except Exception as e:
+            await bot.send_message(chat_id,f"Error saving credentils : {e}")
+        
