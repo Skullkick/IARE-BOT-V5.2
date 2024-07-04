@@ -316,3 +316,24 @@ async def store_cgpa_tracker_details(chat_id:int,status:bool,current_cgpa:str):
         return True
     except Exception as e:
         print(f"Error storing cgpa tracker values : {e}")
+
+async def store_cie_tracker_details(chat_id: int, status: bool, current_cie: str):
+    """
+    This function is used to store the cie_tracker details
+    :param chat_id: Chat id of the user
+    :param status: Boolean value which is used to stop the tracker
+    :param current_cie: Current cie of the user
+    table name: cie_tracker
+    """
+    connection = await connect_pg_database()
+    chat_id = int(chat_id)
+    current_cie = str(current_cie)
+    try:
+        data = await connection.fetchrow("SELECT * FROM cie_tracker WHERE chat_id = $1", chat_id)
+        if data:
+            await connection.execute("UPDATE cie_tracker SET status = $1, current_cie = $2 WHERE chat_id = $3", status, current_cie, chat_id)
+        else:
+            await connection.execute("INSERT INTO cie_tracker (chat_id, status, current_cie) VALUES ($1, $2, $3)", chat_id, status, current_cie)
+        return True
+    except Exception as e:
+        print(f"Error storing cie tracker values: {e}")
