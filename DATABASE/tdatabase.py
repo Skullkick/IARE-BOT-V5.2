@@ -613,3 +613,88 @@ async def get_bool_banned_username(username):
             return True
         else:
             return False
+async def fetch_row_count_reports_database():
+    """
+    This function is used to fetch the number of rows present in the reports database
+    :return: Returns the number of rows in int.
+    """
+    with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM pending_reports")
+        total_count = cursor.fetchone()[0]
+    return total_count
+
+async def store_reports(unique_id, user_id, message, chat_id, 
+                        replied_message, replied_maintainer, reply_status):
+    """This function is used to store the reports sent by the user"""
+    try:
+        with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
+            c = conn.cursor()
+            
+            # Check if the report with the unique_id already exists
+            c.execute("SELECT * FROM pending_reports WHERE unique_id = ?", (unique_id,))
+            existing_report = c.fetchone()
+            
+            if existing_report:
+                # Update existing report fields if they are provided
+                if user_id is not None:
+                    c.execute("UPDATE pending_reports SET user_id = ? WHERE unique_id = ?", (user_id, unique_id))
+                if message is not None:
+                    c.execute("UPDATE pending_reports SET message = ? WHERE unique_id = ?", (message, unique_id))
+                if chat_id is not None:
+                    c.execute("UPDATE pending_reports SET chat_id = ? WHERE unique_id = ?", (chat_id, unique_id))
+                if replied_message is not None:
+                    c.execute("UPDATE pending_reports SET replied_message = ? WHERE unique_id = ?", (replied_message, unique_id))
+                if replied_maintainer is not None:
+                    c.execute("UPDATE pending_reports SET replied_maintainer = ? WHERE unique_id = ?", (replied_maintainer, unique_id))
+                if reply_status is not None:
+                    c.execute("UPDATE pending_reports SET reply_status = ? WHERE unique_id = ?", (reply_status, unique_id))
+            else:
+                # Insert new report if it doesn't exist
+                c.execute("INSERT INTO pending_reports (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status))
+            
+            conn.commit()
+    except Exception as e:
+        print(f"Error storing the report message {e}")
+
+async def load_reports(unique_id):
+    """This Function can be used to get a reports info based on unique_id"""
+    with sqlite3.connect(REPORTS_DATABASE_FILE ) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM pending_reports WHERE unique_id=?",(unique_id,))
+        row = cursor.fetchone()
+        return row
+    
+async def load_allreports():
+    """This function is used to get all the reports present in the database
+    returns all reports"""
+    with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT unique_id, user_id, message, chat_id FROM pending_reports WHERE reply_status = 0")
+        all_messages = cursor.fetchall()
+        return all_messages
+
+async def load_all_replied_reports():
+    """This function is used to get all the reports present in the database
+    returns all reports"""
+    with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM pending_reports WHERE reply_status = 1")
+        all_messages = cursor.fetchall()
+        return all_messages
+
+
+
+async def delete_report(unique_id):
+    """This Function deletes the report based on unique_id"""
+    with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM pending_reports WHERE unique_id=?",(unique_id,))
+        conn.commit()
+async def clear_reports():
+    """This function is used to clear all the reports in the reports database"""
+    with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM pending_reports")
+        conn.commit()
