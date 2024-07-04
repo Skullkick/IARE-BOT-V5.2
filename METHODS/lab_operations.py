@@ -118,3 +118,74 @@ async def get_marks_by_week(submitted_lab_records, week_no):
         if week_records:
             return week_records[0]['mark']
     return None
+
+async def fetch_submitted_lab_records(bot,chat_id,user_details,sub_code):
+    url = 'https://samvidha.iare.ac.in/pages/student/lab_records/ajax/day2day.php'
+    headers = {
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'en-GB,en;q=0.5',
+        'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        'origin': 'https://samvidha.iare.ac.in',
+        'referer': 'https://samvidha.iare.ac.in/home?action=labrecord_std',
+        'sec-ch-ua': '"Not/A)Brand";v="8", "Chromium";v="126", "Brave";v="126"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"macOS"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'sec-gpc': '1',
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest',
+    }
+    data = {
+        'rollno':user_details['roll_no'],
+        'ay': user_details['ay'],
+        'sub_code': sub_code,
+        'action': 'day2day_lab',
+    }
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id) 
+    session_data = await tdatabase.load_user_session(chat_id)
+    if not session_data:
+        auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+        if auto_login_status is False and chat_id_in_local_database is False:
+            # Login message if no user found in database based on chat_id
+            if ui_mode[0] == 0:
+                await bot.send_message(chat_id,text=operations.login_message_updated_ui)
+            elif ui_mode[0] == 1:
+                await bot.send_message(chat_id,text=operations.login_message_traditional_ui)
+            return
+    session_data = await tdatabase.load_user_session(chat_id)
+    
+    with requests.Session() as s:
+        cookies = session_data['cookies']
+        s.cookies.update(cookies)
+
+   # Make the POST request
+    response = requests.post(url, headers=headers, cookies=cookies, data=data)
+    
+    # Check if the response is successful
+    if response.status_code != 200:
+        await bot.send_message(chat_id,f"Failed to fetch lab records: {response.status_code}")
+        return
+    
+    # Parse the JSON data
+    json_data = response.json()
+    
+    # Initialize a dictionary to store records grouped by week number
+    data_by_week = {}
+
+    # Process the data to group by week_no
+    for record in json_data['data']:
+        week_no = record['week_no']
+        if week_no not in data_by_week:
+            data_by_week[week_no] = []
+        data_by_week[week_no].append(record)
+    
+    weeks_with_delete = [int(entry['week_no']) for key in data_by_week for entry in data_by_week[key] if entry['delete'] == 1]
+
+    # return weeks_with_delete
+    return data_by_week,weeks_with_delete
