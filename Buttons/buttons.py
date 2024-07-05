@@ -851,9 +851,15 @@ BIOMETRIC
             reply_markup = LABS_DATA_BUTTON
         )
     elif callback_query.data == "lab_record_subject":
-        LAB_RECORD_TEXT = "Select the Subject"
         message_ = callback_query.message
         chat_id = message_.chat.id
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode[0] == 0:
+            LAB_RECORD_TEXT = """```Available Subjects
+● Select the subject you want```"""
+        else:
+            LAB_RECORD_TEXT = """**Available Subjects**\n
+● Select the subject you want"""
         lab_details = await lab_operations.fetch_available_labs(bot,message_)
         # Deserialize the lab_details data
         LAB_RECORD_BUTTONS = [
@@ -870,7 +876,17 @@ BIOMETRIC
         selected_subject = callback_query.data.split("lab_record_select_")[1]
         lab_details = await lab_operations.fetch_available_labs(bot,_message)
         subject_name = await lab_operations.get_subject_name(selected_subject,lab_details)
-        LAB_SELECTED_SUBJECT_TEXT = f"Select the operation that you would like to perform.\n\nSelected : {subject_name}"
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode[0] == 0:
+            LAB_SELECTED_SUBJECT_TEXT = f"""```Available Operatations
+Selected:
+
+⫸ {subject_name}```"""
+        else:
+            LAB_SELECTED_SUBJECT_TEXT = f"""**Available Operatations**\n
+Selected:
+
+⫸ {subject_name}"""
         LAB_SELECTED_SUBJECT_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("Lab Upload",callback_data=f"upload_lab_record_{selected_subject}")],
@@ -893,10 +909,41 @@ BIOMETRIC
         experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,selected_subject)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,selected_subject)
         week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,False,True,False)
-        if week_details:
-            LAB_WEEK_TEXT = f"Select the week to upload\n\nSelected : {subject_name}"
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode[0] == 0:
+            if week_details:
+                LAB_WEEK_TEXT = f"""
+                ```Available weeks to upload
+Selected:
+
+⫸ {subject_name}
+---
+
+● Select the week you want to upload```"""
+            else:
+                LAB_WEEK_TEXT = f"""
+                ```No available weeks to upload
+Selected:
+
+⫸ {subject_name}
+```"""
         else:
-            LAB_WEEK_TEXT = "There are no weeks available for upload."
+            if week_details:
+                LAB_WEEK_TEXT = f"""
+                **Available weeks to upload**\n
+Selected:
+
+⫸ {subject_name}
+---
+
+● Select the week you want to upload"""
+            else:
+                LAB_WEEK_TEXT = f"""
+                **No available weeks to upload**
+Selected:
+
+⫸ {subject_name}
+"""
         if len(week_details) > 5:
             LAB_WEEK_BUTTONS = []
         # Iterate through week_details to create the buttons
@@ -952,10 +999,41 @@ BIOMETRIC
         experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,selected_subject)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,selected_subject)
         week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,True,False,False)
-        if week_details:
-            LAB_WEEK_TEXT = f"Select the week to view\n\nSelected : \n{subject_name}"
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode[0] == 0:
+            if week_details:
+                LAB_WEEK_TEXT = f"""
+                ```Available weeks to view
+Selected:
+
+⫸ {subject_name}
+---
+
+● Select the week you want to view```"""
+            else:
+                LAB_WEEK_TEXT = f"""
+                ```No available weeks to view
+Selected:
+
+⫸ {subject_name}
+```"""
         else:
-            LAB_WEEK_TEXT = f"There are no weeks available to view."
+            if week_details:
+                LAB_WEEK_TEXT = f"""
+                **Available weeks to view**\n
+Selected:
+
+⫸ {subject_name}
+---
+
+● Select the week you want to view"""
+            else:
+                LAB_WEEK_TEXT = f"""
+                **No available weeks to view**\n
+Selected:
+
+⫸ {subject_name}
+"""
         if len(week_details) > 5:
             LAB_WEEK_BUTTONS = []
         # Iterate through week_details to create the buttons
@@ -992,7 +1070,12 @@ BIOMETRIC
         lab_record_url = await lab_operations.get_view_pdf_url(subject_code,user_lab_details,week_no)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,subject_code)
         marks = await lab_operations.get_marks_by_week(all_submitted_lab_records,week_no)
-        VIEW_LAB_RECORD = f"LAB : \n\n{subject_name}\n\nWEEK : {week_no}\n\nMARKS : {marks}"
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode[0] == 0:
+            VIEW_LAB_RECORD = f"```LAB : \n\n{subject_name}\n\nWEEK : {week_no}\n\nMARKS : {marks}```"
+        else:
+            VIEW_LAB_RECORD = f"LAB : \n\n{subject_name}\n\nWEEK : {week_no}\n\nMARKS : {marks}"
+        
         VIEW_LAB_RECORD_BUTTON = [
             [InlineKeyboardButton("VIEW",url=lab_record_url)]
         ]
@@ -1011,10 +1094,39 @@ BIOMETRIC
         experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,subject_code)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,subject_code)
         week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,False,False,True)
-        if week_details:
-            LAB_DELETE_WEEK_TEXT = f"Select the week to delete\n\nSelected : \n{subject_name}"
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode[0] == 1:
+            if week_details:
+                LAB_DELETE_WEEK_TEXT = f"""
+                ```Available weeks to delete
+Selected:
+
+⫸ {subject_name}
+---
+
+● Select the week you want to delete```"""
+            else:
+                LAB_DELETE_WEEK_TEXT = f"""```No available weeks to delete
+Selected:
+
+⫸ {subject_name}
+```"""
         else:
-            LAB_DELETE_WEEK_TEXT = f"No weeks are available for deletion."
+            if week_details:
+                LAB_DELETE_WEEK_TEXT = f"""
+                **Available weeks to delete**\n
+Selected:
+
+⫸ {subject_name}
+---
+
+● Select the week you want to delete"""
+            else:
+                LAB_DELETE_WEEK_TEXT = f"""**No available weeks to delete**\n
+Selected:
+
+⫸ {subject_name}
+"""
         if len(week_details) > 5:
             LAB_DELETE_WEEK_BUTTONS = []
         # Iterate through week_details to create the buttons
@@ -1062,12 +1174,21 @@ BIOMETRIC
         deletion_data = await lab_operations.delete_lab_record(bot,chat_id,subject_code,user_data,week_no)
         status = deletion_data['status'].upper()
         status_message = deletion_data['msg']
-        DELETION_TEXT = f"""
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode[0] == 0:
+            DELETION_TEXT = f"""
 ```DELETION {status}
 STATUS : {status}
 
 STATUS MESSAGE : {status_message}
 ```
+"""
+        else:
+            DELETION_TEXT = f"""
+**DELETION {status}**\n
+**STATUS** : {status}
+
+**STATUS MESSAGE** : {status_message}
 """
         DELETED_LAB_BUTTON = InlineKeyboardMarkup(
             inline_keyboard=[
