@@ -181,6 +181,14 @@ async def add_maintainer(bot, message):
     except Exception as e:
         logging.error("Error in 'add_maintainer' command: %s", e)
 
+@bot.on_message(filters.private & filters.document)
+async def _download_pdf(bot,message):
+    try:
+        await labs_handler.download_pdf(bot, message, pdf_compress_scrape=pdf_compressor.use_pdf_compress_scrape)
+    except Exception as e:
+        logging.error("Error in '_download_pdf' function: %s", e)
+
+
 @bot.on_message(filters.private & ~filters.service)
 async def _get_title_from_user(bot,message):
     try:
@@ -188,12 +196,7 @@ async def _get_title_from_user(bot,message):
             await labs_handler.get_title_from_user(bot, message)
     except Exception as e:
         logging.error("Error in '_get_title_from_user' function: %s", e)
-@bot.on_message(filters.private & filters.document)
-async def _download_pdf(bot,message):
-    try:
-        await labs_handler.download_pdf(bot, message, pdf_compress_scrape=pdf_compressor.use_pdf_compress_scrape)
-    except Exception as e:
-        logging.error("Error in '_download_pdf' function: %s", e)
+            
 @bot.on_callback_query()
 async def _callback_function(bot,callback_query):
     try:
