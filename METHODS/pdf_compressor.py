@@ -15,7 +15,7 @@ import time
 import os
 
 
-use_pdf_compress_scrape = True
+use_pdf_compress_scrape = False
 
 
 async def compress_pdf_scrape(bot,message):
