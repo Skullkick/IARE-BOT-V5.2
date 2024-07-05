@@ -481,13 +481,13 @@ async def biometric(bot, message):
     if leave_status is True:
         leaves_biometric_msg = f"● Leaves available       -  {leaves_biometric}"
     elif leave_status is False:
-        leaves_biometric_msg = f"Biometric Below {biometric_threshold[0]}\n\n● Days to Attend              -  {leaves_biometric}\n"
+        leaves_biometric_msg = f"● Days to Attend         -  {leaves_biometric}"
     if six_hour_leave_status is True:
         six_hour_leave_msg = f"● Leaves available (6h)  -  {six_hour_leaves}"
     elif six_hour_leave_status is False:
-        six_hour_leave_msg = f"Biometric (6h) Below {biometric_threshold[0]}\n\n    ● Days to Attend         -  {six_hour_leaves}\n" 
+        six_hour_leave_msg = f"● Days to Attend         -  {six_hour_leaves}" 
     biometric_msg_updated = f"""
-    ```Biometric
+    ```BIOMETRIC
 ⫷
 
 ● Total Days             -  {attendance_data['Total Days']}
@@ -495,41 +495,65 @@ async def biometric(bot, message):
 ● Days Present           -  {attendance_data['Total Days Present']}  
                 
 ● Days Absent            -  {attendance_data['Total Days Absent']}
-                    
+
+----
+
+⫸ Regular Biometric
+
 ● Biometric %            -  {biometric_percentage}
-
-● Biometric % (6h gap)   -  {six_percentage}
-
-● Biometric Threshold    -  {biometric_threshold[0]}
 
 {leaves_biometric_msg}
 
+----
+
+⫸ 6Hr Gap Biometric
+
+● Biometric % (6h gap)   -  {six_percentage}
+
 {six_hour_leave_msg}
+
+----
+
+● Biometric Threshold    -  {biometric_threshold[0]}
+
+----
+
 ⫸
 
-@iare_unofficial_bot
-    ```
+@iare_unofficial_bot```
     """
     biometric_msg_traditional = f"""
-**Biometric**
+**BIOMETRIC**
 
 ⫷
 
-● Total Days                      -  {attendance_data['Total Days']}
+● Total Days             -  {attendance_data['Total Days']}
                     
-● Days Present                 -  {attendance_data['Total Days Present']}  
+● Days Present           -  {attendance_data['Total Days Present']}  
                 
-● Days Absent                  -  {attendance_data['Total Days Absent']}
-                    
-● Biometric %                   -  {biometric_percentage}
+● Days Absent            -  {attendance_data['Total Days Absent']}
 
-● Biometric % (6h gap)   -  {six_percentage}
+----
 
-● Biometric Threshold    -  {biometric_threshold[0]}
+⫸ Regular Biometric
+
+● Biometric %            -  {biometric_percentage}
 
 {leaves_biometric_msg}
 
+----
+
+⫸ 6Hr Gap Biometric
+
+● Biometric % (6h gap)   -  {six_percentage}
+
 {six_hour_leave_msg}
+
+----
+
+● Biometric Threshold    -  {biometric_threshold[0]}
+
+----
 
 ⫸
 
@@ -676,7 +700,6 @@ async def bunk(bot,message):
 ● Attendance  -  {attendance_percentage}
 
 ● You can bunk {classes_bunked} classes
-
 
 ⫸
 
@@ -1000,7 +1023,13 @@ async def get_certificates(bot,message,profile_pic : bool,aadhar_card : bool,dob
         # Ensure the BytesIO object is closed
         image_bytes.close()
     except requests.RequestException as e:
-        await message.reply_text(f'Failed to fetch the image: {e}')
+        if ui_mode[0] == 0:
+            await message.reply_text("""```Failed to fetch image
+Document not available```""")
+        elif ui_mode[0] == 1:
+            await message.reply_text("""**Failed to fetch image**\n
+Document not available""")
+
     await buttons.start_certificates_buttons(message)
 
 async def profile_details(bot,message):
