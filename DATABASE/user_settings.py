@@ -82,6 +82,8 @@ async def set_attendance_threshold(chat_id,attendance_threshold):
     :param attendance_threshold: Value of the attendance threshold"""
     if attendance_threshold > 95:
         attendance_threshold = 95
+    if attendance_threshold < 35:
+        attendance_threshold = 35
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE user_settings SET attendance_threshold = ? WHERE chat_id = ?", (attendance_threshold, chat_id))
@@ -93,6 +95,8 @@ async def set_biometric_threshold(chat_id,biometric_threshold):
     :param biometric_threshold: Value of the biometric threshold"""
     if biometric_threshold > 95:
         biometric_threshold = 95
+    if biometric_threshold < 35:
+        biometric_threshold = 35
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE user_settings SET biometric_threshold = ? WHERE chat_id = ?",(biometric_threshold,chat_id))
