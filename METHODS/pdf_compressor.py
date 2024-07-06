@@ -117,7 +117,7 @@ async def compress_pdf_scrape(bot, message):
                     time.sleep(1)  # Wait for the slider to update
 
                     # Click the "Compress" button
-                    compress_button = WebDriverWait(driver, 1).until(
+                    compress_button = WebDriverWait(driver, 5).until(
                         EC.element_to_be_clickable((By.ID, "apply-button"))
                     )
                     compress_button.click()
@@ -126,7 +126,7 @@ async def compress_pdf_scrape(bot, message):
                     time.sleep(10)
 
                     # Check the new size after compression
-                    new_size_element = WebDriverWait(driver, 0).until(
+                    new_size_element = WebDriverWait(driver, 1).until(
                         EC.visibility_of_element_located((By.ID, "zon-bottom-txt-cl0"))
                     )
                     new_size_text = new_size_element.text
