@@ -1647,7 +1647,6 @@ async def perform_sync_banned_users(bot):
                 print("Error retrieving data from banned users database")
             return
         if banned_users is not None:
-            print(banned_users)
             for row in banned_users: # Each row contains data like this <Record username='223235464'>
                 banned_username = row[0] # Extracting username from the record
                 await tdatabase.store_banned_username(banned_username.lower())
