@@ -157,7 +157,7 @@ async def compress_pdf_scrape(bot, message):
                         return True, f"Compressed file {new_filename} is available in the directory: {download_dir}"
 
                 except Exception as ex:
-                    print(f"Error during compression at {compression_level}%", exc_info=True)
+                    print(f"Error during compression at {compression_level}%")
 
             print("Unable to compress PDF below 1 MB even at maximum compression.")
             return False, "Unable to compress PDF below 1 MB even at maximum compression."
@@ -167,7 +167,7 @@ async def compress_pdf_scrape(bot, message):
             driver.quit()
 
     except Exception as e:
-        print(f"An unexpected error occurred: {str(e)}", exc_info=True)
+        print(f"An unexpected error occurred: {str(e)}")
         return False, f"An unexpected error occurred: {str(e)}"
 
 async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
@@ -207,7 +207,7 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
         return True
 
     except Exception as e:
-        print(f"Error compressing PDF: {str(e)}", exc_info=True)
+        print(f"Error compressing PDF: {str(e)}")
         return False
 
 async def compile_and_save_pdf_batch(image_paths: list, output_path: str):
@@ -216,6 +216,6 @@ async def compile_and_save_pdf_batch(image_paths: list, output_path: str):
         images[0].save(output_path, "PDF", resolution=100.0, save_all=True, append_images=images[1:])
         print(f"Compiled and saved PDF batch successfully to: {output_path}")
     except Exception as error:
-        print(f"Error compiling PDF batch: {str(error)}", exc_info=True)
+        print(f"Error compiling PDF batch: {str(error)}")
 
 
