@@ -582,9 +582,6 @@ async def store_banned_username(username):
                 # Insert the username if it does not exist in the database
                 cursor.execute('INSERT INTO banned_users (username) VALUES (?)', (banned_username,))
                 conn.commit()
-                print("Username banned successfully")
-            else:
-                print("Username already banned")
         except sqlite3.IntegrityError as e:
             print(f"Error storing banned users to local database: {e}")
 
