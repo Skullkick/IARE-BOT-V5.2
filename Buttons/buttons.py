@@ -5,7 +5,7 @@ import main
 import json,asyncio
 
 
-USER_MESSAGE = "Here are some actions you can perform."
+USER_MESSAGE = "**What Action Would You Like to Perform?**"
 USER_BUTTONS = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton("Attendance", callback_data="attendance"),InlineKeyboardButton("Bunk", callback_data="bunk")],
@@ -27,7 +27,8 @@ SETTINGS_BUTTONS = InlineKeyboardMarkup(
         # [InlineKeyboardButton("Labs Data",callback_data="labs_data")]
     ]
 )
-SETTINGS_TEXT = "Welcome to the settings menu.\n\n Here, you can customize various aspects of your experience to suit your preferences."
+SETTINGS_TEXT = """```Personalize Your Settings
+In this section, you can tailor various aspects of your experience to align with your preferences and needs.```"""
 
 remove_cred_keyboard = InlineKeyboardMarkup(
 inline_keyboard=[
@@ -242,7 +243,12 @@ async def start_student_profile_buttons(message):
                 [InlineKeyboardButton("Back",callback_data="user_back")]
             ]
         )
-    await message.reply_text("Select one from the available ones.",reply_markup = STUDENT_PROFILE_BUTTON)
+    await message.reply_text("""
+    ```Choose Your Desired Action
+
+⫸ Note: 
+Selecting the CIE Option may temporarily slow down other operations due to loading from Samvidha.```
+""",reply_markup = STUDENT_PROFILE_BUTTON)
 
 async def callback_function(bot,callback_query):
     """
@@ -305,7 +311,7 @@ async def callback_function(bot,callback_query):
         USERNAME = await tdatabase.fetch_username_from_credentials(chat_id)
         # USERNAME = await pgdatabase.get_username(chat_id=_message.chat.id)
         if USERNAME is not None:
-            SAVED_USERNAME_TEXT = "Here are your saved credentials."
+            SAVED_USERNAME_TEXT = "**Your Saved Credentials**"
             USERNAME = USERNAME.upper()
             SAVED_USERNAME_BUTTONS = InlineKeyboardMarkup(
                 inline_keyboard= [
@@ -431,14 +437,14 @@ async def callback_function(bot,callback_query):
             # Saving the credentials to the database
             await pgdatabase.save_credentials_to_databse(chat_id,username,password) # saving credentials in postgres database
             await tdatabase.store_credentials_in_database(chat_id,username,password) # saving credentials in temporary database
-            await callback_query.message.edit_text("Your credentails have been saved successfully.")
+            await callback_query.message.edit_text("**Your credentails have been saved successfully.**")
         except Exception as e:
             await bot.send_message(chat_id,f"Error saving credentils : {e}")
 
     elif callback_query.data == "user_back":
         await callback_query.edit_message_text(USER_MESSAGE,reply_markup = USER_BUTTONS)
     elif callback_query.data == "username_saved_options":
-        USERNAME_SAVED_OPTIONS_TEXT = "Here are some operations that you can perform."
+        USERNAME_SAVED_OPTIONS_TEXT = "**Logout and Remove Controls**"
         USERNAME_SAVED_OPTIONS_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("Remove",callback_data="remove_saved_cred")],
@@ -473,7 +479,17 @@ async def callback_function(bot,callback_query):
         _message = callback_query.message
         chat_id = _message.chat.id
         current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
-        ATTENDANCE_THRESHOLD_TEXT = f"Current Attendance Threshold : {current_threshold[0]}\n\nClick on \n ●\t \"+\" to increase threshold \n\n ●\t \"-\" to decrease threshold"
+        ATTENDANCE_THRESHOLD_TEXT = f"""
+```Attendance Threshold
+⫸ Current Attendance Threshold : {current_threshold[0]}
+
+Click on
+
+● "+" to increase threshold
+
+● "-" to decrease threshold
+```
+"""
         ATTENDANCE_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("-",callback_data="decrease_att_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_att_threshold")],
@@ -497,7 +513,17 @@ async def callback_function(bot,callback_query):
             current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
             await user_settings.set_attendance_threshold(chat_id,current_threshold[0]-5)
         current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
-        ATTENDANCE_THRESHOLD_TEXT = f"Current Attendance Threshold : {current_threshold[0]}\n\nClick on \n ●\t \"+\" to increase threshold \n\n ●\t \"-\" to decrease threshold"
+        ATTENDANCE_THRESHOLD_TEXT = f"""
+```Attendance Threshold
+⫸ Current Attendance Threshold : {current_threshold[0]}
+
+Click on
+
+● "+" to increase threshold
+
+● "-" to decrease threshold
+```
+"""
         ATTENDANCE_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("-",callback_data="decrease_att_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_att_threshold")],
@@ -514,7 +540,17 @@ async def callback_function(bot,callback_query):
         chat_id = _message.chat.id
         current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
         # current_threshold = current_threshold[0]
-        BIOMETRIC_THRESHOLD_TEXT = f"Current Biometric Threshold : {current_threshold[0]}\n\nClick on \n ●\t \"+\" to increase threshold \n\n ●\t \"-\" to decrease threshold"
+        BIOMETRIC_THRESHOLD_TEXT = f"""
+```Biometric Threshold
+⫸ Current Biometric Threshold : {current_threshold[0]}
+
+Click on
+
+● "+" to increase threshold
+
+● "-" to decrease threshold
+```
+"""
         BIOMETRIC_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("-",callback_data="decrease_bio_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_bio_threshold")],
@@ -536,7 +572,17 @@ async def callback_function(bot,callback_query):
             current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
             await user_settings.set_biometric_threshold(chat_id,current_threshold[0]-5)
         current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
-        BIOMETRIC_THRESHOLD_TEXT = f"Current Biometric Threshold : {current_threshold[0]}\n\nClick on \n ●\t + to increase threshold \n\n ●\t - to decrease threshold"
+        BIOMETRIC_THRESHOLD_TEXT = f"""
+```Biometric Threshold
+⫸ Current Biometric Threshold : {current_threshold[0]}
+
+Click on
+
+● "+" to increase threshold
+
+● "-" to decrease threshold
+```
+"""
         BIOMETRIC_THRESHOLD_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("-",callback_data="decrease_bio_threshold"),InlineKeyboardButton(current_threshold[0],callback_data="None"),InlineKeyboardButton("+",callback_data="increase_bio_threshold")],
@@ -552,7 +598,10 @@ async def callback_function(bot,callback_query):
         _message = callback_query.message
         chat_id = _message.chat.id
         TITLE_BOOL = await user_settings.fetch_extract_title_bool(chat_id)
-        TITLE_EXTRACT_TEXT = "Title Modes:\n\n\tAutomatic : Title is taken from the Experiment Details \n\n\tMANUAL : Title needs to be given by the user to the bot\n\n"
+        TITLE_EXTRACT_TEXT = """```Title Modes
+Automatic: Title is taken from the Experiment Details
+
+Manual: Title needs to be given by the user to the bot```"""
         if TITLE_BOOL[0] == 1:
             TITLE_EXTRACT_BUTTONS = InlineKeyboardMarkup(
                 inline_keyboard=[
@@ -581,7 +630,10 @@ async def callback_function(bot,callback_query):
     elif callback_query.data == "set_auto_title":
         _message = callback_query.message
         chat_id = _message.chat.id
-        TITLE_EXTRACT_TEXT = "Title Modes:\n\n\tAutomatic : Title is taken from the Experiment Details \n\n\tMANUAL : Title needs to be given by the user to the bot\n\n\tYou Have Selected Automatic Mode."
+        TITLE_EXTRACT_TEXT = """```Title Modes
+Automatic: Title is taken from the Experiment Details
+
+Manual: Title needs to be given by the user to the bot```"""
         TITLE_EXTRACT_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("● AUTOMATIC",callback_data="set_auto_title")],
@@ -598,7 +650,10 @@ async def callback_function(bot,callback_query):
     elif callback_query.data == "set_man_title":
         _message = callback_query.message
         chat_id = _message.chat.id
-        TITLE_EXTRACT_TEXT = "Title Modes:\n\n\tAutomatic : Title is taken from the Experiment Details \n\n\tMANUAL : Title needs to be given by the user to the bot\n\n\tYou Have Selected Manual Mode."
+        TITLE_EXTRACT_TEXT = """```Title Modes
+Automatic: Title is taken from the Experiment Details
+
+Manual: Title needs to be given by the user to the bot```"""
         TITLE_EXTRACT_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("AUTOMATIC",callback_data="set_auto_title")],
@@ -616,7 +671,10 @@ async def callback_function(bot,callback_query):
         _message = callback_query.message
         chat_id = _message.chat.id
         current_ui = await user_settings.fetch_ui_bool(chat_id)
-        USERINTERFACE_TEXT = "Switch effortlessly between traditional and updated UI for a refreshed experience.\n\n Customize your view with just a click!"    
+        USERINTERFACE_TEXT = """```User Interface
+Switch effortlessly between traditional and updated UI for a refreshed experience.
+
+Customize your view with just a click!```"""    
         # "Switch effortlessly between traditional and updated UI for a refreshed experience. Customize your view with just a click!" 
         if current_ui[0] == 0:
             traditional_ui = "Traditional"
@@ -650,7 +708,7 @@ async def callback_function(bot,callback_query):
             USERINTERFACE_TEXT = f"""
 UPDATED UI : 
 
-```biometric
+```Biometric
 ⫷
 
 ● Total Days             -  50
@@ -790,7 +848,11 @@ BIOMETRIC
                 reply_markup = BACK_TO_STUDENT_INFO
         )
     elif callback_query.data == "student_info":
-        STUDENT_PROFILE_TEXT = f"Select one from the available ones."
+        STUDENT_PROFILE_TEXT = """```Choose Your Desired Action
+
+⫸ Note: 
+Selecting the CIE Option may temporarily slow down other operations due to loading from Samvidha.```"""
+
         STUDENT_PROFILE_BUTTON = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("GPA",callback_data="user_gpa")],
