@@ -2,7 +2,8 @@ import os
 import tempfile
 import logging
 import time
-from METHODS import labs_handlerfrom PIL import Image
+from METHODS import labs_handler
+from PIL import Image
 from pdf2image import convert_from_path
 from selenium import webdriver
 from selenium.webdriver.common.by import By
