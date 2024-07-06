@@ -873,6 +873,7 @@ BIOMETRIC
         )
     elif "lab_record_select_" in callback_query.data:
         _message = callback_query.message
+        chat_id = _message.chat.id
         selected_subject = callback_query.data.split("lab_record_select_")[1]
         lab_details = await lab_operations.fetch_available_labs(bot,_message)
         subject_name = await lab_operations.get_subject_name(selected_subject,lab_details)
