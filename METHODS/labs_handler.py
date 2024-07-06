@@ -16,7 +16,6 @@ STATUS : Receiving
 
 
 async def download_pdf(bot, message,pdf_compress_scrape):
-    print("started downloading pdf")
     chat_id = message.chat.id
     download_folder = "pdfs"
     if pdf_compress_scrape is True:
@@ -29,7 +28,6 @@ async def download_pdf(bot, message,pdf_compress_scrape):
     if status is None:
         return
     if int(status) == 1:
-        print("verified successfully")
         # Checks if the message is document or not.
         if message.document:
             mime_type = message.document.mime_type
@@ -115,7 +113,6 @@ async def initialize_lab_upload(bot,message):
     
     :param chat_id: Chat id of the user
     """
-    print("started")
     chat_id = message.chat.id
     pdf_present,pdf_comp = await check_recieved_pdf_file(bot,chat_id)
     title = await tdatabase.fetch_title_lab_info(chat_id)
@@ -126,9 +123,18 @@ async def initialize_lab_upload(bot,message):
         await bot.send_message(chat_id,"● Send the PDF File")
         return
     if title and pdf_present is True:
-        print("Started uploading lab record")
         title,subject_code,week_no = await tdatabase.fetch_required_lab_info(chat_id)
         await lab_operations.upload_lab_record(bot,message,title=title,subject_code=subject_code,week_no=week_no)
+
+async def rename_to_upload_pdf(pdf_path,chat_id,week_no):
+    session_data = await tdatabase.load_user_session(chat_id)
+    username = session_data['username'][:10].upper()
+    pdf_folder = "pdfs"
+    pdf_file_name = f"{username}_week{week_no}.pdf"
+    updated_path_to_rename = os.path.join(pdf_folder,pdf_file_name)
+    os.rename(pdf_path,updated_path_to_rename)
+    updated_pdf_path = os.path.abspath(updated_path_to_rename)
+    return pdf_file_name,updated_pdf_path
 
 async def check_pdf_size(chat_id,allowed_size):
         """This Function checks whether the pdf file is above allowed pdf size or not,

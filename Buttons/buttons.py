@@ -935,6 +935,7 @@ Selecting the CIE Option may temporarily slow down other operations due to loadi
         )
     elif "lab_record_select_" in callback_query.data:
         _message = callback_query.message
+        chat_id = _message.chat.id
         selected_subject = callback_query.data.split("lab_record_select_")[1]
         lab_details = await lab_operations.fetch_available_labs(bot,_message)
         subject_name = await lab_operations.get_subject_name(selected_subject,lab_details)
@@ -996,7 +997,6 @@ Selected:
 Selected:
 
 ⫸ {subject_name}
----
 
 ● Select the week you want to upload"""
             else:
@@ -1086,7 +1086,6 @@ Selected:
 Selected:
 
 ⫸ {subject_name}
----
 
 ● Select the week you want to view"""
             else:
@@ -1157,7 +1156,7 @@ Selected:
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,subject_code)
         week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,False,False,True)
         ui_mode = await user_settings.fetch_ui_bool(chat_id)
-        if ui_mode[0] == 1:
+        if ui_mode[0] == 0:
             if week_details:
                 LAB_DELETE_WEEK_TEXT = f"""
                 ```Available weeks to delete
@@ -1180,7 +1179,6 @@ Selected:
 Selected:
 
 ⫸ {subject_name}
----
 
 ● Select the week you want to delete"""
             else:

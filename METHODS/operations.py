@@ -498,6 +498,10 @@ async def biometric(bot, message):
 
 ----
 
+● Biometric Threshold    -  {biometric_threshold[0]}
+
+----
+
 ⫸ Regular Biometric
 
 ● Biometric %            -  {biometric_percentage}
@@ -511,12 +515,6 @@ async def biometric(bot, message):
 ● Biometric % (6h gap)   -  {six_percentage}
 
 {six_hour_leave_msg}
-
-----
-
-● Biometric Threshold    -  {biometric_threshold[0]}
-
-----
 
 ⫸
 
@@ -533,7 +531,9 @@ async def biometric(bot, message):
                 
 ● Days Absent            -  {attendance_data['Total Days Absent']}
 
-----
+
+● Biometric Threshold    -  {biometric_threshold[0]}
+
 
 ⫸ Regular Biometric
 
@@ -541,19 +541,12 @@ async def biometric(bot, message):
 
 {leaves_biometric_msg}
 
-----
 
 ⫸ 6Hr Gap Biometric
 
 ● Biometric % (6h gap)   -  {six_percentage}
 
 {six_hour_leave_msg}
-
-----
-
-● Biometric Threshold    -  {biometric_threshold[0]}
-
-----
 
 ⫸
 
@@ -713,7 +706,6 @@ async def bunk(bot,message):
 ● Current Attendance      -  {attendance_percentage}
 
 ● You can bunk {classes_bunked} classes
-
 
 ⫸
 
@@ -1655,7 +1647,6 @@ async def perform_sync_banned_users(bot):
                 print("Error retrieving data from banned users database")
             return
         if banned_users is not None:
-            print(banned_users)
             for row in banned_users: # Each row contains data like this <Record username='223235464'>
                 banned_username = row[0] # Extracting username from the record
                 await tdatabase.store_banned_username(banned_username.lower())
