@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 
-use_pdf_compress_scrape = True
+use_pdf_compress_scrape = False
 
 async def compress_pdf_scrape(bot, message):
     try:
