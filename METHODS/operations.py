@@ -498,6 +498,10 @@ async def biometric(bot, message):
 
 ----
 
+● Biometric Threshold    -  {biometric_threshold[0]}
+
+----
+
 ⫸ Regular Biometric
 
 ● Biometric %            -  {biometric_percentage}
@@ -511,12 +515,6 @@ async def biometric(bot, message):
 ● Biometric % (6h gap)   -  {six_percentage}
 
 {six_hour_leave_msg}
-
-----
-
-● Biometric Threshold    -  {biometric_threshold[0]}
-
-----
 
 ⫸
 
@@ -533,7 +531,9 @@ async def biometric(bot, message):
                 
 ● Days Absent            -  {attendance_data['Total Days Absent']}
 
-----
+
+● Biometric Threshold    -  {biometric_threshold[0]}
+
 
 ⫸ Regular Biometric
 
@@ -541,19 +541,12 @@ async def biometric(bot, message):
 
 {leaves_biometric_msg}
 
-----
 
 ⫸ 6Hr Gap Biometric
 
 ● Biometric % (6h gap)   -  {six_percentage}
 
 {six_hour_leave_msg}
-
-----
-
-● Biometric Threshold    -  {biometric_threshold[0]}
-
-----
 
 ⫸
 
@@ -713,7 +706,6 @@ async def bunk(bot,message):
 ● Current Attendance      -  {attendance_percentage}
 
 ● You can bunk {classes_bunked} classes
-
 
 ⫸
 
