@@ -15,17 +15,17 @@ import time
 import os
 
 
-use_pdf_compress_scrape = True
+use_pdf_compress_scrape = False
 
 
 async def compress_pdf_scrape(bot,message):
 
     download_wait_time = 120  # Maximum time to wait for the download to complete
-    #extension_folder = "EXTENSION"
-    #ublock_file = "ublock.crx"
-    #ublock_path = os.path.join(extension_folder,ublock_file)
-    #ublock_complete_path = os.path.abspath(ublock_path)
-    #ublock_crx_path = ublock_complete_path#r"D:\BOT -Adding Compression\EXTENSION\ublock.crx"  # Update this to the path of your uBlock Origin .crx file
+    extension_folder = "EXTENSION"
+    ublock_file = "ublock.crx"
+    ublock_path = os.path.join(extension_folder,ublock_file)
+    ublock_complete_path = os.path.abspath(ublock_path)
+    ublock_crx_path = ublock_complete_path#r"D:\BOT -Adding Compression\EXTENSION\ublock.crx"  # Update this to the path of your uBlock Origin .crx file
     chat_id = message.chat.id
     check_file = await labs_handler.check_recieved_pdf_file(bot, chat_id)
     pdf_folder = "pdfs"
@@ -56,7 +56,7 @@ async def compress_pdf_scrape(bot,message):
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
 
-    #options.add_extension(ublock_crx_path)
+    options.add_extension(ublock_crx_path)
 
     # Initialize WebDriver
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
@@ -114,7 +114,7 @@ async def compress_pdf_scrape(bot,message):
                 time.sleep(1)  # Wait for the slider to update
 
                 # Click the "Compress" button
-                compress_button = WebDriverWait(driver,1).until(
+                compress_button = WebDriverWait(driver,10).until(
                     EC.element_to_be_clickable((By.ID, "apply-button"))
                 )
                 compress_button.click()
@@ -123,7 +123,7 @@ async def compress_pdf_scrape(bot,message):
                 time.sleep(10)
                 
                 # Check the new size after compression
-                new_size_element = WebDriverWait(driver,0).until(
+                new_size_element = WebDriverWait(driver,10).until(
                     EC.visibility_of_element_located((By.ID, "zon-bottom-txt-cl0"))
                 )
                 new_size_text = new_size_element.text
@@ -139,7 +139,7 @@ async def compress_pdf_scrape(bot,message):
                 if new_size_mb < 1:
                     print(f"Compression successful. Final file size: {new_size_mb:.2f} MB")
 
-                    download_button = WebDriverWait(driver,5).until(
+                    download_button = WebDriverWait(driver,10).until(
                         EC.element_to_be_clickable((By.ID, "zon-download-cbtn0"))
                     )
                     driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
