@@ -171,23 +171,31 @@ async def compress_pdf_scrape(bot, message):
         print(f"An unexpected error occurred: {str(e)}")
         return False, f"An unexpected error occurred: {str(e)}"
 
-async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
+def pdf_image_generator(input_path):
+    """A generator function to yield images from a PDF file."""
     try:
+        for img in convert_from_path(input_path):
+            yield img
+    except Exception as e:
+        print(f"Error in pdf image generator : {e}")
+
+async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
+    
+    try:
+        # Check whether the PDF is present or not
         check_file = await labs_handler.check_recieved_pdf_file(bot, chat_id)
         pdf_folder = "pdfs"
         pdf_file_folder = os.path.join(pdf_folder, f"C-{chat_id}.pdf")
-
         if check_file[0] is True and check_file[1] is False:
             input_path = os.path.abspath(pdf_file_folder)
         elif check_file[0] is False:
             await bot.send_message(chat_id, "PDF file is not present.")
-            return False
+            return
         elif check_file[0] is True and check_file[1] is True:
             await bot.send_message(chat_id, "PDF file is already compressed.")
-            return True
-
+            return
         output_path = os.path.join(pdf_folder, f"C-{chat_id}-comp.pdf")
-
+        
         # Create a temporary directory to store compressed images
         with tempfile.TemporaryDirectory() as temp_dir:
             compressed_image_paths = []
@@ -199,24 +207,24 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
                 img.thumbnail((img.width / 2, img.height / 2))
                 img.save(compressed_img_path, "JPEG", quality=50)
                 compressed_image_paths.append(compressed_img_path)
-
+                
             # Compile all compressed images into a single PDF
             await compile_and_save_pdf_batch(compressed_image_paths, output_path)
-
-        print(f"PDF compressed successfully to: {output_path}")
-        await labs_handler.remove_pdf_file(bot, chat_id)
+                
+        print(f"compressed successfully to: {output_path}")
+        await labs_handler.remove_pdf_file(bot,chat_id)
         return True
 
-    except Exception as e:
-        print(f"Error compressing PDF: {str(e)}")
+    except Exception as error:
+        print(f"Error: {error}")
         return False
 
 async def compile_and_save_pdf_batch(image_paths: list, output_path: str):
+    """Compile a batch of image files into a temporary PDF file."""
     try:
         images = [Image.open(img_path) for img_path in image_paths]
         images[0].save(output_path, "PDF", resolution=100.0, save_all=True, append_images=images[1:])
-        print(f"Compiled and saved PDF batch successfully to: {output_path}")
     except Exception as error:
-        print(f"Error compiling PDF batch: {str(error)}")
+        print(f"Error compiling PDF batch: {error}")
 
 
