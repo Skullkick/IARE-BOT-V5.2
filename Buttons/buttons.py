@@ -236,7 +236,7 @@ async def start_student_profile_buttons(message):
     STUDENT_PROFILE_BUTTON = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("GPA",callback_data="user_gpa")],
-                [InlineKeyboardButton("CIE",callback_data="user_cie")],
+                # [InlineKeyboardButton("CIE",callback_data="user_cie")],
                 [InlineKeyboardButton("Certificates",callback_data="certificates_start")],
                 [InlineKeyboardButton("Payment Details",callback_data="payment_details")],
                 [InlineKeyboardButton("Profile",callback_data="student_profile")],
@@ -856,7 +856,7 @@ Selecting the CIE Option may temporarily slow down other operations due to loadi
         STUDENT_PROFILE_BUTTON = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("GPA",callback_data="user_gpa")],
-                [InlineKeyboardButton("CIE",callback_data="user_cie")],
+                # [InlineKeyboardButton("CIE",callback_data="user_cie")],
                 [InlineKeyboardButton("Certificates",callback_data="certificates_start")],
                 [InlineKeyboardButton("Payment Details",callback_data="payment_details")],
                 [InlineKeyboardButton("Profile",callback_data="student_profile")],
