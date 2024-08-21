@@ -217,16 +217,16 @@ async def main(bot):
     except Exception as e:
         logging.error("Error in 'main' function: %s", e)
 
-    while True:
-        cgpa_tracker_chat_ids = await managers_handler.get_all_cgpa_tracker_chat_ids()
-        cie_tracker_chat_ids = await managers_handler.get_all_cie_tracker_chat_ids()
-        if cgpa_tracker_chat_ids:
-            for chat_id in cgpa_tracker_chat_ids:
-                await manager_operations.cgpa_tracker(bot,chat_id)
-        if cie_tracker_chat_ids:
-            for chat_id in cie_tracker_chat_ids:
-                await manager_operations.cie_tracker(bot,chat_id)
-        await asyncio.sleep(300)
+    # while True:
+    #     cgpa_tracker_chat_ids = await managers_handler.get_all_cgpa_tracker_chat_ids()
+    #     cie_tracker_chat_ids = await managers_handler.get_all_cie_tracker_chat_ids()
+    #     if cgpa_tracker_chat_ids:
+    #         for chat_id in cgpa_tracker_chat_ids:
+    #             await manager_operations.cgpa_tracker(bot,chat_id)
+    #     if cie_tracker_chat_ids:
+    #         for chat_id in cie_tracker_chat_ids:
+    #             await manager_operations.cie_tracker(bot,chat_id)
+    #     await asyncio.sleep(300)
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
