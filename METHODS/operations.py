@@ -595,7 +595,9 @@ async def biometric_leaves(chat_id,present_days,total_days):
         while (present_days + days_need_attend) / (total_days + days_need_attend) * 100 < biometric_threshold[0]:
             days_need_attend += 1
         return days_need_attend, False
-    
+    elif biometric_percentage == biometric_threshold[0]:
+        no_of_leaves = 0
+        return no_of_leaves,True
 
 async def bunk(bot,message):
     chat_id = message.chat.id
