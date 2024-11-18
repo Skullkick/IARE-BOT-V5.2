@@ -440,6 +440,8 @@ async def callback_function(bot,callback_query):
             await callback_query.message.edit_text("**Your credentails have been saved successfully.**")
         except Exception as e:
             await bot.send_message(chat_id,f"Error saving credentils : {e}")
+    elif callback_query.data == "no_save":
+        await callback_query.message.delete()
 
     elif callback_query.data == "user_back":
         await callback_query.edit_message_text(USER_MESSAGE,reply_markup = USER_BUTTONS)
