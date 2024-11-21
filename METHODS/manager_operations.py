@@ -6,6 +6,7 @@ import re,requests,json,psutil
 from METHODS import operations
 from bs4 import BeautifulSoup
 import sqlite3,os
+from pyrogram.errors import FloodWait
 
 # access_users = access_data[0]
 # announcement = access_data[1]
@@ -273,7 +274,22 @@ async def announcement_to_all_users(bot, message):
 ```
 """ 
             await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
-            
+        except FloodWait as e:
+            # Handle FloodWait: Pause and retry
+            await bot.send_message(admin_or_maintainer_chat_id, f"FloodWait triggered. Pausing for {e.value} seconds.")
+            await asyncio.sleep(e.value)  # Pause for the duration of the FloodWait
+            try:
+                ui_mode = await user_settings.fetch_ui_bool(chat_id)
+                if ui_mode[0] == 0:
+                    await bot.send_message(chat_id, announcement_message_updated_ui)
+                elif ui_mode[0] == 1:
+                    await bot.send_message(chat_id, announcement_message_traditional_ui)
+                else:
+                    await bot.send_message(chat_id, announcement_message_updated_ui)
+                
+                successful_sends += 1
+            except Exception as retry_error:
+                await bot.send_message(admin_or_maintainer_chat_id, f"Retry failed for chat ID {chat_id}: {retry_error}")
         except Exception as e:
             await bot.send_message(admin_or_maintainer_chat_id, f"Error sending message to chat ID {chat_id}: {e}")
     
