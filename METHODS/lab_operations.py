@@ -316,11 +316,23 @@ async def user_lab_data(bot,chat_id):
     except TypeError:
         lab_batch_no = 'Not Found'
     
+    try:
+        dept_id = soup.find('input',id= 'dept_id')['value'].strip()
+    except TypeError:
+        dept_id = 'Not Found'
+
+    try:
+        sec = soup.find('input',id='sec')['value'].strip()
+    except TypeError:
+        sec = 'Not Found'
+
     user_details = {
         'ay': academic_year,
         'roll_no': roll_no,
         'current_sem': semester,
         'lab_batch_no': lab_batch_no,
+        'dept_id':dept_id,
+        'sec':sec,
     }
     return user_details
 
@@ -418,6 +430,8 @@ async def upload_pdf(bot,message,sub_code,user_details,upload_details):
         'ay': (None, user_details['ay']),
         'rollno': (None, user_details['roll_no']),
         'current_sem': (None, user_details['current_sem']),
+        'dept_id': (None, user_details['dept_id']),
+        'sec': (None, user_details['sec']),
         'sub_code': (None, sub_code),
         'lab_batch_no': (None, user_details['lab_batch_no']),
         'week_no': (None, upload_details['week_no']),
@@ -500,10 +514,10 @@ async def upload_lab_record(bot,message,title,subject_code,week_no):
             pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}-comp.pdf")
         else:
             pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}.pdf")
-        if check_compress is True:
-            pdf_name = f"C-{chat_id}-comp.pdf"
-        else:
-            pdf_name = f"C-{chat_id}.pdf"
+        # if check_compress is True:
+        #     pdf_name = f"C-{chat_id}-comp.pdf"
+        # else:
+        #     pdf_name = f"C-{chat_id}.pdf"
     pdf_file_path = os.path.abspath(pdf_folder)
     pdf_size = await labs_handler.get_pdf_size(bot,chat_id)
     renamed_pdf_name,updated_pdf_file_path = await labs_handler.rename_to_upload_pdf(pdf_file_path,chat_id,week_no)

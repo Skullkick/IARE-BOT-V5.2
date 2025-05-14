@@ -132,6 +132,8 @@ async def rename_to_upload_pdf(pdf_path,chat_id,week_no):
     pdf_folder = "pdfs"
     pdf_file_name = f"{username}_week{week_no}.pdf"
     updated_path_to_rename = os.path.join(pdf_folder,pdf_file_name)
+    if os.path.exists(updated_path_to_rename):
+        os.remove(updated_path_to_rename)
     os.rename(pdf_path,updated_path_to_rename)
     updated_pdf_path = os.path.abspath(updated_path_to_rename)
     return pdf_file_name,updated_pdf_path
