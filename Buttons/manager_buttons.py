@@ -1344,8 +1344,8 @@ STATUS INDEX            : {bio_status_index}
         admin_chat_id = callback_query.data.split("-")[1:][0]
         await managers_handler.remove_admin(admin_chat_id)
         await pgdatabase.remove_admin(admin_chat_id) # Removing admin from the pgdatabase
-        if await managers_handler.remove_cgpa_tracker_details(int(chat_id)): # remove if there is any cgpa tracker from local database
-            await pgdatabase.remove_cgpa_tracker_details(int(chat_id)) # remove tracker if the tracker is found and removed from the local database
+        if await managers_handler.remove_cgpa_tracker_details(int(admin_chat_id)): # remove if there is any cgpa tracker from local database
+            await pgdatabase.remove_cgpa_tracker_details(int(admin_chat_id)) # remove tracker if the tracker is found and removed from the local database
         await callback_query.answer()
         await callback_query.message.delete()
         await bot.send_message(admin_chat_id,"Your resignation as an administrator has been processed. We value your efforts and wish you the best.")
@@ -1356,8 +1356,8 @@ STATUS INDEX            : {bio_status_index}
         admin_name = await manager_operations.get_username(bot,admin_chat_id)
         await managers_handler.remove_admin(admin_chat_id)
         await pgdatabase.remove_admin(admin_chat_id) # Removing admin from the pgdatabase
-        if await managers_handler.remove_cgpa_tracker_details(int(chat_id)): # remove if there is any cgpa tracker from local database
-            await pgdatabase.remove_cgpa_tracker_details(int(chat_id)) # remove tracker if the tracker is found and removed from the local database
+        if await managers_handler.remove_cgpa_tracker_details(int(admin_chat_id)): # remove if there is any cgpa tracker from local database
+            await pgdatabase.remove_cgpa_tracker_details(int(admin_chat_id)) # remove tracker if the tracker is found and removed from the local database
         await callback_query.answer()
         await bot.send_message(user_chat_id,f"You have removed {admin_name} as Admin.")
         await bot.send_message(admin_chat_id,f"You are no longer an admin, as per {user_name}'s decision.")
@@ -1540,7 +1540,7 @@ Hope Tracker helped you to track the latest CIE Marks
     elif callback_query.data == "manager_start_cgpa_tracker":
         _message = callback_query.message
         chat_id = _message.chat.id
-        current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
+        _,current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
         await managers_handler.store_cgpa_tracker_details(chat_id,1,current_cgpa)
         await pgdatabase.store_cgpa_tracker_details(chat_id,True,current_cgpa)
         tracker_details = await managers_handler.get_cgpa_tracker_details(chat_id)
@@ -1569,7 +1569,7 @@ To stop tracking your CGPA, Click on \"Stop\"
     elif callback_query.data == "manager_stop_cgpa_tracker":
         _message = callback_query.message
         chat_id = _message.chat.id
-        current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
+        _,current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
         await managers_handler.store_cgpa_tracker_details(chat_id,0,current_cgpa)
         await pgdatabase.store_cgpa_tracker_details(chat_id,False,current_cgpa)
         CGPA_STOP_TRACKER_TEXT = f"""

@@ -1059,10 +1059,10 @@ async def remove_admin(chat_id):
     """
     connection = await connect_pg_database()
     try:
-        async with connection.transaction():
-            await connection.execute(
-                " DELETE FROM bot_managers WHERE chat_id =$1 AND admin=$1",int(chat_id),True)
-            return True
+        # async with connection.transaction():
+        await connection.execute(
+            " DELETE FROM bot_managers WHERE chat_id =$1 AND admin=$2",int(chat_id),True)
+        return True
     except Exception as e:
         print(f"error in removing admin from his duty {e} ")
         return False

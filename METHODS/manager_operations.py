@@ -7,6 +7,7 @@ from METHODS import operations
 from bs4 import BeautifulSoup
 import sqlite3,os
 from pyrogram.errors import FloodWait
+import asyncio
 
 # access_users = access_data[0]
 # announcement = access_data[1]
@@ -213,9 +214,6 @@ async def announcement_to_all_users(bot, message):
     Postgres database, this can only be used by BOT_DEVELOPER or BOT_MAINTAINER
     """
     admin_or_maintainer_chat_id = message.chat.id
-    # Only allow execution by specified chat IDs
-    # if message.chat.id != BOT_DEVELOPER_CHAT_ID and message.chat.id != BOT_MAINTAINER_CHAT_ID:
-    #     return
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_id = await managers_handler.fetch_maintainer_chat_ids()
     if admin_or_maintainer_chat_id not in admin_chat_ids and admin_or_maintainer_chat_id not in maintainer_chat_id:
@@ -346,10 +344,10 @@ async def get_cgpa(bot,chat_id):
     sgpa_values = re.findall(pattern,gpa_response.text)
     sgpa_values = [float(x) for x in sgpa_values]
     if not sgpa_values:
-        return "0.00"
+        return False,"0.00"
     cgpa = round(sum(sgpa_values) / len(sgpa_values) , 3)
     await silent_logout(chat_id)
-    return str(cgpa)
+    return True,str(cgpa)
 
 async def total_cie_marks(bot,chat_id):
     session_data = await tdatabase.load_user_session(chat_id)
@@ -395,7 +393,7 @@ async def total_cie_marks(bot,chat_id):
             cells = row.find_all('td')
             row_data = [cell.get_text(strip=True) for cell in cells]
             # Break if 'Laboratory Marks (Practical)' is found -> to get only subject marks
-            if 'Laboratory Marks (Practical)' in row_data:
+            if any(item.startswith('Laboratory Marks (Practical)') for item in row_data):
                 break
             # Append row data if it's not empty -> to get only subject marks
             if row_data:
@@ -414,21 +412,15 @@ async def total_cie_marks(bot,chat_id):
 
             cie1_marks_dict[subject_name] = cie1_marks
             cie2_marks_dict[subject_name] = cie2_marks
-            excluded_marks = ['-', '0', '0.0'] 
+            excluded_marks = ['','-', '0', '0.0'] 
 
             if cie1_marks not in excluded_marks:
-                total_cie1_marks += float(cie1_marks)
+                total_cie1_marks += float(int(cie1_marks))
 
             if cie2_marks not in excluded_marks:
-                total_cie2_marks += float(cie2_marks)
+                total_cie2_marks += float(int(cie2_marks))
 
-        
-        
         total_cie_marks = total_cie1_marks + total_cie2_marks
-
-        # print(f"Total CIE 1 Marks: {total_cie1_marks}")
-        # print(f"Total CIE 2 Marks: {total_cie2_marks}")
-        # print(f"Total CIE Marks: {total_cie_marks}")
 
         return str(total_cie_marks)
     except Exception as e:
@@ -583,10 +575,10 @@ async def cie_marks(bot,chat_id):
 
 
 async def cgpa_tracker(bot,chat_id):
-    current_cgpa = await get_cgpa(bot,chat_id)
-    if not current_cgpa:
+    iscurrent_cgpa,current_cgpa = await get_cgpa(bot,chat_id)
+    if not iscurrent_cgpa: # Check whether current CGPA is returned or not.
         return
-    all_tracker_data = await managers_handler.get_cgpa_tracker_details(chat_id)
+    all_tracker_data = await managers_handler.get_cgpa_tracker_details(chat_id) # retrieve previously stored cgpa
     if all_tracker_data:
         status,previous_cgpa = all_tracker_data
     if status:
