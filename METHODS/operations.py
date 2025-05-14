@@ -1298,7 +1298,7 @@ async def cie_marks(bot,message,sem_no):
             cie2_marks = marks_row[5]
             cie1_marks_dict[subject_name] = cie1_marks
             cie2_marks_dict[subject_name] = cie2_marks
-            excluded_marks = ['-', '0', '0.0'] 
+            excluded_marks = ['','-', '0', '0.0'] 
             if cie1_marks not in excluded_marks:
                 total_cie1_marks += float(cie1_marks)
             if cie2_marks not in excluded_marks:
