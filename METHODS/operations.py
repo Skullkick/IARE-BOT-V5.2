@@ -1281,7 +1281,7 @@ async def cie_marks(bot,message,sem_no):
             cells = row.find_all('td')
             row_data = [cell.get_text(strip=True) for cell in cells]
             # Break if 'Laboratory Marks (Practical)' is found -> to get only subject marks
-            if 'Laboratory Marks (Practical)' in row_data:
+            if any(item.startswith('Laboratory Marks (Practical)') for item in row_data):
                 break
             # Append row data if it's not empty -> to get only subject marks
             if row_data:
@@ -1317,7 +1317,7 @@ async def cie_marks(bot,message,sem_no):
             cie1_marks_message = cie1_marks_message_traditional
         for subject_name, marks in cie1_marks_dict.items():
             cie1_marks_message += f"{subject_name}\n⫸ {marks}\n\n"
-            1
+            
         cie1_marks_message += "----\n"
         cie1_marks_message += f"Total Marks - {total_cie1_marks} / {default_total_marks} \n"
         if ui_mode[0] == 0:
@@ -1340,7 +1340,7 @@ async def cie_marks(bot,message,sem_no):
         
         for subject_name, marks in cie2_marks_dict.items():
             cie2_marks_message += f"{subject_name}\n⫸ {marks}\n\n"
-            1
+            
         cie2_marks_message += "----\n"
         cie2_marks_message += f"Total Marks - {total_cie2_marks} / {default_total_marks} \n"
         cie2_marks_message += "\n```"
