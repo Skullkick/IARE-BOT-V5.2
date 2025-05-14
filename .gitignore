@@ -1,0 +1,15 @@
+bot_errors.log
+credentials.db
+IARE BOT.session
+labuploads.db
+managers.db
+pgdata.py
+reports.db
+total_users.db
+user_sessions.db
+user_settings.db
+.env
+pdfs/
+__pycache__/
+*.pyc
+.venv/
