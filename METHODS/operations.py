@@ -932,10 +932,15 @@ async def gpa(bot,message):
             await logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
-        sgpa_values = re.findall(pattern,gpa_response.text)
+        sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
+        cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
+        sgpa_values = re.findall(sgpa_pattern,gpa_response.text)
         sgpa_values = [float(x) for x in sgpa_values]
-        cgpa = round(sum(sgpa_values) / len(sgpa_values) , 3)
+        cgpa_values = re.findall(cgpa_pattern,gpa_response.text)
+        if len(cgpa_values) == 0:
+            cgpa = 0.00
+        else:
+            cgpa = cgpa_values[-1]
         gpa_message_updated_ui = """
 ```GPA
 ⫸ SGPA 

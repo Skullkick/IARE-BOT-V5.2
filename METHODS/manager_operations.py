@@ -340,14 +340,14 @@ async def get_cgpa(bot,chat_id):
         else:
             await operations.logout_user_if_logged_out(bot,chat_id)
         return
-    pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
-    sgpa_values = re.findall(pattern,gpa_response.text)
-    sgpa_values = [float(x) for x in sgpa_values]
-    if not sgpa_values:
-        return False,"0.00"
-    cgpa = round(sum(sgpa_values) / len(sgpa_values) , 3)
+    pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
+    cgpa_values = re.findall(pattern,gpa_response.text)
+    # sgpa_values = [float(x) for x in sgpa_values]
+    if len(cgpa_values) == 0:
+        return "0.00"
+    cgpa = cgpa_values[-1]
     await silent_logout(chat_id)
-    return True,str(cgpa)
+    return str(cgpa)
 
 async def total_cie_marks(bot,chat_id):
     session_data = await tdatabase.load_user_session(chat_id)
@@ -456,10 +456,15 @@ async def gpa(bot,chat_id):
             await operations.logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
-        sgpa_values = re.findall(pattern,gpa_response.text)
+        sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
+        cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
+        sgpa_values = re.findall(sgpa_pattern,gpa_response.text)
         sgpa_values = [float(x) for x in sgpa_values]
-        cgpa = round(sum(sgpa_values) / len(sgpa_values) , 3)
+        cgpa_values = re.findall(cgpa_pattern,gpa_response.text)
+        if len(cgpa_values) == 0:
+            cgpa = 0.00
+        else:
+            cgpa = cgpa_values[-1]
         gpa_message = """
 ```GPA
 ⫸ SGPA 
@@ -575,14 +580,12 @@ async def cie_marks(bot,chat_id):
 
 
 async def cgpa_tracker(bot,chat_id):
-    iscurrent_cgpa,current_cgpa = await get_cgpa(bot,chat_id)
-    if not iscurrent_cgpa: # Check whether current CGPA is returned or not.
-        return
+    current_cgpa = await get_cgpa(bot,chat_id)
     all_tracker_data = await managers_handler.get_cgpa_tracker_details(chat_id) # retrieve previously stored cgpa
     if all_tracker_data:
         status,previous_cgpa = all_tracker_data
     if status:
-        if str(previous_cgpa) != current_cgpa:
+        if str(previous_cgpa) != current_cgpa and int(float(current_cgpa)) != 0:
             UPDATED_CGPA_TEXT = f"""
 ```UPDATED CGPA
 SEE Results are out!!
