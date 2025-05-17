@@ -428,6 +428,15 @@ async def delete_lab_upload_data(chat_id):
         cursor.execute("DELETE FROM lab_upload_info WHERE chat_id=?",(chat_id,))
         conn.commit()
 
+async def delete_labs_subjects_weeks_all_users():
+    """
+    This function is used to clear lab_upload_info table
+    """
+    with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE * FROM lab_upload_info")
+        conn.commit()
+
 async def store_credentials_in_database(chat_id, username, password):
     with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
         cursor = conn.cursor()
