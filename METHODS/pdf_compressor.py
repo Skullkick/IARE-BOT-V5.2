@@ -1,4 +1,4 @@
-import os
+import os,sys
 import tempfile
 import logging
 import time
@@ -57,7 +57,14 @@ async def compress_pdf_scrape(bot, message):
         options.add_extension(ublock_crx_path)
 
         # Initialize WebDriver
-        driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
+        driver_path = ChromeDriverManager().install()
+        if not os.path.basename(driver_path).startswith("chromedriver"):
+            driver_dir = os.path.dirname(driver_path)
+            exe_name = "chromedriver.exe" if sys.platform.startswith("win") else "chromedriver"
+            driver_path = os.path.join(driver_dir, exe_name)
+
+        service = ChromeService(executable_path=driver_path)
+        driver = webdriver.Chrome(service=service, options=options)
 
         def rename_downloaded_file(download_directory, chat_id):
             """
@@ -123,7 +130,7 @@ async def compress_pdf_scrape(bot, message):
                     compress_button.click()
 
                     # Wait for compression to complete
-                    time.sleep(10)
+                    time.sleep(8)
 
                     # Check the new size after compression
                     new_size_element = WebDriverWait(driver, 1).until(

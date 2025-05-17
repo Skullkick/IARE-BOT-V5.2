@@ -480,7 +480,7 @@ async def upload_lab_record(bot,message,title,subject_code,week_no):
     pdf_folder = "pdfs"
     if await labs_handler.check_pdf_size_above_1mb(chat_id) is True:
         message_of_pdf_operation_start = await bot.edit_message_text(chat_id,message_sent_when_started.id,"PDF Above 1 MB Trying to Compress")
-        if pdf_compressor.use_pdf_compress_scrape is True:
+        if pdf_compressor.use_pdf_compress_scrape is True and await labs_handler.get_pdf_size(bot,chat_id) > 5:
             pdf_compression = await pdf_compressor.compress_pdf_scrape(bot,message)
             compress_pdf_status,status_message = pdf_compression
             if compress_pdf_status is False:
