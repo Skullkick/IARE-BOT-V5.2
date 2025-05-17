@@ -1,4 +1,4 @@
-import os,sys
+import os,sys,stat,uuid
 import tempfile
 import logging
 import time
@@ -54,6 +54,7 @@ async def compress_pdf_scrape(bot, message):
         # Run in headless mode and disable GPU
         options.add_argument("--headless")
         options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
         options.add_extension(ublock_crx_path)
 
         # Initialize WebDriver
@@ -62,7 +63,8 @@ async def compress_pdf_scrape(bot, message):
             driver_dir = os.path.dirname(driver_path)
             exe_name = "chromedriver.exe" if sys.platform.startswith("win") else "chromedriver"
             driver_path = os.path.join(driver_dir, exe_name)
-
+        if sys.platform.startswith("linux"):
+            os.chmod(driver_path, os.stat(driver_path).st_mode | stat.S_IEXEC)
         service = ChromeService(executable_path=driver_path)
         driver = webdriver.Chrome(service=service, options=options)
 
