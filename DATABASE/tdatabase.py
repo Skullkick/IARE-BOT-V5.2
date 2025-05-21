@@ -185,7 +185,7 @@ async def clear_sessions_table():
     """
     with sqlite3.connect(DATABASE_FILE) as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM sessions")
+        cursor.execute("DELETE * FROM sessions")
         conn.commit()
 
 async def store_username(username):

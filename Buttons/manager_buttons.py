@@ -1540,7 +1540,7 @@ Hope Tracker helped you to track the latest CIE Marks
     elif callback_query.data == "manager_start_cgpa_tracker":
         _message = callback_query.message
         chat_id = _message.chat.id
-        _,current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
+        current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
         await managers_handler.store_cgpa_tracker_details(chat_id,1,current_cgpa)
         await pgdatabase.store_cgpa_tracker_details(chat_id,True,current_cgpa)
         tracker_details = await managers_handler.get_cgpa_tracker_details(chat_id)
@@ -1569,7 +1569,7 @@ To stop tracking your CGPA, Click on \"Stop\"
     elif callback_query.data == "manager_stop_cgpa_tracker":
         _message = callback_query.message
         chat_id = _message.chat.id
-        _,current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
+        current_cgpa = await manager_operations.get_cgpa(bot,chat_id)
         await managers_handler.store_cgpa_tracker_details(chat_id,0,current_cgpa)
         await pgdatabase.store_cgpa_tracker_details(chat_id,False,current_cgpa)
         CGPA_STOP_TRACKER_TEXT = f"""
