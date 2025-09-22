@@ -1,3 +1,16 @@
+"""
+Manager operations for the bot: admin/maintainer workflows, access control,
+announcements, academic trackers, and maintenance utilities.
+
+This module coordinates privileged actions (ban/unban usernames, manage maintainers
+and admins), broadcasts announcements, and runs trackers for CGPA/CIE updates.
+It integrates with local SQLite and remote PostgreSQL via `DATABASE.*`, user
+preferences in `user_settings`, and UI helpers in `Buttons.*`. Network calls
+use `requests` and Samvidha endpoints; parsing uses BeautifulSoup. Functions are
+asynchronous to work with Pyrogram's bot event loop. No business logic is altered
+by these docstrings.
+"""
+
 # This file containg all the code regarding manager operations on database, testing,etc..
 
 from DATABASE import tdatabase,pgdatabase,managers_handler,user_settings
@@ -24,15 +37,21 @@ import asyncio
 ADMIN_AUTHORIZATION_CODE = os.environ.get("ADMIN_AUTHORIZATION_PASS")
 
 async def get_username(bot,chat_id):
+    """Return a user's display name given their chat id.
+
+    - bot: Pyrogram client used to fetch user info.
+    - chat_id: Telegram chat/user id to resolve.
+    """
     user = await bot.get_users(chat_id)
     user_name = f"{user.first_name} {user.last_name}" 
     return user_name
-async def get_all_details(bot,chat_id):
-    user = await bot.get_users(5877699254)
-    phone_number = user.phone_number if user.phone_number else "Phone number not available"
-    name = user.first_name + (" " + user.last_name if user.last_name else "")
-    return f"Name: {name} \n\n Phone number : {phone_number}"
 async def ban_username(bot,message):
+    """Ban one or more usernames.
+
+    - Validates caller permissions (admin/maintainer with access flag).
+    - Accepts multiple patterns; supports base + suffix expansion.
+    - Persists bans in both local (SQLite) and cloud (Postgres) stores.
+    """
     chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
@@ -91,6 +110,11 @@ async def ban_username(bot,message):
         await bot.send_message(chat_id,"Username banned successfully")
 
 async def unban_username(bot,message):
+    """Unban one or more usernames.
+
+    Mirrors `ban_username` logic but removes entries from local and cloud
+    ban lists, validating permissions and inputs.
+    """
     chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
@@ -310,6 +334,11 @@ async def announcement_to_all_users(bot, message):
     await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
 
 async def get_cgpa(bot,chat_id):
+    """Return the latest CGPA for the logged-in user as a string.
+
+    Uses the existing session or attempts silent auto-login. Validates session
+    against Samvidha and parses CGPA from the credit register page.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -350,6 +379,11 @@ async def get_cgpa(bot,chat_id):
     return str(cgpa)
 
 async def total_cie_marks(bot,chat_id):
+    """Compute and return total CIE marks for the current semester.
+
+    Scrapes the CIE page, aggregates CIE-1 and CIE-2 marks, and returns the
+    numeric total as a string. Returns an exception object on failure.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -427,6 +461,11 @@ async def total_cie_marks(bot,chat_id):
         return e
 
 async def gpa(bot,chat_id):
+    """Send SGPA per semester and CGPA summary to the user.
+
+    Parses the credit register page for SGPA values and latest CGPA and formats
+    a message based on the user's UI preference.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -484,6 +523,11 @@ async def gpa(bot,chat_id):
     except Exception as e:
         await bot.send_message(chat_id,f"Error Retrieving GPA : {e}")
 async def cie_marks(bot,chat_id):
+    """Send a formatted CIE-1 subject-wise breakdown and totals.
+
+    Extracts subject rows until practical marks, computes totals, and sends
+    a message in the selected UI style.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -580,6 +624,11 @@ async def cie_marks(bot,chat_id):
 
 
 async def cgpa_tracker(bot,chat_id):
+    """Notify the user when CGPA changes compared to the stored tracker.
+
+    When a change is detected and current CGPA is non-zero, sends a celebratory
+    update, displays GPA details, and disables the tracker in both databases.
+    """
     current_cgpa = await get_cgpa(bot,chat_id)
     all_tracker_data = await managers_handler.get_cgpa_tracker_details(chat_id) # retrieve previously stored cgpa
     if all_tracker_data:
@@ -609,6 +658,11 @@ The CGPA tracker has been reset. We hope you are happy with your semester result
 
 
 async def cie_tracker(bot,chat_id):
+    """Notify the user when total CIE changes compared to the tracker.
+
+    Sends an update and the detailed CIE marks, then disables the tracker
+    entries in local and cloud databases.
+    """
     current_cie_marks = await total_cie_marks(bot,chat_id)
     if not current_cie_marks:
         return
@@ -640,6 +694,12 @@ The CIA tracker has been reset. We hope you are happy with your CIA results.
 
 
 async def auto_login_by_database_silent(bot,chat_id):
+    """Attempt silent login using stored credentials.
+
+    Checks for banned usernames and removes credentials if banned. On success,
+    stores a fresh session and username for the chat id.
+    Returns True on success, False otherwise.
+    """
     # username,password = await pgdatabase.retrieve_credentials_from_database(chat_id) This Can be used if you want to take credentials from cloud database.
     username,password = await tdatabase.fetch_credentials_from_database(chat_id) # This can be used to Fetch credentials from the Local database.
     # Initializes settings for the user if the settings are not present
@@ -664,6 +724,11 @@ async def auto_login_by_database_silent(bot,chat_id):
         return False
 
 async def silent_logout(chat_id):
+    """Log out from Samvidha for the given chat id without messaging the user.
+
+    Uses stored session cookies/headers, calls logout, and clears the local
+    session from SQLite.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     logout_url = 'https://samvidha.iare.ac.in/logout'
     cookies,headers = session_data['cookies'], session_data['headers']
@@ -671,6 +736,10 @@ async def silent_logout(chat_id):
     await tdatabase.delete_user_session(chat_id)
 
 async def get_server_stats():
+    """Return a human-readable summary of CPU, memory, disk, and network stats.
+
+    Uses `psutil` metrics and formats them for quick diagnostic messages.
+    """
     try:# CPU stats
         cpu_percent = psutil.cpu_percent(interval=1)
         cpu_freq = psutil.cpu_freq().current
@@ -700,6 +769,11 @@ async def get_server_stats():
         return f"Error : {e}"
 
 async def backup_all_credentials_and_settings(bot,message):
+    """Create and send a SQLite backup of user credentials and settings.
+
+    Reads credentials/settings from Postgres, writes them into a local SQLite
+    file, and sends the file as a document to the requesting user.
+    """
     user_chat_id = message.chat.id
     # admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     # if chat_id not in admin_chat_ids:
