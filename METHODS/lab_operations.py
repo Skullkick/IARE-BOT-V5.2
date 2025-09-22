@@ -1,3 +1,14 @@
+"""
+Lab record operations: discover labs, parse experiment lists, prepare upload
+metadata, and submit PDFs to Samvidha.
+
+This module works with user sessions from `tdatabase`, respects user UI
+preferences from `user_settings`, coordinates with `labs_handler` for PDF file
+handling (size checks, renaming, cleanup), and can leverage `pdf_compressor`
+when uploads exceed size thresholds. All functions are async to integrate with
+the bot's event loop, and no business logic is changed by these docstrings.
+"""
+
 from bs4 import BeautifulSoup
 import requests
 from DATABASE import user_settings,tdatabase
@@ -6,11 +17,11 @@ from Buttons import buttons
 import os,re
 
 async def fetch_available_labs(bot,message):
+    """Return available labs for the logged-in user as a dict of name→code.
+
+    Scrapes the lab record page, extracts the select options excluding the
+    placeholder, and returns a mapping like {"Subject Name": "SUB123"}.
     """
-    Fetches available labs and returns them as a dictionary
-    
-    :return: Dictionary Containing the lab details
-    :Dictionary: {sub_name:sub_code}"""
     chat_id = message.chat.id
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -76,6 +87,11 @@ async def fetch_available_labs(bot,message):
         return f"An error occurred: {str(e)}"
     
 async def get_week_details(experiment_names,submitted_lab_records,all_weeks_numbers_bool:bool,submitted_weeks_bool:bool,not_submitted_weeks_bool:bool,can_delete_weeks_bool:bool):
+    """Compute week lists from experiments HTML and submitted record data.
+
+    Returns one of: all week numbers, submitted weeks, not-submitted weeks
+    (excluding exempted), or deletable weeks based on boolean flags.
+    """
 
     soup = BeautifulSoup(experiment_names, 'html.parser')
     rows = soup.find_all('tr')[1:]
@@ -110,6 +126,10 @@ async def get_week_details(experiment_names,submitted_lab_records,all_weeks_numb
         return submitted_lab_records[1]
     
 async def get_marks_by_week(submitted_lab_records, week_no):
+    """Return marks for a given week if present and not exempted.
+
+    Expects `submitted_lab_records` to be a tuple of (records_by_week, exempted).
+    """
     records, exempted_weeks = submitted_lab_records
     week_key = str(week_no)
     if week_key in records and week_no not in exempted_weeks:
@@ -120,6 +140,10 @@ async def get_marks_by_week(submitted_lab_records, week_no):
     return None
 
 async def fetch_submitted_lab_records(bot,chat_id,user_details,sub_code):
+    """Fetch submitted lab records for a subject and group them by week.
+
+    Returns a tuple: (records_by_week: dict[str, list], weeks_with_delete: list[int]).
+    """
     url = 'https://samvidha.iare.ac.in/pages/student/lab_records/ajax/day2day.php'
     headers = {
         'accept': 'application/json, text/javascript, */*; q=0.01',
@@ -191,12 +215,17 @@ async def fetch_submitted_lab_records(bot,chat_id,user_details,sub_code):
     return data_by_week,weeks_with_delete
 
 async def get_view_pdf_url(sub_code,user_details,week_no):
+    """Build and return the public S3 URL for a stored lab PDF for a week."""
     roll_no = user_details['roll_no'].upper()
     current_sem = user_details['current_sem'].upper()
     url = f'https://iare-data.s3.ap-south-1.amazonaws.com/uploads/STUDENTS/{roll_no}/LAB/SEM{current_sem}/{sub_code}/{roll_no}_week{week_no}.pdf'
     return url
 
 async def delete_lab_record(bot,chat_id,sub_code, user_details, week_number):
+    """Delete a previously submitted lab record for a given week.
+
+    Issues the day2day_lab_delete action and returns the JSON response.
+    """
     url = 'https://samvidha.iare.ac.in/pages/student/lab_records/ajax/day2day'
     headers = {
         'accept': '*/*',
@@ -244,26 +273,17 @@ async def delete_lab_record(bot,chat_id,sub_code, user_details, week_number):
     return response.json()
 
 async def get_subject_name(subject_code,lab_details):
-    """
-    This function is used to get the subject name based on the subject code provided
-    :subject_code: Subject code of the required subject
-    :lab_details: Details of all the lab_record containing subject_name and subject code as a dictionary
+    """Return subject name for a given subject code from lab_details dict.
 
+    lab_details should be a mapping of {subject_name: subject_code}.
     """
     subject_name = (subject_name for subject_name, value in lab_details.items() if value == subject_code)
     return list(subject_name)[0]
 
 async def user_lab_data(bot,chat_id):
-    """
-    This function is used to extract the data required while uploading the lab record
-    
-    :return: Dictionary
-    
-    :Dictionary:
-    - ay: academic_year
-    - roll_no : roll_no
-    - current_sem : semester
-    - lab_batch_no: lab_batch_no
+    """Extract and return user upload metadata from the lab record page.
+
+    Returns a dict with keys: ay, roll_no, current_sem, lab_batch_no, dept_id, sec.
     """
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -337,10 +357,7 @@ async def user_lab_data(bot,chat_id):
     return user_details
 
 async def fetch_experiment_names_html(bot,chat_id,user_details, sub_code)->str:
-    """
-    Can be used to fetch the html response which contains all the experiment names based on the subject code
-    :return: html code to extract the experiment names
-    """
+    """Return HTML snippet listing experiment names for a given subject code."""
     url = 'https://samvidha.iare.ac.in/pages/student/lab_records/ajax/day2day.php'
     headers = {
         'accept': '*/*',
@@ -384,6 +401,10 @@ async def fetch_experiment_names_html(bot,chat_id,user_details, sub_code)->str:
     return response.text
 
 async def get_experiment_title(experiment_names_html, week_no):
+    """Extract and return the experiment title for a specific week from HTML.
+
+    Returns None if the table structure is missing or the week is not found.
+    """
     soup = BeautifulSoup(experiment_names_html, 'html.parser')
     table = soup.find('table', class_='table')
 
@@ -402,6 +423,7 @@ async def get_experiment_title(experiment_names_html, week_no):
         return None
 
 async def get_upload_details(week_no, exp_title, file_name, file_path):
+    """Build a dict of upload parameters for the lab record submission."""
     upload_details = {
         'week_no': week_no,
         'exp_title': exp_title,
@@ -411,6 +433,10 @@ async def get_upload_details(week_no, exp_title, file_name, file_path):
     return upload_details
 
 async def upload_pdf(bot,message,sub_code,user_details,upload_details):
+    """Upload a lab PDF to Samvidha using multipart form submission.
+
+    Returns the server JSON response.
+    """
     url = 'https://samvidha.iare.ac.in/pages/student/lab_records/ajax/day2day'
     headers = {
         'accept': '*/*',
@@ -465,14 +491,11 @@ async def upload_pdf(bot,message,sub_code,user_details,upload_details):
 
 
 async def upload_lab_record(bot,message,title,subject_code,week_no):
-    """
-    This Function is used to upload the the pdf to the samvidha by retreiving the required data from the database.
+    """Orchestrate lab record upload: compress if needed, gather metadata, submit.
 
-    :param bot: Pyrogram Client.
-    :param message: message sent by the user.
-    :param subject_code: Code of the subject
-    :param week_no: Week number of the selected subject
-    :return: None
+    Coordinates size checks and compression, constructs upload details, submits
+    the PDF, and reports success/failure to the user. Cleans up local files and
+    temporary indices regardless of outcome.
     """
     # chat_id of the user based on the message sent by the user
     chat_id = message.chat.id
