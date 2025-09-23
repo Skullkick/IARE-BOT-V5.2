@@ -1,22 +1,40 @@
+"""
+User settings and index configuration storage using SQLite.
+
+This module encapsulates read/write operations for:
+- Per-user preferences in the `user_settings` table (thresholds, UI style, title extraction)
+- HTML parsing indices in the `index_values` table, stored as JSON by name
+
+Database file: `user_settings.db` in the working directory.
+
+Tables
+- user_settings(chat_id INTEGER PRIMARY KEY,
+                attendance_threshold INTEGER DEFAULT 75,
+                biometric_threshold INTEGER DEFAULT 75,
+                traditional_ui BOOLEAN DEFAULT 0,
+                extract_title BOOLEAN DEFAULT 1)
+- index_values(name TEXT PRIMARY KEY,
+               index_ TEXT)  # JSON-serialized dictionary of index values
+
+Notes
+- All functions are declared async for consistency with the surrounding codebase,
+  but internally perform synchronous SQLite operations.
+- Threshold setters clamp values to [35, 95].
+- Index sets accept dictionaries of column indices keyed by semantic names.
+"""
+
 import sqlite3,json
 
 SETTINGS_DATABASE = "user_settings.db"
 
 
 async def create_user_settings_tables():
-    """
-    This function is used to create the tables which consists of user settings and index configurations
-    
-    - user settings table
-    - indexes table
-    """
+    """Create both `user_settings` and `index_values` tables if missing."""
     await create_user_settings_table()
     await create_indexes_table()
 
 async def create_user_settings_table():
-    """
-    Create the necessary tables for settings in the SQLite database.
-    """
+    """Create the `user_settings` table with default columns and values."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         # Create a table to store user sessions
@@ -32,9 +50,7 @@ async def create_user_settings_table():
         conn.commit()
 
 async def create_indexes_table():
-    """
-    Create the necessary table for the index values in sqlite database
-    """
+    """Create the `index_values` table for JSON-encoded index dictionaries."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -47,9 +63,11 @@ async def create_indexes_table():
 
 
 async def set_user_default_settings(chat_id):
+    """Ensure a `user_settings` row exists for `chat_id` with default values.
+
+    Parameters:
+    - chat_id: Telegram chat id used as the primary key.
     """
-    Create a row for user based on chat_id and default setting values
-    :param chat_id: Chat id of the user based on the message sent."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         # Check if the chat_id already exists
@@ -65,21 +83,20 @@ async def set_user_default_settings(chat_id):
             conn.commit()
 
 async def fetch_user_settings(chat_id):
-    """
-    This function is used to fetch the settings from the database
-    :param chat_id: Chat Id of the user based on the message sent
-    :return: returns a tuple containing all the settings
+    """Fetch the complete settings row for `chat_id`.
+
+    Returns:
+    - tuple | None: (chat_id, attendance_threshold, biometric_threshold, traditional_ui, extract_title)
+      or None if not found.
     """
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_settings WHERE chat_id = ?",(chat_id,))
+        cursor.execute("SELECT * FROM user_settings WHERE chat_id = ?", (chat_id,))
         settings = cursor.fetchone()
         return settings
 
 async def set_attendance_threshold(chat_id,attendance_threshold):
-    """This function is used to set the attendance threshold manually based on present chat_id
-    :param chat_id: Chat Id of the user based on the message
-    :param attendance_threshold: Value of the attendance threshold"""
+    """Set attendance threshold for `chat_id`, clamped to [35, 95]."""
     if attendance_threshold > 95:
         attendance_threshold = 95
     if attendance_threshold < 35:
@@ -90,9 +107,7 @@ async def set_attendance_threshold(chat_id,attendance_threshold):
         conn.commit()
 
 async def set_biometric_threshold(chat_id,biometric_threshold):
-    """This function is used to set the attendance threshold manually
-    :param chat_id: Chat Id of the user based on the message
-    :param biometric_threshold: Value of the biometric threshold"""
+    """Set biometric threshold for `chat_id`, clamped to [35, 95]."""
     if biometric_threshold > 95:
         biometric_threshold = 95
     if biometric_threshold < 35:
@@ -103,24 +118,21 @@ async def set_biometric_threshold(chat_id,biometric_threshold):
         conn.commit()
 
 async def set_traditional_ui_true(chat_id):
-    """This function is used to set the traditional ui as true
-    :param chat_id: Chat Id of the user based on the message"""
+    """Enable traditional UI for `chat_id` (set to 1)."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE user_settings SET traditional_ui = 1 WHERE chat_id = ?",(chat_id,))
         conn.commit()
 
 async def set_traditional_ui_as_false(chat_id):
-    """This function is used to set the traditional ui as false
-    :param chat_id: Chat Id of the user based on the message"""
+    """Disable traditional UI for `chat_id` (set to 0)."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE user_settings SET traditional_ui = 0 WHERE chat_id = ?",(chat_id,))
         conn.commit()
 
 async def set_extract_title_as_true(chat_id):
-    """This function is used to set the traditional ui as true
-    :param chat_id: Chat Id of the user based on the message"""
+    """Enable automatic title extraction for `chat_id` (set to 1)."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE user_settings SET extract_title = 1 WHERE chat_id = ?",(chat_id,))
@@ -128,17 +140,17 @@ async def set_extract_title_as_true(chat_id):
 
 
 async def set_extract_title_as_false(chat_id):
-    """This function is used to set the traditional ui as false
-    :param chat_id: Chat Id of the user based on the message"""
+    """Disable automatic title extraction for `chat_id` (set to 0)."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE user_settings SET extract_title = 0 WHERE chat_id = ?",(chat_id,))
         conn.commit()
 
 async def delete_user_settings(chat_id):
-    """
-    This Function is used to delete the user settings data based on the chat_id
-    :param chat_id: Chat id of the user based on the message sent by the user.
+    """Delete the `user_settings` row for `chat_id`.
+
+    Returns:
+    - bool: True on success, False if an error occurred.
     """
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -150,17 +162,14 @@ async def delete_user_settings(chat_id):
             return False
 
 async def clear_user_settings_table():
-    """This function is used to clear all the user settings in the settings database"""
+    """Remove all rows from the `user_settings` table (destructive)."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM user_settings")
         conn.commit()
 
 async def fetch_extract_title_bool(chat_id):
-    """
-    This function is used to know whether the user wants the title to be automatically extracted or not.
-    :param chat_id: Chat id of the user based on the message he sent.
-    """
+    """Return `(extract_title,)` for `chat_id` (1 or 0), or None if missing."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT extract_title FROM user_settings WHERE chat_id = ?",(chat_id,))
@@ -168,10 +177,7 @@ async def fetch_extract_title_bool(chat_id):
         return value
 
 async def fetch_biometric_threshold(chat_id):
-    """
-    This function is used to fetch the biometric threshold based on chat_id.
-    :param chat_id: Chat id of the user based on the message he sent.
-    """
+    """Return `(biometric_threshold,)` for `chat_id`, or None if missing."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT biometric_threshold FROM user_settings WHERE chat_id = ?",(chat_id,))
@@ -179,10 +185,7 @@ async def fetch_biometric_threshold(chat_id):
         return value
 
 async def fetch_attendance_threshold(chat_id):
-    """
-    This function is used to fetch the biometric threshold based on chat_id.
-    :param chat_id: Chat id of the user based on the message he sent.
-    """
+    """Return `(attendance_threshold,)` for `chat_id`, or None if missing."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT attendance_threshold FROM user_settings WHERE chat_id = ?",(chat_id,))
@@ -190,10 +193,7 @@ async def fetch_attendance_threshold(chat_id):
         return value
 
 async def fetch_ui_bool(chat_id):
-    """
-    This function is used to know whether the user wants traditional ui or updated ui.
-    :param chat_id: Chat id of the user based on the message he sent.
-    """
+    """Return `(traditional_ui,)` for `chat_id` (1 or 0), or None if missing."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT traditional_ui FROM user_settings WHERE chat_id = ?",(chat_id,))
@@ -201,13 +201,14 @@ async def fetch_ui_bool(chat_id):
         return value
     
 async def store_user_settings(chat_id,attendance_threshold,biometric_threshold,ui,title_mode):
-    """
-    This function is used to store the user settings data when retrieved from the pgdatabase
-    :param chat_id: Chat id of the user
-    :param attendance_threshold: Attendance threshold of the user
-    :param biometric_threshold: Biometric threshold of the user
-    :param title_mode: To know whether title extraction is automatic or not
-    :param ui: Traditional ui or not
+    """Upsert a complete settings row for `chat_id`.
+
+    Parameters:
+    - chat_id: Primary key
+    - attendance_threshold: int (will be stored as-is)
+    - biometric_threshold: int (will be stored as-is)
+    - ui: 1 for traditional UI, 0 for updated UI
+    - title_mode: 1 for auto title extraction, 0 to disable
     """
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -230,10 +231,10 @@ async def store_user_settings(chat_id,attendance_threshold,biometric_threshold,u
                            (chat_id,attendance_threshold,biometric_threshold,ui,title_mode))
         conn.commit()
 async def set_default_attendance_indexes():
-    """
-    This function is used to set the default index values for the attendance table
-    Updated index values on 15-05-2024
-    Make sure to update the index values if there is a change
+    """Insert default attendance indices into `index_values` if needed.
+
+    Keys: course_name, attendance_percentage, conducted_classes, attended_classes, status.
+    Updated on 15-05-2024; update if the HTML structure changes.
     """
     name = "ATTENDANCE_INDEX_VALUES"
     course_name_index = 2
@@ -253,10 +254,9 @@ async def set_default_attendance_indexes():
         cursor.execute("INSERT INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(all_attendance_indexes)))
         conn.commit()
 async def set_default_biometric_indexes():
-    """
-    This function is used to set the default index values for the biometric table
-    Updated index values on 15-05-2024
-    Make sure to update the index values if there is a change
+    """Insert default biometric indices into `index_values` if needed.
+
+    Keys: status, intime, outtime. Updated on 15-05-2024.
     """
     name = "BIOMETRIC_INDEX_VALUES"
     status_index = 6
@@ -273,10 +273,10 @@ async def set_default_biometric_indexes():
         conn.commit()
 
 async def set_default_pat_attendance_indexes():
-    """
-    This function is used to set the default index values for the biometric table
-    Updated index values on 15-05-2024
-    Make sure to update the index values if there is a change
+    """Insert default PAT attendance indices into `index_values` if needed.
+
+    Keys: course_name, attendance_percentage, conducted_classes, attended_classes, status.
+    Updated on 15-05-2024.
     """
     name = "PAT_INDEX_VALUES"
     course_name_index = 2
@@ -302,12 +302,10 @@ async def set_attendance_indexes(
         attended_classes_index,
         attendance_percentage_index,
         status_index):
-    """This Function is used to set the index values of the attendance table
-    :course_name_index: Index value of the course name column
-    :conducted_classes: Index value of conducted_classes column
-    :attended_classes: Index value of the attended classes column
-    :attendance_percentage_index: Index value of the attendance percentage coloumm
-    :status_index: Index value of status column """
+    """Upsert attendance index dictionary into `index_values`.
+
+    Parameters are integer column indices for the respective keys.
+    """
     name = "ATTENDANCE_INDEX_VALUES"
     all_attendance_indexes  = {
         'course_name' : course_name_index,
@@ -330,10 +328,10 @@ async def set_attendance_indexes(
         print(f"Error updating the attendance index values : {e}")
 
 async def set_biometric_indexes(intime_index,outtime_index,status_index):
-    """This function is used to set the biometric index values manually
-    :status_index: Index value of the status column
-    :intime_index: Index value of the intime column
-    :outtime_index: Index value of the outtime column"""
+    """Upsert biometric index dictionary into `index_values`.
+
+    Parameters are integer column indices for status, intime, outtime.
+    """
     name = "BIOMETRIC_INDEX_VALUES"
     all_biometric_index = {
         'status' : status_index,
@@ -358,12 +356,10 @@ async def set_pat_attendance_indexes(course_name_index,
     attended_classes_index,
     pat_attendance_percentage_index,
     pat_status):
-    """This Function is used to set the index values of the pat attendance table
-    :course_name_index: Index value of the course name column
-    :conducted_classes: Index value of conducted_classes column
-    :attended_classes: Index value of the attended classes column
-    :attendance_percentage_index: Index value of the attendance percentage coloumm
-    :status_index: Index value of status column """
+    """Upsert PAT attendance index dictionary into `index_values`.
+
+    Parameters are integer column indices for the respective keys.
+    """
     name = "PAT_INDEX_VALUES"
     pat_attendance_indexes  = {
         'course_name' : course_name_index,
@@ -386,17 +382,7 @@ async def set_pat_attendance_indexes(course_name_index,
         print(f"Error updating pat attendance index values : {e}")
 
 async def get_attendance_index_values():
-    """
-    This Function extracts the attendance index values from the database
-    :return: Returns a dictionary containing all the index values 
-    dictionary : {
-        'course_name' : course_name_index,
-        'attendance_percentage' : attendance_percentage_index,
-        'conducted_classes' : conducted_classes_index,
-        'attended_classes' : attended_classes_index,
-        'status':status_index
-    }
-    """
+    """Return the attendance indices dictionary or None if not set."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT index_ FROM index_values WHERE name = ?", ("ATTENDANCE_INDEX_VALUES",))
@@ -409,16 +395,7 @@ async def get_attendance_index_values():
             return None
 
 async def get_pat_attendance_index_values():
-    """
-    This Function extracts the pat attendance index values from the database
-    :return: Returns a dictionary containing all the index values 
-    dictionary : {
-        'course_name' : course_name_index,
-        'attendance_percentage' : pat_attendance_percentage_index,
-        'conducted_classes' : conducted_classes_index,
-        'attended_classes' : attended_classes_index,
-        'status' : pat_status
-    }"""
+    """Return the PAT attendance indices dictionary or None if not set."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT index_ FROM index_values WHERE name = ?", ("PAT_INDEX_VALUES",))
@@ -431,15 +408,7 @@ async def get_pat_attendance_index_values():
             return None
         
 async def get_biometric_index_values():
-    """
-    This Function extracts the pat attendance index values from the database
-    :return: Returns a dictionary containing all the index values 
-    dictionary : {
-        'status' : status_index,
-        'intime' : intime_index,
-        'outtime' : outtime_index
-    }
-    """
+    """Return the biometric indices dictionary or None if not set."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT index_ FROM index_values WHERE name = ?", ("BIOMETRIC_INDEX_VALUES",))
@@ -451,13 +420,9 @@ async def get_biometric_index_values():
             return None
 
 async def store_index_values_to_restore(name,indexes_dictionary):
-    """
-    This function is used to store the index values in the form of dictionary
-    
-    Usually used while restoring the index values from the pgdatabase
-    
-    :param name: Name of the index values
-    :param indexes_dicttionary: Dictionary containing all the index values
+    """Upsert an index dictionary under `name` into `index_values`.
+
+    Typically used when restoring indices from the cloud database.
     """
     try:
         with sqlite3.connect(SETTINGS_DATABASE) as conn:
@@ -473,9 +438,7 @@ async def store_index_values_to_restore(name,indexes_dictionary):
         print(f"Error restoring index values : {e}")
 
 async def clear_indexes_table():
-    """
-    This Function is used to clear all the values in index_value table.
-    """
+    """Delete all rows from `index_values` (destructive)."""
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM index_values")
