@@ -1,3 +1,26 @@
+"""
+Persistent PostgreSQL database helpers for the bot.
+
+This module encapsulates all interactions with the primary Postgres
+datastore. Unlike the temporary SQLite caches, data written here is
+intended to persist across server restarts until explicitly cleared.
+
+Environment variables used for the connection:
+- POSTGRES_USER_ID
+- POSTGRES_PASSWORD
+- POSTGRES_DATABASE
+- POSTGRES_HOST
+- POSTGRES_PORT
+
+Tables managed here (created on demand):
+- user_credentials: Core user record, preferences, and optional lab data.
+- banned_users: List of banned usernames.
+- bot_managers: Admins/maintainers and their access flags.
+- pending_reports: User reports and maintainer replies.
+- index_values: JSON-encoded HTML index mappings for scraping pages
+    (attendance, biometric, PAT). Stored as rows keyed by ``name``.
+- cgpa_tracker / cie_tracker: Tracker state for CGPA and CIE.
+"""
 import asyncpg,os,json
 
 #Database Credentials
@@ -7,10 +30,15 @@ DATABASE_CRED = os.environ.get("POSTGRES_DATABASE")
 HOST_CRED = os.environ.get("POSTGRES_HOST")
 PORT_CRED = os.environ.get("POSTGRES_PORT")
 
-# Data stored in this database is permanent, only if user removes the data will be removed.
 
 async def connect_pg_database():
-    """connect_pg_database is used to make a connection to the postgres database"""
+    """Create and return a connection to the PostgreSQL database.
+
+    Uses credentials from environment variables. Callers are responsible
+    for closing the returned connection.
+
+    :return: An ``asyncpg.Connection`` instance.
+    """
     # connecting to the PSQL database
     connection = await asyncpg.connect(
         user=USER_CRED,
@@ -45,13 +73,10 @@ async def connect_pg_database():
 
 async def create_all_pgdatabase_tables():
     """
-    This Function is used to create all the necessary tables in the pgdatabase
+    Create all required tables in the Postgres database if they do not exist.
 
-    - user credentials table
-    - banned users table
-    - bot managers table
-    - reports table
-    - indexes table
+    Creates: ``user_credentials``, ``banned_users``, ``bot_managers``,
+    ``pending_reports``, ``index_values``, ``cgpa_tracker``, ``cie_tracker``.
 
     """
     await create_user_credentials_table()
@@ -63,6 +88,20 @@ async def create_all_pgdatabase_tables():
     await create_cie_tracker_table()
 
 async def create_user_credentials_table():
+    """Create the ``user_credentials`` table if it does not exist.
+
+    Columns
+    - chat_id BIGINT PRIMARY KEY
+    - username VARCHAR(25)
+    - password VARCHAR(30)
+    - pat_student BOOLEAN DEFAULT FALSE
+    - attendance_threshold INTEGER DEFAULT 75
+    - biometric_threshold INTEGER DEFAULT 75
+    - traditional_ui BOOLEAN DEFAULT TRUE
+    - extract_title BOOLEAN DEFAULT TRUE
+    - lab_subjects_data TEXT (JSON-serialized)
+    - lab_weeks_data TEXT (JSON-serialized)
+    """
 
     connection = await connect_pg_database()
     try:
@@ -91,6 +130,20 @@ async def create_user_credentials_table():
 
 
 async def create_reports_table():
+    """Create the ``pending_reports`` table if it does not exist.
+
+    Stores pending and replied user reports. Maintainers can update reply
+    details and status.
+
+    Columns
+    - unique_id VARCHAR(75) PRIMARY KEY
+    - user_id VARCHAR(25)
+    - message TEXT
+    - chat_id BIGINT
+    - replied_message TEXT
+    - replied_maintainer TEXT
+    - reply_status BOOLEAN (False = pending, True = replied)
+    """
     connection = await connect_pg_database()
     try:  
         await connection.execute("""
@@ -112,6 +165,7 @@ async def create_reports_table():
         await connection.close()
 
 async def create_banned_users_table():
+    """Create the ``banned_users`` table if it does not exist."""
     connection = await connect_pg_database()
     
     # Create the banned_users table in the PSQL database.
@@ -132,6 +186,11 @@ async def create_banned_users_table():
         await connection.close()
 
 async def create_bot_managers_tables():
+    """Create the ``bot_managers`` table if it does not exist.
+
+    Tracks admins/maintainers and granular access flags used by the bot's
+    management features.
+    """
     # Connect to PostgreSQL database
     connection = await connect_pg_database()
     try:
@@ -164,7 +223,12 @@ async def create_bot_managers_tables():
 
 async def create_indexes_table():
     """
-    Create the necessary table for the index values in sqlite database
+    Create the ``index_values`` table for storing JSON index mappings.
+
+    The table lives in Postgres. Each row represents a named set of HTML
+    index values used by the scraper to parse server-provided pages.
+    Common names include ``ATTENDANCE_INDEX_VALUES``,
+    ``BIOMETRIC_INDEX_VALUES``, and ``PAT_INDEX_VALUES``.
     """
     connection = await connect_pg_database()
     try:
@@ -184,7 +248,9 @@ async def create_indexes_table():
 
 async def create_cgpa_tracker_table():
     """
-    Create the necessary table for the cgpa tracker in sqlite database
+    Create the ``cgpa_tracker`` table in Postgres if missing.
+
+    Stores per-chat tracker state for CGPA notifications.
     """
     connection = await connect_pg_database()
     try:
@@ -205,7 +271,9 @@ async def create_cgpa_tracker_table():
 
 async def create_cie_tracker_table():
     """
-    Create the necessary table for the cie tracker in sqlite database
+    Create the ``cie_tracker`` table in Postgres if missing.
+
+    Stores per-chat tracker state for CIE notifications.
     """
     connection = await connect_pg_database()
     try:
@@ -227,9 +295,10 @@ async def create_cie_tracker_table():
 
 async def check_chat_id_in_pgb(chat_id):
     """
-    param : This function checks whether the chat_id of the user is already present in the database or not
-    and returns true or false values
-    
+    Check if a ``chat_id`` exists in ``user_credentials``.
+
+    :param chat_id: Telegram chat id.
+    :return: True if a row exists; otherwise False.
     """
     connection = await connect_pg_database()
     try:
@@ -246,7 +315,11 @@ async def check_chat_id_in_pgb(chat_id):
 
 
 async def get_username(chat_id):
-    """Retrieve username from the PostgreSQL database"""
+    """Retrieve the stored ``username`` for a given ``chat_id``.
+
+    :param chat_id: Telegram chat id.
+    :return: Username string or None if not found.
+    """
     connection = await connect_pg_database()
     try:
         
@@ -281,16 +354,19 @@ async def store_banned_username(username):
         await connection.close()
 
 async def set_pat_attendance_indexes(pat_attendance_indexes):
-    """This Function is used to set the index values of the pat attendance table
-    :param pat_attendance_indexes: Dictionary containing all the pat attendance index values 
-    
-    :Dictionary: {
-        'course_name': course_name_index,
-        'attendance_percentage': pat_attendance_percentage_index,
-        'conducted_classes': conducted_classes_index,
-        'attended_classes': attended_classes_index,
-        'status': pat_status
-    }"""
+    """Upsert the index values for parsing the PAT attendance table.
+
+    :param pat_attendance_indexes: Dict containing index positions, e.g.::
+        {
+          'course_name': <int>,
+          'attendance_percentage': <int>,
+          'conducted_classes': <int>,
+          'attended_classes': <int>,
+          'status': <int>
+        }
+
+    Stored under the ``name`` key ``PAT_INDEX_VALUES`` in ``index_values``.
+    """
 
     connection = await connect_pg_database()
     name = "PAT_INDEX_VALUES"
@@ -389,16 +465,19 @@ async def remove_cie_tracker_details(chat_id: int):
 
 
 async def set_attendance_indexes(all_attendance_indexes):
-    """This Function is used to set the index values of the attendance table
-    :param all_attendance_indexes: Dictionary containing all attendance table index values
-    
-    :Dictionary: {
-        'course_name': course_name_index,
-        'attendance_percentage': attendance_percentage_index,
-        'conducted_classes': conducted_classes_index,
-        'attended_classes': attended_classes_index,
-        'status': status_index
-    }"""
+    """Upsert the index values for parsing the main attendance table.
+
+    :param all_attendance_indexes: Dict containing index positions, e.g.::
+        {
+          'course_name': <int>,
+          'attendance_percentage': <int>,
+          'conducted_classes': <int>,
+          'attended_classes': <int>,
+          'status': <int>
+        }
+
+    Stored under the ``name`` key ``ATTENDANCE_INDEX_VALUES`` in ``index_values``.
+    """
 
     connection = await connect_pg_database()
     name = "ATTENDANCE_INDEX_VALUES"
@@ -412,15 +491,17 @@ async def set_attendance_indexes(all_attendance_indexes):
         print(f"Error updating the attendance index values : {e}")
 
 async def set_biometric_indexes(all_biometric_index):
-    """This function is used to set the biometric index values manually
-    :param all_biometric_index: Dictionary containing all the biometric index values
-    
-    :Dictionary: {
-        'status': status_index,
-        'intime': intime_index,
-        'outtime': outtime_index
-    }
-"""
+    """Upsert the index values for parsing biometric entries.
+
+    :param all_biometric_index: Dict containing index positions, e.g.::
+        {
+          'status': <int>,
+          'intime': <int>,
+          'outtime': <int>
+        }
+
+    Stored under the ``name`` key ``BIOMETRIC_INDEX_VALUES`` in ``index_values``.
+    """
 
     connection = await connect_pg_database()
     name = "BIOMETRIC_INDEX_VALUES"
@@ -455,6 +536,13 @@ async def get_all_banned_usernames():
         await connection.close()
 
 async def get_all_user_settings():
+    """Return per-user settings columns from ``user_credentials`` for all users.
+
+    Selected columns: ``chat_id``, ``attendance_threshold``,
+    ``biometric_threshold``, ``traditional_ui``, ``extract_title``.
+
+    :return: List of records or None if table is empty.
+    """
 
     connection = await connect_pg_database()
 
@@ -476,6 +564,11 @@ async def get_all_user_settings():
         await connection.close()
 
 async def get_all_index_values():
+    """Return all rows from the ``index_values`` table.
+
+    Useful for broadcasting current index configurations to workers.
+    :return: List of records or None.
+    """
     connection = await connect_pg_database()
 
     try:
@@ -496,6 +589,10 @@ async def get_all_index_values():
 
 
 async def get_all_cgpa_trackers():
+    """Return all stored rows from ``cgpa_tracker``.
+
+    :return: List of records or None.
+    """
     connection = await connect_pg_database()
     try:
         query = "SELECT * FROM cgpa_tracker"
@@ -511,6 +608,10 @@ async def get_all_cgpa_trackers():
         await connection.close()
 
 async def get_all_cie_tracker_data():
+    """Return all stored rows from ``cie_tracker``.
+
+    :return: List of records or None.
+    """
     connection = await connect_pg_database()
     try:
         query = "SELECT * FROM cie_tracker"
@@ -564,6 +665,20 @@ async def store_as_maintainer(name,chat_id):
         await connection.close()
 
 async def update_access_data_pgdatabase(maintainer_chat_id,access_data,announcement,configure,show_reports,reply_reports,clear_reports,ban_username,unban_username,manage_maintainers,logs):
+    """Update access flags for a maintainer/admin in ``bot_managers``.
+
+    :param maintainer_chat_id: Chat id of the manager whose access is updated.
+    :param access_data: Toggle access to users list/features.
+    :param announcement: Allow broadcasting announcements.
+    :param configure: Allow configuration changes.
+    :param show_reports: Allow viewing reports.
+    :param reply_reports: Allow replying to reports.
+    :param clear_reports: Allow clearing reports.
+    :param ban_username: Allow banning users.
+    :param unban_username: Allow unbanning users.
+    :param manage_maintainers: Allow managing maintainers.
+    :param logs: Allow viewing logs.
+    """
     connection = await connect_pg_database()
     try:
         await connection.execute('''
@@ -629,6 +744,7 @@ async def store_reports(unique_id: str, user_id: str, message: str, chat_id: str
     finally:
         await connection.close()
 async def clear_banned_users_database():
+    """Delete all rows from the ``banned_users`` table."""
     connection = await connect_pg_database()
     try:
         # Execute the SQL command to delete banned users data
@@ -645,7 +761,10 @@ async def clear_banned_users_database():
         await connection.close()
 
 async def total_users_pg_database(bot,chat_id):
-    """This Function return the Total Number of users in the database."""
+    """Return the total number of rows in ``user_credentials``.
+
+    On error, sends a message via ``bot`` to the provided ``chat_id``.
+    """
     connection = await connect_pg_database()
     try:
         query = "SELECT COUNT(*) FROM user_credentials"
@@ -657,7 +776,7 @@ async def total_users_pg_database(bot,chat_id):
     finally:
         await connection.close()
 async def get_all_chat_ids():
-    """This Function Gets all the Chat_ids Present in the database"""
+    """Return a list of all ``chat_id`` values from ``user_credentials``."""
     conn = await connect_pg_database()
     try:
         query = "SELECT chat_id FROM user_credentials"
@@ -671,6 +790,10 @@ async def get_all_chat_ids():
         await conn.close()
 
 async def get_all_credentials():
+    """Return every row from ``user_credentials``.
+
+    :return: List of records or None if empty.
+    """
     connection = await connect_pg_database()
     try:
         if connection:
@@ -690,7 +813,7 @@ async def get_all_credentials():
         if connection:
             await connection.close()
 async def get_pat_student(chat_id):
-    """This Function checks whether the pat_student column is True or False, Based on chat_id of the user"""
+    """Check whether ``pat_student`` is True/False for the given ``chat_id``."""
     connection = await connect_pg_database()
     try:
         
@@ -709,7 +832,7 @@ async def get_pat_student(chat_id):
         if connection:
             await connection.close()
 async def set_pat_student_true(chat_id):
-    """This Function Sets the pat_student Colum to True"""
+    """Set the ``pat_student`` column to True for the given ``chat_id``."""
     connection = await connect_pg_database()
     try:
         # Execute UPDATE query to set pat_student to True for the specified user_id
@@ -726,6 +849,14 @@ async def set_pat_student_true(chat_id):
         await connection.close()
 
 async def update_all_the_threshold_values(attendance_threshold, biometric_threshold, traditional_ui, extract_title, chat_id):
+    """Update thresholds and UI flags for a single user.
+
+    :param attendance_threshold: New attendance threshold (int).
+    :param biometric_threshold: New biometric threshold (int).
+    :param traditional_ui: Toggle for traditional UI (bool).
+    :param extract_title: Toggle for extracting lab title (bool).
+    :param chat_id: Target user's chat id.
+    """
 
     connection = await connect_pg_database()
 
@@ -769,11 +900,14 @@ async def update_user_credentials_table_database():
         await connection.close()
 
 async def store_lab_info(chat_id,subjects,weeks):
-    """Store lab information in the database.
-    
+    """Store or update lab subject/week lists for a user.
+
+    Values are JSON-serialized and saved into ``user_credentials`` under
+    ``lab_subjects_data`` and ``lab_weeks_data``.
+
     :param chat_id: Chat ID of the user.
-    :param subjects: List of subjects.
-    :param weeks: List of weeks.
+    :param subjects: List of subject entries.
+    :param weeks: List of week entries.
     """
     
     subjects = json.dumps(subjects) # Serializing the data so that it can be stored.
@@ -801,7 +935,7 @@ async def store_lab_info(chat_id,subjects,weeks):
 
 
 async def save_credentials_to_databse(chat_id, username, password):
-    """This is used to save the username and password to the pgdatabase"""
+    """Insert a new credentials row into ``user_credentials``."""
     connection = await connect_pg_database() 
     try:
          # Await the coroutine
@@ -819,8 +953,10 @@ async def save_credentials_to_databse(chat_id, username, password):
 
 
 async def retrieve_credentials_from_database(chat_id):
-    """This Function is used to Retreive the user credentials based on the chat_id
-    Returns username and password. Used to login the user automatically during session timeout"""
+    """Retrieve ``(username, password)`` for the given ``chat_id``.
+
+    Returns a tuple of strings, or ``(None, None)`` if not found.
+    """
     connection = await connect_pg_database()
     try:
         
@@ -971,8 +1107,7 @@ async def sqlite_bool_to_pg_bool(sqlbool):
     return True if sqlbool else False
 
 async def remove_saved_credentials(bot,chat_id):
-    """This Function removes the Column based on chat_id. 
-    This is used to remove the saved credentials."""
+    """Delete a user's credentials row and notify them via the bot."""
     connection = await connect_pg_database()
     try:
         
@@ -1095,6 +1230,7 @@ async def get_bot_managers_data():
         await connection.close()
 
 async def get_all_reports():
+    """Return all rows from ``pending_reports`` regardless of reply status."""
     connection = await connect_pg_database()
     try:
     
@@ -1131,6 +1267,7 @@ async def delete_report(unique_id):
 
 
 async def clear_pending_reports():
+    """Delete all rows from ``pending_reports`` (both pending and replied)."""
     connection =  await connect_pg_database()
 
     try:
@@ -1165,6 +1302,7 @@ async def clear_credentials_and_settings_database():
         await connection.close()
 
 async def clear_bot_manager_table():
+    """Delete all rows from ``bot_managers``."""
     connection = await connect_pg_database()
     try:
         # Execute the SQL command to delete banned users data
@@ -1180,6 +1318,7 @@ async def clear_bot_manager_table():
         # Close the database connection
         await connection.close()
 async def clear_index_values_database():
+    """Delete all rows from ``index_values`` (removes all index configs)."""
     connection = await connect_pg_database()
     try:
         # Execute the SQL command to delete index values data from database
