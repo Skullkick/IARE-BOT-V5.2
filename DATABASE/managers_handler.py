@@ -1,18 +1,39 @@
+"""
+Bot manager metadata and trackers stored in SQLite.
+
+This module manages three tables in `managers.db`:
+- bot_managers: admin/maintainer flags, names, and fine-grained access toggles
+- cgpa_tracker: track per-user CGPA updates (status, current_cgpa)
+- cie_tracker: track per-user CIE updates (status, current_cie_marks)
+
+Tracker scope and status:
+- CGPA and CIE trackers are intended only for Admins/Maintainers and only to
+    track their own performance (self-tracking). They are not a general feature
+    for all users.
+- Current status: UNDER MAINTENANCE (known issues). Open for fixes; storage
+    functions remain in place while higher-level logic is being revised.
+
+All functions are async for consistency with the codebase, but perform
+synchronous SQLite operations internally. Functions generally return booleans,
+lists, or tuples of primitive types; no side effects beyond the DB writes.
+"""
+
 import sqlite3,json
 
 
 MANAGERS_DATABASE = "managers.db"
 
 async def create_required_bot_manager_tables():
+    """Create all required tables (bot_managers, cgpa_tracker, cie_tracker)."""
     await create_bot_managers_tables()
     await create_cgpa_tracker_table()
     await create_cie_tracker_table()
 
 async def create_bot_managers_tables():
-    """
-    This function creates bot managers table 
+    """Create the `bot_managers` table for admin/maintainer and access flags.
 
-    bot_managers table consists of admin and maintainer
+    Columns include admin/maintainer booleans, manager name, control_access
+    (e.g., 'Full' or 'limited'), and per-feature access toggles.
     """
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -38,13 +59,10 @@ async def create_bot_managers_tables():
         """)
         conn.commit()
 async def create_cgpa_tracker_table():
-    """
-    This function is used to create a table in MANAGERS_DATABASE 
-    columns :
-    
-    - chat_id
-    - status
-    - current_cgpa
+    """Create the `cgpa_tracker` table (chat_id, status, current_cgpa).
+
+    Usage note: This tracker is restricted to Admins/Maintainers for
+    self-tracking only and is currently under maintenance.
     """
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -59,13 +77,10 @@ async def create_cgpa_tracker_table():
         conn.commit()
 
 async def create_cie_tracker_table():
-    """
-    This function is used to create a table in MANAGERS_DATABASE 
-    columns :
-    
-    - chat_id
-    - status
-    - current_cie_marks
+    """Create the `cie_tracker` table (chat_id, status, current_cie_marks).
+
+    Usage note: This tracker is restricted to Admins/Maintainers for
+    self-tracking only and is currently under maintenance.
     """
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -80,12 +95,10 @@ async def create_cie_tracker_table():
         conn.commit()
 
 async def store_cgpa_tracker_details(chat_id,status,current_cgpa):
-    """
+    """Upsert CGPA tracker details (status, current_cgpa) for `chat_id`.
 
-    This function is used to store the cgpa_tracker details
-    :param chat_id: Chat id of the user
-    :param status: Boolean value which is used to stop the tracker
-    :param current_cgpa: Current cgpa of the user
+    Scope: Admins/Maintainers self-tracking only. Feature under maintenance.
+    Returns True on success, False on error.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -102,9 +115,9 @@ async def store_cgpa_tracker_details(chat_id,status,current_cgpa):
         print(f"Error storing cgpa tracker details : {e}")
         return False
 async def remove_cgpa_tracker_details(chat_id):
-    """
-    This function is used to remove the row in cgpa_tracker table based on the chat_id
-    :param chat_id: Chat id of the user
+    """Delete CGPA tracker row for `chat_id` if it exists; return bool.
+
+    Scope: Admins/Maintainers self-tracking only. Feature under maintenance.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -121,9 +134,9 @@ async def remove_cgpa_tracker_details(chat_id):
         print(f"Error deleting the cgpa_tracker details : {e}")
 
 async def get_all_cgpa_tracker_chat_ids():
-    """
-    This function is used to return all the chat_id that are present in the cgpa tracker table
-    :return: returns a tuple which contains all the chat_ids
+    """Return list of all chat_ids present in the CGPA tracker table.
+
+    Diagnostic helper primarily for maintenance/administration.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -136,14 +149,9 @@ async def get_all_cgpa_tracker_chat_ids():
         return False
 
 async def get_cgpa_tracker_details(chat_id):
-    """
-    This function is used to get the tracker details from the database
-    :param chat_id: Chat id of the user
-    :return: returns a tuple
-    
-    tuple:
-    - status
-    - current_cgpa
+    """Return `(status, current_cgpa)` for `chat_id`, or None if missing.
+
+    Scope: Admins/Maintainers self-tracking only. Feature under maintenance.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -160,12 +168,10 @@ async def get_cgpa_tracker_details(chat_id):
 
 
 async def store_cie_tracker_details(chat_id,status,current_cie_marks):
-    """
+    """Upsert CIE tracker details (status, current_cie_marks) for `chat_id`.
 
-    This function is used to store the cie_tracker details
-    :param chat_id: Chat id of the user
-    :param status: Boolean value which is used to stop the tracker
-    :param current_cie_marks: Current cie marks of the user
+    Scope: Admins/Maintainers self-tracking only. Feature under maintenance.
+    Returns True on success, False on error.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -182,9 +188,9 @@ async def store_cie_tracker_details(chat_id,status,current_cie_marks):
         print(f"Error storing cie tracker details : {e}")
         return False
 async def remove_cie_tracker_details(chat_id):
-    """
-    This function is used to remove the row in cie_tracker table based on the chat_id
-    :param chat_id: Chat id of the user
+    """Delete CIE tracker row for `chat_id` if it exists; return bool.
+
+    Scope: Admins/Maintainers self-tracking only. Feature under maintenance.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -201,9 +207,9 @@ async def remove_cie_tracker_details(chat_id):
         print(f"Error deleting the cie_tracker details : {e}")
 
 async def get_all_cie_tracker_chat_ids():
-    """
-    This function is used to return all the chat_id that are present in the cie tracker table
-    :return: returns a tuple which contains all the chat_ids
+    """Return list of all chat_ids present in the CIE tracker table.
+
+    Diagnostic helper primarily for maintenance/administration.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -216,14 +222,9 @@ async def get_all_cie_tracker_chat_ids():
         return False
 
 async def get_cie_tracker_details(chat_id):
-    """
-    This function is used to get the tracker details from the database
-    :param chat_id: Chat id of the user
-    :return: returns a tuple
-    
-    tuple:
-    - status
-    - current_cie
+    """Return `(status, current_cie_marks)` for `chat_id`, or None if missing.
+
+    Scope: Admins/Maintainers self-tracking only. Feature under maintenance.
     """
     try:
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
@@ -239,11 +240,7 @@ async def get_cie_tracker_details(chat_id):
         return False
 
 async def store_as_admin(name,chat_id):
-    """
-    Perform storing the user as admin.
-    :param chat_id: chat id based on the message
-    :param name: Name of the user
-    """
+    """Upsert admin record with `admin=1`, name, and `control_access='Full'`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("""INSERT OR REPLACE INTO bot_managers 
@@ -251,19 +248,14 @@ async def store_as_admin(name,chat_id):
         conn.commit()
 
 async def store_as_maintainer(name,chat_id):
-    """
-    Perform storing the user as maintainer
-    :param chat_id: Chat id of the maintainer.
-    :param name: Name of the user"""
+    """Upsert maintainer record with `maintainer=1`, name, `control_access='limited'`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO bot_managers (chat_id,maintainer,name,control_access) VALUES (?,?,?,?)",(chat_id,1,name,'limited'))
         conn.commit()
 
 async def fetch_admin_chat_ids():
-    """
-    Fetch the admin chat_ids
-    """
+    """Return list of chat_ids where `admin=1`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT chat_id FROM bot_managers WHERE admin = ?",(1,))
@@ -271,20 +263,14 @@ async def fetch_admin_chat_ids():
         return admin_chat_ids
 
 async def fetch_maintainer_chat_ids():
-    """
-    Fetch the Maintainer chat ids
-    :return: returns all the maintainer chat_ids in a tuple
-    """
+    """Return list of chat_ids where `maintainer=1`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT chat_id FROM bot_managers WHERE maintainer = ?",(1,))
         maintainer_chat_ids = [row[0] for row in cursor.fetchall()]
         return maintainer_chat_ids
 async def fetch_name(chat_id):
-    """
-    Fetch the Name of the user from database based on chat_id
-    :param chat_id: Chat id of the manager.
-    """
+    """Return manager name for `chat_id`, or None if not found."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM bot_managers WHERE chat_id = ?",(chat_id,))
@@ -293,41 +279,28 @@ async def fetch_name(chat_id):
             return name[0]
 
 async def store_name(chat_id,name):
-    """
-    Perform storing the name of the manager
-    :param chat_id: Chat id of the manager.
-    :param name: Name of the manager
-    """
+    """Update the `name` for a manager identified by `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET name = ? WHERE chat_id = ?",(name,chat_id))
         conn.commit()
 
 async def remove_maintainer(chat_id):
-    """
-    Remove a maintainer based on the chat_id
-    :param chat_id: Chat id of the maintainer
-    """
+    """Delete a manager row where `chat_id` and `maintainer=1`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM bot_managers WHERE chat_id= ? AND maintainer = ?",(chat_id,1))
         conn.commit()
 
 async def remove_admin(chat_id):
-    """
-    Remove a admin based on the chat_id
-    :param chat_id : Chat id of the admin
-    """
+    """Delete a manager row where `chat_id` and `admin=1`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM bot_managers WHERE chat_id = ? AND admin = ?",(chat_id,1))
         conn.commit()
 
 async def get_control_access(chat_id):
-    """
-    This Function is used to get the details of the control access.
-    :param chat_id : Chat id of the user.
-    """
+    """Return `control_access` string (e.g., 'Full' or 'limited') for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT control_access FROM bot_managers WHERE chat_id = ?",(chat_id,))
@@ -336,12 +309,10 @@ async def get_control_access(chat_id):
             return control_access[0]
 
 async def get_access_data(chat_id):
-    """
-    This function is used to get the access data based on the chat_id
-    :param chat_id : Chat id of the user 
-    :return: Returns a tuple containg boolean access data values.
-    :tuple boolean values: access_users,announcement,configure,show_reports,reply_reports,clear_reports,
-    ban_username,unban username,manage_maintainers,logs
+    """Return a tuple of access flags for `chat_id` or None if missing.
+
+    Order: (access_users, announcement, configure, show_reports, reply_reports,
+    clear_reports, ban_username, unban_username, manage_maintainers, logs)
     """
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -361,118 +332,84 @@ async def get_access_data(chat_id):
         access_data = cursor.fetchone()
         return access_data
 async def set_access_users_true(chat_id):
-    """
-    This function is used to set the access users to true.
-    :param chat_id: Chat id of the user
-    """
+    """Set `access_users=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET access_users = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_access_users_false(chat_id):
-    """
-    This function is used to set the access users to false
-    :param chat_id: Chat id of the user
-    """
+    """Set `access_users=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET access_users = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_announcement_access_true(chat_id):
-    """
-    This function is used to set the announcement to true and can be used to know whether the manager has access to the announcements or not.
-    :param chat_id : Chat id of the user
-    """
+    """Set `announcement=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET announcement = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_configure_access_true(chat_id):
-    """
-    This function is used to set the configure value to true.
-    :param chat_id : Chat id of the user
-    """
+    """Set `configure=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET configure = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_show_reports_access_true(chat_id):
-    """
-    This Function is used to set the show requests access as true.
-    :param chat_id: Chat id of the user
-    """
+    """Set `show_reports=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET show_reports = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_reply_reports_access_true(chat_id):
-    """This Function is used to set the reply_reports access as true
-    :param chat_id: Chat id of the user
-    """
+    """Set `reply_reports=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET reply_reports = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_clear_reports_access_true(chat_id):
-    """
-    This Function is used to set the clear requests access as true
-    :param chat_id: chat id of the user
-    """
+    """Set `clear_reports=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET clear_reports = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_ban_username_access_true(chat_id):
-    """
-    This function is used to set the ban username access as true
-    :param chat_id: Chat id of the user
-    """
+    """Set `ban_username=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET ban_username = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_unban_username_access_true(chat_id):
-    """
-    This Function is used to set the unban username access as true
-    :param chat_id: Chat id of the user.
-    """
+    """Set `unban_username=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET unban_username = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_manage_maintainers_access_true(chat_id):
-    """
-    This function is used to set the manage_maintainers access as true
-    :param chat_id: Chat id of the user
-    """
+    """Set `manage_maintainers=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET manage_maintainers = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_logs_access_true(chat_id):
-    """
-    This Function is used to set the logs access as true
-    :param chat_id: Chat id of the user.
-    """
+    """Set `logs=1` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET logs = ? WHERE chat_id = ?",(1,chat_id))
         conn.commit()
 
 async def set_all_access_true(chat_id):
-    """
-    This Function is used to set all access data parameters as true, Mainly used if we want to give full access.
-    :param chat_id: Chat id of the user """
+    """Set all per-feature access flags to 1 for `chat_id` (full access)."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -491,20 +428,14 @@ async def set_all_access_true(chat_id):
         """, (1, 1, 1, 1, 1, 1, 1, 1, 1, 1, chat_id))
         conn.commit()
 async def set_configure_access_false(chat_id):
-    """
-    This function is used to set the configure value to false.
-    :param chat_id : Chat id of the user
-    """
+    """Set `configure=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET configure = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_announcement_access_false(chat_id):
-    """
-    This function is used to set the announcement to false and can be used to know whether the manager has access to the announcements or not.
-    :param chat_id : Chat id of the user
-    """
+    """Set `announcement=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET announcement = ? WHERE chat_id = ?",(0,chat_id))
@@ -512,70 +443,59 @@ async def set_announcement_access_false(chat_id):
 
 
 async def set_show_reports_access_false(chat_id):
-    """
-    This Function is used to set the show requests access as false.
-    :param chat_id: Chat id of the user
-    """
+    """Set `show_reports=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET show_reports = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_reply_reports_access_false(chat_id):
-    """This Function is used to set the reply_reports access as false
-    :param chat_id: Chat id of the user
-    """
+    """Set `reply_reports=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET reply_reports = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_clear_reports_access_false(chat_id):
-    """This Function is used to set the clear_reports access as false
-    :param chat_id: Chat id of the user
-    """
+    """Set `clear_reports=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET clear_reports = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_ban_username_access_false(chat_id):
-    """This Function is used to set the ban_username access as false
-    :param chat_id: Chat id of the user
-    """
+    """Set `ban_username=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET ban_username = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_unban_username_access_false(chat_id):
-    """This Function is used to set the unban_username access as false
-    :param chat_id: Chat id of the user
-    """
+    """Set `unban_username=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET unban_username = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_manage_maintainers_access_false(chat_id):
-    """This Function is used to set the manage_maintainers access as false
-    :param chat_id: Chat id of the user
-    """
+    """Set `manage_maintainers=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET manage_maintainers = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 
 async def set_logs_access_false(chat_id):
-    """This Function is used to set the logs access as false
-    :param chat_id: Chat id of the user
-    """
+    """Set `logs=0` for `chat_id`."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE bot_managers SET logs = ? WHERE chat_id = ?",(0,chat_id))
         conn.commit()
 async def store_bot_managers_data_in_database(chat_id, admin, maintainer,name,control_access,access_users,announcement,
                                               configure,show_reports,reply_reports,clear_reports,ban_username,unban_username,manage_maintainers,logs):
+    """Upsert a complete bot manager record.
+
+    Parameters mirror table columns, enabling full replace or update semantics.
+    """
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         # Check if the chat_id already exists
@@ -615,9 +535,7 @@ async def store_bot_managers_data_in_database(chat_id, admin, maintainer,name,co
         conn.commit()
 
 async def clear_bot_managers_data():
-    """
-    This function is used to clear the bot Managers data from the Managers database
-    """
+    """Delete all rows from `bot_managers` (destructive)."""
     with sqlite3.connect(MANAGERS_DATABASE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM bot_managers")
