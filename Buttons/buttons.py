@@ -1,3 +1,21 @@
+"""Buttons and callback routing for the Telegram bot.
+
+This module defines InlineKeyboard layouts (user menu, settings, admin, certificates,
+lab flows) and exposes small helpers to send those keyboards. It also contains a
+single router, `callback_function`, that handles all callback_query.data values
+emitted by these keyboards and delegates to higher-level operations in
+`METHODS.operations`, `METHODS.lab_operations`, and the DB layers in
+`DATABASE.tdatabase` and `DATABASE.pgdatabase`.
+
+Notes:
+- Most branches in `callback_function` are side-effectful: they edit or delete
+    previous messages, send new messages, and update user preferences/state in
+    the databases. The function intentionally returns None.
+- Some features (lab uploads, settings persistence) require that the user has
+    saved credentials. The handler checks this and informs the user when not
+    eligible, without changing any settings.
+"""
+
 from pyrogram.types import InlineKeyboardButton,InlineKeyboardMarkup
 from DATABASE import pgdatabase,tdatabase,user_settings
 from METHODS import operations,labs_handler,lab_operations
@@ -203,27 +221,48 @@ Title : Introduction to Python
 
 # Function to start the user buttons.
 async def start_user_buttons(bot,message):
+    """Send the main user menu with action buttons.
+
+    - Buttons include Attendance, Bunk, Biometric, Logout, Lab Records,
+      Student Info, and Saved Username options.
+
+    Parameters:
+    - bot: Pyrogram client/session.
+    - message: The triggering message to reply to.
     """
-    This Function is used to start the user buttons with the text.
-    :param bot: Client session
-    :param message: Message of the user"""
     await message.reply_text(USER_MESSAGE,reply_markup = USER_BUTTONS)
 
 async def start_certificates_buttons(message):
-    """This Function is used to start the Certificates buttons
-    :param message: Message of the user
+    """Show the certificates menu (Aadhar, SSC, Inter, DOB, Income).
+
+    Parameters:
+    - message: The triggering message to reply to.
     """
     await message.reply_text(CERTIFICATES_TEXT,reply_markup = CERTIFICATES_BUTTONS)
 
 async def start_user_settings(bot,message):
-    """This Function is used to start the settings buttons of a user
-    :param bot: Client session
-    :param message: Message of the user
+    """Show the user settings menu (thresholds, title mode, UI).
+
+    Parameters:
+    - bot: Pyrogram client/session (unused here but kept for symmetry).
+    - message: The triggering message to reply to.
     """
     await message.reply_text(SETTINGS_TEXT,reply_markup = SETTINGS_BUTTONS)
 
 
 async def start_save_credentials_buttons(username,password):
+    """Build a Yes/No inline keyboard to confirm saving credentials.
+
+    Parameters:
+    - username: Username to save if user confirms.
+    - password: Password to save if user confirms.
+
+    Returns:
+    - InlineKeyboardMarkup configured with Yes/No callbacks.
+
+    Security note: The callback_data embeds username and password to simplify
+    routing. Consider alternative flows if stricter secrecy is required.
+    """
     SAVE_USER_BUTTON = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton("Yes",callback_data=f"save_credentials-{username}-{password}")],
@@ -233,6 +272,11 @@ async def start_save_credentials_buttons(username,password):
     return SAVE_USER_BUTTON
 
 async def start_student_profile_buttons(message):
+    """Show the Student Info menu (GPA, CIE, Certificates, Payments, Profile).
+
+    Parameters:
+    - message: The triggering message to reply to.
+    """
     STUDENT_PROFILE_BUTTON = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("GPA",callback_data="user_gpa")],
@@ -251,13 +295,21 @@ Selecting the CIE Option may temporarily slow down other operations due to loadi
 """,reply_markup = STUDENT_PROFILE_BUTTON)
 
 async def callback_function(bot,callback_query):
-    """
-    This Function performs operations based on the callback data from the user
-    :param bot: Client session.
-    :param callback_query: callback data of the user.
+    """Route inline keyboard callbacks to the appropriate action.
 
-    :return: This returns nothing, But performs operations.
-    
+    This central handler inspects `callback_query.data` and performs one of:
+    - Attendance/Bunk/Biometric/Logout/Student Info flows via `operations`.
+    - Lab upload/view/delete flows via `lab_operations` and `labs_handler`.
+    - Settings updates (thresholds, title mode, UI) via `user_settings` and
+      persistence to Postgres via `pgdatabase`.
+    - Credential save/remove actions via `pgdatabase` and `tdatabase`.
+
+    Parameters:
+    - bot: Pyrogram client/session.
+    - callback_query: The callback query object from Pyrogram.
+
+    Returns:
+    - None (side effects only: messages edited/sent/deleted, DB updates).
     """
     if callback_query.data == "attendance":# If callback_query data is attendance
         message = callback_query.message
@@ -333,6 +385,7 @@ async def callback_function(bot,callback_query):
         chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
         ui_mode = await user_settings.fetch_ui_bool(chat_id)
         if chat_id_in_pgdatabase is False:
+            # Lab upload is restricted to saved-credential users
             await bot.send_message(chat_id,"This feature is currently available to Saved Credential users")
             await callback_query.answer()
             return
@@ -354,11 +407,11 @@ async def callback_function(bot,callback_query):
         chat_id = _message.chat.id
         await callback_query.message.delete()
         
-        # The amount of time it should check whether the pdf is downloaded or not
+        # Best-effort: poll briefly for the received PDF to be available
         timeout,count = 10,0
         CHECK_FILE = await labs_handler.check_recieved_pdf_file(bot,chat_id)
         while not CHECK_FILE[0]:
-        # Sleep briefly before checking again
+            # Sleep briefly before checking again
             if timeout != count:
                 count += 2
                 await asyncio.sleep(1)
@@ -397,7 +450,7 @@ async def callback_function(bot,callback_query):
         _message = callback_query.message
         chat_id = _message.chat.id
         selected_subject = callback_query.data.split("subject_")[1]
-        # # Store selected Subject index in the labuploads database
+        # Persist selected subject code for subsequent lab-flow steps
         await tdatabase.store_subject_code(chat_id,selected_subject)
         user_details = await lab_operations.user_data(bot,chat_id)
         experiment_names = await lab_operations.fetch_experiment_names(user_details,selected_subject)
@@ -419,7 +472,7 @@ async def callback_function(bot,callback_query):
         _message = callback_query.message
         chat_id = _message.chat.id
         selected_week = callback_query.data.split("Week-")[1]
-        # Store the index of selected week in database
+        # Store the chosen week so upload handler knows target experiment
         await tdatabase.store_week_index(chat_id,selected_week)
         await callback_query.message.delete()
         # if await tdatabase.fetch_title_lab_info(chat_id):
@@ -434,7 +487,8 @@ async def callback_function(bot,callback_query):
         username = user_credentials[1].lower()
         password = user_credentials[2]
         try:
-            # Saving the credentials to the database
+            # Save credentials in both Postgres (persistent) and SQLite (local cache)
+            # WARNING: Plaintext handling via callback_data; ensure trust in UI path.
             await pgdatabase.save_credentials_to_databse(chat_id,username,password) # saving credentials in postgres database
             await tdatabase.store_credentials_in_database(chat_id,username,password) # saving credentials in temporary database
             await callback_query.message.edit_text("**Your credentails have been saved successfully.**")

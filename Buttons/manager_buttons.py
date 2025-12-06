@@ -1,3 +1,20 @@
+"""Admin and Maintainer control panels (inline keyboards + callbacks).
+
+This module defines the management dashboards for administrators and maintainers,
+including buttons/menus for:
+- Viewing and acting on reports and users
+- Database utilities (SQLite/Postgres table resets, backups, sync)
+- Maintainer/admin management (permissions, add/remove)
+- Index configuration (auto/manual) for attendance/biometric/PAT parsing
+- CGPA/CIE trackers and server stats
+
+Routing is centralized in `manager_callback_function`, which inspects
+`callback_query.data` and delegates to the appropriate operations in
+`METHODS.operations`, `METHODS.manager_operations`, and DB helpers.
+
+Note: Many actions are destructive (e.g., table resets) or privileged. This
+UI is intended strictly for admins/maintainers with appropriate access flags.
+"""
 from pyrogram.types import InlineKeyboardButton,InlineKeyboardMarkup
 import asyncio
 from DATABASE import managers_handler,tdatabase,pgdatabase,user_settings
@@ -31,19 +48,25 @@ ADMIN_BUTTONS = InlineKeyboardMarkup(
 )
 
 async def start_admin_buttons(bot,message):
+    """Show the Admin dashboard with management actions.
+
+    Parameters:
+    - bot: Pyrogram client/session (unused here but kept for symmetry).
+    - message: The triggering message to reply to.
     """
-    This function is used to start the admin buttons
-    :param bot: Client session
-    :param message: Message of the user"""
     await message.reply_text(ADMIN_MESSAGE,reply_markup = ADMIN_BUTTONS)
 
 async def start_add_maintainer_button(maintainer_chat_id,maintainer_name):
-    """
-    This Funtion is used to generate a yes or no button,
-    in Yes button the chat_id and name will be integrated.
-    :maintainer_chat_id: Chat id of the maintainer
-    :maintainer_name: Name of the maintainer
-    :return: Returns Buttons Containing Yes and No
+    """Build a Yes/No keyboard to confirm adding a maintainer.
+
+    The "Yes" button encodes both maintainer name and chat_id in callback_data.
+
+    Parameters:
+    - maintainer_chat_id: Chat ID for the prospective maintainer.
+    - maintainer_name: Display name to show and store.
+
+    Returns:
+    - InlineKeyboardMarkup with Yes/No options.
     """
     add_maintainer_button = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -54,27 +77,31 @@ async def start_add_maintainer_button(maintainer_chat_id,maintainer_name):
 
     return add_maintainer_button
 async def generate_permission_buttons(
-        chat_id,access_users,announcement,
-        configure,show_reports,reply_reports,
-        clear_reports,ban_username,
-        unban_username,manage_maintainers,
-        logs):
-    """
-    This Function is used to generate the buttons containing all the permissions
-    
-    :param chat_id: Chat id of the manager
-    :param access_users: Boolean value by which we can decide whether he has access to the users button or not.
-    :param announcement: Boolean value by which we can decide whether he has access to announcements or not.
-    :param configure: Boolean value by which we can decide whether he has access to the configure or not.
-    :param show_reports: Boolean value by which we can decide whether he has access to the reports or not.
-    :param reply_reports: Boolean value by which we can decide whether he has access to reply_reports or not.
-    :param clear_reports: Boolean value by which we can decide whether he has access to the clear_reports or not.
-    :param ban_username: Boolean value by which we can decide whether he has access to ban a user or not.
-    :param unban_username:Boolean value by which we can decide whether he has access to unban_a user or not.
-    :param manage_maintainers: Boolean value by which we can decide whether he has access to manage the maintainers or not.
-    :param logs: Boolean value by which we can decide whether he has access to the logs or not.
-    
-    :returns: Returns buttons based on above boolean values.
+    chat_id,
+    access_users,
+    announcement,
+    configure,
+    show_reports,
+    reply_reports,
+    clear_reports,
+    ban_username,
+    unban_username,
+    manage_maintainers,
+    logs,
+):
+    """Generate per-permission toggle buttons for a maintainer.
+
+    Each permission shows "On/Off" and encodes the current value + chat_id in
+    callback_data for the corresponding handler to flip the state.
+
+    Parameters:
+    - chat_id: Maintainer chat id for which buttons are generated.
+    - access_users, announcement, configure, show_reports, reply_reports,
+      clear_reports, ban_username, unban_username, manage_maintainers, logs:
+      Integers used as booleans (1 On / 0 Off). Use None to omit a permission.
+
+    Returns:
+    - A list of button rows suitable for InlineKeyboardMarkup.
     """
     Button = []
     if access_users is not None:
@@ -142,10 +169,14 @@ async def generate_permission_buttons(
     return Button
 
 async def generate_maintainer_buttons(chat_id):
+    """Build the maintainer dashboard based on access flags.
+
+    Parameters:
+    - chat_id: Maintainer chat id.
+
+    Returns:
+    - List of button rows reflecting the maintainer's allowed actions.
     """
-    This Function is used to generate maintainer buttons for specified chat_id
-    :param chat_id: Chat id of the user
-    :return: returns buttons for the mainainer"""
     access_data_mode = await managers_handler.get_control_access(chat_id) 
     if access_data_mode != "Full":
         access_data = await managers_handler.get_access_data(chat_id)
@@ -176,6 +207,10 @@ async def generate_maintainer_buttons(chat_id):
         maintainer_buttons.append([cgpa_tracker_button])
         return maintainer_buttons
 async def start_maintainer_button(bot,message):
+    """Show the Maintainer dashboard for the calling user.
+
+    If the user is not a maintainer, this is a no-op.
+    """
     chat_id = message.chat.id
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     maintainer_name = await managers_handler.fetch_name(chat_id)
@@ -188,6 +223,22 @@ async def start_maintainer_button(bot,message):
     await message.reply_text(f"Hey {maintainer_name}\n\nThese are your maintainer controls.",reply_markup = maintainer_buttons)
         
 async def manager_callback_function(bot,callback_query):
+    """Route all admin/maintainer callbacks and execute actions.
+
+    Handles:
+    - Logs, Reports (show, replied, clear), Users (counts, QR list)
+    - Database menus and destructive resets for SQLite/Postgres
+    - Backup credentials/settings and cross-DB sync operations
+    - Maintainer management (list, select, permissions, remove)
+    - Admin management (list, select, quit/remove responsibilities)
+    - Banned users (list, ban/unban specific usernames)
+    - Index configuration (auto from HTML via `extract_index`, or manual)
+    - CGPA and CIE trackers (start/stop, status views)
+    - Server stats display
+
+    Returns:
+    - None; operations are side-effectful (messages edited/sent; DB updated).
+    """
     if callback_query.data == "manager_log_file":
         _message = callback_query.message
         chat_id = _message.chat.id
@@ -318,6 +369,7 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             reply_markup =  SQLITE3_BUTTONS
         )
     elif "manager_select_sqlite3" in callback_query.data:
+        # WARNING: Admin-only. These actions can reset datasets permanently.
         table_name = callback_query.data.split("-")[1]
         SQLITE3_RESET_TEXT = f"Here are few operations that you can perform.\n\n\ttable - {table_name} table"
         SQLITE3_RESET_BUTTONS = InlineKeyboardMarkup(
@@ -344,6 +396,7 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             reply_markup =  SQLITE3_FINAL_RESET_DATABASE_BUTTON
         )
     elif "manager_reset_final_sqlite3" in callback_query.data:
+        # Destructive: Clear specific SQLite tables based on selection.
         table_name = callback_query.data.split("-")[1]
         if table_name == "user_sessions":
             await tdatabase.clear_sessions_table()
@@ -387,6 +440,7 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             reply_markup = POSTGRES_BUTTONS
         )
     elif "manager_select_postgres" in callback_query.data:
+        # WARNING: Admin-only. These actions can reset datasets permanently.
         table_name = callback_query.data.split("-")[1]
         POSTGRES_RESET_TEXT = f"Here are few operations that you can perform in Postgres Database.\n\n\ttable - {table_name} table"
         POSTGRES_RESET_BUTTONS = InlineKeyboardMarkup(
@@ -413,6 +467,7 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             reply_markup =  POSTGRES_FINAL_RESET_DATABASE_BUTTON
         )
     elif "manager_reset_final_postgres" in callback_query.data:
+        # Destructive: Clear specific Postgres tables based on selection.
         table_name = callback_query.data.split("-")[1]
         if table_name == "user_credentials_settings":
             await pgdatabase.clear_credentials_and_settings_database()
@@ -851,7 +906,7 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             reply_markup = BANNED_USERNAME_BUTTON
         )
     elif callback_query.data == "manager_configure":
-
+        # Index configuration entrypoint: auto-derive from HTML or set manually.
         CONFIGURE_BUTTON_TEXT = f"""
 Click on one of the buttons to continue."""
         CONFIGURE_BUTTON = InlineKeyboardMarkup(
@@ -880,6 +935,7 @@ Please wait while this configures the indexes. \n\nPressing the Back button does
             reply_markup = AUTO_CONFIGURE_BUTTON
         )
         try:
+            # Attendance table header indexes (course, conducted, attended, %, status)
             course_name_index,conducted_classes_index,attended_classes_index,attendance_percentage_index,att_status_index = await extract_index.get_attendance_indexes(bot,_message)
             await user_settings.set_attendance_indexes(course_name_index,conducted_classes_index,attended_classes_index,attendance_percentage_index,att_status_index)
             await pgdatabase.set_attendance_indexes(await user_settings.get_attendance_index_values())
@@ -903,6 +959,7 @@ Please wait while this configures the indexes. \n\nPressing the Back button does
 """
         await bot.send_message(chat_id,ATTENDANCE_INDEX_TEXT)
         try:
+            # Biometric table header indexes (intime, outtime, status)
             intime_index,outtime_index,bio_status_index= await extract_index.get_biometric_indexes(bot,_message)
             await user_settings.set_biometric_indexes(intime_index,outtime_index,bio_status_index)
             await pgdatabase.set_biometric_indexes(await user_settings.get_biometric_index_values())
@@ -922,6 +979,7 @@ Please wait while this configures the indexes. \n\nPressing the Back button does
 ```"""
         await bot.send_message(chat_id,BIOMETRIC_INDEX_TEXT)
         try:
+            # PAT attendance table header indexes (course, conducted, attended, %, status)
             course_name_index,conducted_classes_index,attended_classes_index,pat_attendance_percentage_index,pat_status_index = await extract_index.get_pat_indexes(bot,_message)
             await user_settings.set_pat_attendance_indexes(course_name_index,conducted_classes_index,attended_classes_index,pat_attendance_percentage_index,pat_status_index)
             await pgdatabase.set_pat_attendance_indexes(await user_settings.get_pat_attendance_index_values())
@@ -968,6 +1026,7 @@ Select one of the buttons from the choices given."""
             reply_markup = MANUAL_CONFIGURE_BUTTON
         )
     elif callback_query.data == "manager_index_attendance":
+        # Manual tweak of attendance indexes (persist to settings only here).
         current_attendance_index_values = await user_settings.get_attendance_index_values()
         if not current_attendance_index_values:
             await user_settings.set_default_attendance_indexes()
@@ -1009,6 +1068,7 @@ The Changes that you have made are saved temporarily\n\n To save permanently Cli
         )
     
     elif callback_query.data == "manager_index_pat_att":
+        # Manual tweak of PAT attendance indexes (settings only; save separately).
         current_pat_attendance_index_values = await user_settings.get_pat_attendance_index_values()
         if not current_pat_attendance_index_values:
             await user_settings.set_default_pat_attendance_indexes()
@@ -1049,6 +1109,7 @@ The Changes that you have made are saved temporarily\n\n To save permanently Cli
             reply_markup = MANUAL_PAT_ATTENDANCE_INDEX_BUTTON
         )
     elif callback_query.data == "manager_index_biometric":
+        # Manual tweak of biometric indexes (settings only; save separately).
         biometric_index_values = await user_settings.get_biometric_index_values()
         if not biometric_index_values:
             await user_settings.set_default_biometric_indexes()
@@ -1081,6 +1142,7 @@ The Changes that you have made are saved temporarily\n\n To save permanently Cli
             reply_markup = MANUAL_BIO_ATTENDANCE_INDEX_BUTTON
         )
     elif  "manager_attendance" in callback_query.data:
+        # Increment/decrement specific attendance index then echo current values.
         vary, column = callback_query.data.split("-")[1:]
         current_attendance_index_values = await user_settings.get_attendance_index_values()
         course_name_index = current_attendance_index_values['course_name']
@@ -1148,6 +1210,7 @@ STATUS INDEX            : {att_status_index}
             reply_markup = MANUAL_ATTENDANCE_INDEX_BUTTON
         )
     elif "manager_pat_attendance" in callback_query.data:
+        # Increment/decrement specific PAT attendance index then echo current values.
         vary, column = callback_query.data.split("-")[1:]
         current_attendance_index_values = await user_settings.get_pat_attendance_index_values()
         course_name_index = current_attendance_index_values['course_name']
@@ -1215,6 +1278,7 @@ STATUS INDEX            : {att_status_index}
             reply_markup = MANUAL_PAT_ATTENDANCE_INDEX_BUTTON
         )
     elif "manager_bio_attendance" in callback_query.data:
+        # Increment/decrement specific biometric index then echo current values.
         vary, column = callback_query.data.split("-")[1:]
         biometric_index_values = await user_settings.get_biometric_index_values()
         bio_status_index = int(biometric_index_values['status'])
@@ -1267,6 +1331,7 @@ STATUS INDEX            : {bio_status_index}
             reply_markup = MANUAL_BIO_ATTENDANCE_INDEX_BUTTON
         )
     elif "manager_save_indexes" in callback_query.data:
+        # Persist the currently staged index values from settings to Postgres.
         column = callback_query.data.split("-")[1:][0]
         if column == "attendance":
             attendance_index_values_dictionary = await user_settings.get_attendance_index_values()

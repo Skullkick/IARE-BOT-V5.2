@@ -1,16 +1,45 @@
+"""
+HTML index extractors for attendance, PAT, and biometric tables.
+
+These helpers authenticate using the user's saved session (from
+``DATABASE.tdatabase``), fetch the relevant Samvidha pages, and compute
+the zero-based column indices for specific headers by inspecting the
+rendered HTML tables. The resulting tuples are typically persisted to the
+database by higher-level configuration flows and then reused by scraping
+logic elsewhere in the bot.
+
+Behavior
+- If the user session is missing/expired, a notification is sent via the
+    ``bot`` and the function returns early.
+- If the remote page indicates a logged-out state, these functions trigger
+    a logout flow and may recall themselves after a silent re-login attempt.
+- A KeyError is raised if any expected header is not present in the page.
+
+Note: Only docstrings have been added here; function logic is unchanged.
+"""
 from bs4 import BeautifulSoup
 import re,requests
 from DATABASE import tdatabase
 from METHODS import operations
 
 async def get_attendance_indexes(bot,message):
-    """
-    Extracts the indices of specific headers from the attendance HTML table.
-    Raises a KeyError if any specified header is not found.
+    """Compute column indices for the Attendance table headers.
 
-    Returns:
-        tuple: A tuple containing the indices of 'Course Name', 'Conducted',
-               'Attended', 'Attendance %', 'Status'.
+    Fetches the student's Attendance page and builds a header-to-index
+    mapping from the first table header row. The returned tuple follows
+    this order: ``('Course Name', 'Conducted', 'Attended',
+    'Attendance %', 'Status')``.
+
+    Parameters
+    - bot: Telegram client used to send messages (async context).
+    - message: Incoming message object supplying ``chat.id``.
+
+    Returns
+    - tuple[int, int, int, int, int]: Indices for the above headers.
+    - None: When the user is not logged in and auto-login fails.
+
+    Raises
+    - KeyError: If any expected header is missing from the page/table.
     """
     try:
         chat_id = message.chat.id
@@ -68,14 +97,22 @@ async def get_attendance_indexes(bot,message):
         await bot.send_message(chat_id,f"Error : {e}")
 
 async def get_pat_indexes(bot,message):
+    """Compute column indices for the PAT Attendance table headers.
 
-    """
-    Extracts the indices of specific headers from the PAT HTML table.
-    Raises a KeyError if any specified header is not found.
+    Loads the PAT view and selects the relevant table (third in the page)
+    to build a header-to-index mapping. The returned tuple follows this
+    order: ``('Course Name', 'Conducted', 'Attended', 'Attendance %', 'Status')``.
 
-    Returns:
-        tuple: A tuple containing the indices of 'Course Name', 'Conducted',
-               'Attended', 'Attendance %', 'Status'.
+    Parameters
+    - bot: Telegram client used to send messages (async context).
+    - message: Incoming message object supplying ``chat.id``.
+
+    Returns
+    - tuple[int, int, int, int, int]: Indices for the above headers.
+    - None: When the user is not logged in and auto-login fails.
+
+    Raises
+    - KeyError: If any expected header is missing from the page/table.
     """
     chat_id = message.chat.id
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
@@ -130,14 +167,22 @@ async def get_pat_indexes(bot,message):
     return index_tuple
 
 async def get_biometric_indexes(bot,message):
+    """Compute column indices for the Biometric table headers.
 
-    """
-    Extracts the indices of specific headers from the biometric HTML table.
-    Excludes the 'JNTUH - AEBAS' header.
-    Raises a KeyError if any specified header is not found.
+    Fetches the biometric page and builds a header-to-index mapping while
+    ignoring the banner header ``"JNTUH - AEBAS"``. The returned tuple
+    follows this order: ``('In Time', 'Out Time', 'Status')``.
 
-    Returns:
-        tuple: A tuple containing the indices of 'In Time', 'Out Time', 'Status'.
+    Parameters
+    - bot: Telegram client used to send messages (async context).
+    - message: Incoming message object supplying ``chat.id``.
+
+    Returns
+    - tuple[int, int, int]: Indices for the above headers.
+    - None: When the user is not logged in and auto-login fails.
+
+    Raises
+    - KeyError: If any expected header is missing from the page/table.
     """
     try:
         chat_id = message.chat.id

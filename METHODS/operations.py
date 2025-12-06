@@ -1,3 +1,21 @@
+"""
+High-level operations for the IARE bot.
+
+This module contains user-facing command handlers and helper functions for:
+- Authentication and session management
+- Fetching and formatting data from the Samvidha portal (attendance, biometric,
+  PAT, GPA, CIE, profile, payment)
+- User reports and admin/maintainer utilities
+- One-way synchronization between Postgres and local SQLite caches
+
+Most functions are designed to be called by Pyrogram handlers and follow a
+consistent pattern:
+1) Ensure a session exists (attempt auto-login if needed)
+2) Fetch and parse remote HTML endpoints
+3) Format responses in either updated or traditional UI based on user settings
+4) Route users back to appropriate inline buttons
+"""
+
 from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
 from Buttons import buttons
 from bs4 import BeautifulSoup 
@@ -33,10 +51,18 @@ NO USER FOUND
 
 
 async def get_indian_time():
+    """Return current datetime in Asia/Kolkata timezone."""
     return datetime.now(timezone('Asia/Kolkata'))
 async def get_random_greeting(bot,message):
-    """
-    Get a random greeting based on the time and day.
+    """Reply with a time/day-aware greeting and login prompt.
+
+    Selects a greeting using local Indian time and weekday/weekend, replies to
+    the user, and shows login instructions if no session/credential is found;
+    otherwise renders the main user buttons.
+
+    Args:
+        bot: Pyrogram client.
+        message: Incoming message object.
     """
     chat_id = message.chat.id
     indian_time = await get_indian_time()
@@ -80,15 +106,23 @@ async def get_random_greeting(bot,message):
 
 
 async def is_user_logged_in(bot,message):
+    """Return True if a user session exists for the chat."""
     chat_id = message.chat.id
     if await tdatabase.load_user_session(chat_id):
         return True
 async def perform_login( username, password):
-    """
-    Perform login with the provided username and password.
+    """Log into Samvidha with credentials and return session payload.
+
+    Establishes a session, extracts `PHPSESSID`, posts credentials, and verifies
+    the student dashboard title to confirm success.
+
+    Args:
+        username: Roll number/username used by Samvidha.
+        password: Associated password.
 
     Returns:
-        bool: True if login is successful, False otherwise.
+        dict | None: On success, dict with `cookies`, `headers`, `username`;
+        otherwise None.
     """
     # Set up the necessary headers and cookies
     cookies = {'PHPSESSID': ''}
@@ -138,6 +172,16 @@ async def perform_login( username, password):
 
 
 async def login(bot,message):
+    """Handle `/login <username> <password>` and persist session.
+
+    Validates usage, prevents banned users, logs in via `perform_login`, stores
+    session and username locally, and optionally offers to save credentials to
+    Postgres. Finally shows the user buttons.
+
+    Args:
+        bot: Pyrogram client.
+        message: User message containing credentials.
+    """
     chat_id = message.chat.id
     command_args = message.text.split()[1:]
     # banned_usernames = await tdatabase.get_all_banned_usernames()
@@ -188,6 +232,19 @@ async def login(bot,message):
         await bot.send_message(chat_id,text="Invalid username or password.")
 
 async def auto_login_by_database(bot,message,chat_id):
+    """Attempt automatic login using saved local credentials.
+
+    Uses locally stored username/password for the chat, handles banned-user
+    cleanup, and stores session on success.
+
+    Args:
+        bot: Pyrogram client.
+        message: Optional context message (for notifications).
+        chat_id: Telegram chat id.
+
+    Returns:
+        bool: True if auto-login succeeded; False otherwise.
+    """
     # username,password = await pgdatabase.retrieve_credentials_from_database(chat_id) This Can be used if you want to take credentials from cloud database.
     username,password = await tdatabase.fetch_credentials_from_database(chat_id) # This can be used to Fetch credentials from the Local database.
     # Initializes settings for the user if the settings are not present
@@ -215,6 +272,7 @@ async def auto_login_by_database(bot,message,chat_id):
         return False
 
 async def logout(bot,message):
+    """Log out from Samvidha and clear local session for the chat."""
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -235,6 +293,7 @@ async def logout(bot,message):
     await message.reply("Logout successful.")
 
 async def logout_user_and_remove(bot,message):
+    """Force logout and remove local session regardless of current state."""
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
 
@@ -251,6 +310,7 @@ async def logout_user_and_remove(bot,message):
     await message.reply("Logout successful.")
 
 async def logout_user_if_logged_out(bot,chat_id):
+    """Clean local session if remote indicates user is logged out."""
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
         return
@@ -260,6 +320,7 @@ async def logout_user_if_logged_out(bot,chat_id):
     await bot.send_message(chat_id, text="Your session has been logged out due to inactivity.")
 
 async def silent_logout_user_if_logged_out(bot,chat_id):
+    """Silently clear local session when remote logout is detected."""
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
         return
@@ -267,6 +328,16 @@ async def silent_logout_user_if_logged_out(bot,chat_id):
     await tdatabase.delete_user_session(chat_id)
 
 async def attendance(bot,message):
+    """Fetch and display per-subject attendance with overall average.
+
+    Ensures a valid session (attempts auto-login), retrieves the attendance
+    page, parses the target table, and sends per-course details plus an overall
+    average. UI formatting depends on the user's settings.
+
+    Args:
+        bot: Pyrogram client.
+        message: Incoming message from the user.
+    """
     chat_id = message.chat.id
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -396,6 +467,12 @@ async def attendance(bot,message):
     await buttons.start_user_buttons(bot,message)
 
 async def biometric(bot, message):
+    """Show biometric presence summary and 6-hour-gap analysis.
+
+    Computes totals for present/absent days, biometric percentage, estimated
+    leaves at the configured threshold, and a secondary metric based on a
+    six-hour in/out gap heuristic.
+    """
     chat_id = message.chat.id
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -562,6 +639,17 @@ async def biometric(bot, message):
 
 
 async def six_hours_biometric(biometric_rows, totaldays, intime_index,outtime_index):
+    """Calculate percent of days with at least 6 hours between in/out times.
+
+    Args:
+        biometric_rows: Parsed table rows from the biometric page.
+        totaldays: Total number of days included in the table.
+        intime_index: Column index for in-time.
+        outtime_index: Column index for out-time.
+
+    Returns:
+        tuple[float,int]: (percentage_with_6h_gap, days_with_6h_gap)
+    """
     intimes, outtimes = [], []
     time_gap_more_than_six_hours = 0
     for row in biometric_rows:
@@ -582,6 +670,19 @@ async def six_hours_biometric(biometric_rows, totaldays, intime_index,outtime_in
     return six_percentage,time_gap_more_than_six_hours
 
 async def biometric_leaves(chat_id,present_days,total_days):
+    """Compute leaves available or days needed to reach biometric threshold.
+
+    Returns a count with a status flag: True when leaves are available (above
+    threshold), False when additional days must be attended.
+
+    Args:
+        chat_id: Telegram chat id for user settings lookup.
+        present_days: Number of days marked present.
+        total_days: Total number of days considered.
+
+    Returns:
+        tuple[int,bool]: (count, is_leave_available)
+    """
     biometric_threshold = await user_settings.fetch_biometric_threshold(chat_id)
     biometric_percentage = present_days / total_days * 100
     if biometric_percentage > biometric_threshold[0]:
@@ -600,6 +701,12 @@ async def biometric_leaves(chat_id,present_days,total_days):
         return no_of_leaves,True
 
 async def bunk(bot,message):
+    """Advise how many classes can be bunked or must be attended.
+
+    For each subject, evaluates current percentage against user-defined
+    threshold and calculates the safe bunk count or required attendance to
+    recover to threshold.
+    """
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -770,6 +877,7 @@ async def generate_unique_id():
 # CHECKS IF REGISTERED FOR PAT
 
 async def check_pat_student(bot,message):
+    """Return True if PAT attendance page is accessible for the student."""
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
@@ -801,6 +909,7 @@ async def check_pat_student(bot,message):
 # PAT ATTENDENCE IF REGISTERED
 
 async def pat_attendance(bot,message):
+    """Display PAT attendance per course and overall average."""
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -902,6 +1011,7 @@ async def pat_attendance(bot,message):
     await buttons.start_user_buttons(bot,message)
 
 async def gpa(bot,message):
+    """Return a formatted message with SGPA by semester and overall CGPA."""
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -977,6 +1087,12 @@ async def gpa(bot,message):
         return False
 
 async def get_certificates(bot,message,profile_pic : bool,aadhar_card : bool,dob_certificate : bool,income_certificate : bool,ssc_memo : bool,inter_memo : bool):
+    """Fetch and send a requested student document image from S3.
+
+    Uses the logged-in user's roll number to build the path to profile or
+    document images (Aadhar, DOB, Income, SSC, Inter memo) and sends the image
+    back to the chat if available.
+    """
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -1032,6 +1148,7 @@ Document not available""")
     await buttons.start_certificates_buttons(message)
 
 async def profile_details(bot,message):
+    """Fetch, parse, and render key profile details in sections."""
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -1110,6 +1227,15 @@ async def profile_details(bot,message):
     return profile_details_message
 
 async def payment_details(bot,message):
+    """Return tuition fee payment status message for the current user.
+
+    WARNING: Do NOT add or generate any payment links here.
+    This function is only for displaying payment status, not for handling or initiating payments.
+
+    IMPORTANT: Never display or store any payment URLs or links in this function.
+    Payment links may expire or change. If an outdated link is shown and a user pays, it could result in financial loss.
+    Always instruct users to pay only through the official Samvidha portal, not via any links from this bot.
+    """
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -1204,6 +1330,7 @@ Error : {e}
             return f"**PAYMENT DETAILS**\n\nError : {e}"
  
 async def get_sem_count(bot,chat_id):
+    """Determine how many semesters are present in the CIE page tables."""
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -1243,6 +1370,14 @@ async def get_sem_count(bot,chat_id):
         return None
 
 async def cie_marks(bot,message,sem_no):
+    """Show CIE-1 and CIE-2 marks per subject and totals for a semester.
+
+    Args:
+        bot: Pyrogram client.
+        message: User message providing chat context.
+        sem_no: Zero-based index when counting semesters from oldest to newest
+            after reversing the table order.
+    """
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -1359,6 +1494,11 @@ async def cie_marks(bot,message,sem_no):
 
 
 async def report(bot,message):
+    """Store a user report and forward it to admins/maintainers.
+
+    Validates session, extracts the free-form report text, persists it locally
+    and in Postgres, and forwards to all admins/maintainers when available.
+    """
     chat_id = message.from_user.id
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -1409,6 +1549,12 @@ It seems that attendance records are not updating correctly after submitting.
     else:
         await bot.send_message(chat_id,"Although an error occurred while sending, your request has been successfully stored in the database.")
 async def reply_to_user(bot,message):
+    """Reply to a stored user report by quoting the report message.
+
+    Only admins or authorized maintainers can reply. Extracts report ID from
+    the quoted message, sends the reply to the user, and marks the report as
+    replied in both databases.
+    """
     chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
@@ -1460,6 +1606,7 @@ async def reply_to_user(bot,message):
         await bot.send_message(chat_id=developer_chat_id, text=error_message)
 
 async def show_reports(bot,message):
+    """List all pending reports to admins/maintainers with proper access."""
     chat_id = message.chat.id
     reports = await tdatabase.load_allreports()
     # if message.chat.id != BOT_DEVELOPER_CHAT_ID and message.chat.id != BOT_MAINTAINER_CHAT_ID:
@@ -1481,6 +1628,7 @@ async def show_reports(bot,message):
         await bot.send_message(chat_id, text=report_message)
 
 async def show_replied_reports(bot,message):
+    """List previously replied reports with maintainer name and message."""
     chat_id = message.chat.id
     reports = await tdatabase.load_all_replied_reports()
     # if message.chat.id != BOT_DEVELOPER_CHAT_ID and message.chat.id != BOT_MAINTAINER_CHAT_ID:
@@ -1503,6 +1651,7 @@ async def show_replied_reports(bot,message):
         await bot.send_message(chat_id, text=report_message)
 
 async def list_users(bot,chat_id):
+    """Generate a QR code containing all active usernames and send it."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
     if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
@@ -1521,6 +1670,7 @@ async def list_users(bot,chat_id):
 
 
 async def get_logs(bot, chat_id):
+    """Send the current error log file to authorized users, if present."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()  # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()  # Fetch all maintainer chat ids
     if chat_id not in admin_chat_ids and chat_id not in maintainer_chat_ids:
@@ -1549,6 +1699,7 @@ async def get_logs(bot, chat_id):
         await bot.send_message(chat_id, "No log file found.")
 
 async def total_users(bot,message):
+    """Display the total number of users recorded in the local database."""
     chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
@@ -1562,6 +1713,7 @@ async def total_users(bot,message):
     await bot.send_message(message.chat.id,f"Total users: {total_count}")
 
 async def clean_pending_reports(bot,message):
+    """Clear all pending reports from both Postgres and local storage."""
     chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
@@ -1577,6 +1729,7 @@ async def clean_pending_reports(bot,message):
 
 
 async def perform_sync_credentials(bot):
+    """Sync credentials from Postgres to local SQLite storage."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1608,6 +1761,7 @@ async def perform_sync_credentials(bot):
             print(f"Error storing credentials to database : {e}")
 
 async def perform_sync_reports(bot):
+    """Sync user reports from Postgres to local SQLite storage."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1639,6 +1793,7 @@ async def perform_sync_reports(bot):
             print(f"Error storing reports to local database : {e}")
 
 async def perform_sync_banned_users(bot):
+    """Sync banned usernames list from Postgres to local SQLite."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1670,6 +1825,7 @@ async def perform_sync_banned_users(bot):
             print(f"Error storing banned users to local database : {e}")
 
 async def perform_sync_user_settings(bot):
+    """Sync user settings from Postgres to local SQLite (type-converted)."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1703,6 +1859,7 @@ async def perform_sync_user_settings(bot):
             print(f"Error storing user settings to local database : {e}")
 
 async def perform_sync_bot_manager_data(bot):
+    """Sync manager/admin roles and access flags from Postgres to SQLite."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1763,6 +1920,7 @@ async def perform_sync_bot_manager_data(bot):
             print(f"Error storing bot managers data to local database : {e}")
 
 async def perform_sync_index_data(bot):
+    """Sync HTML parsing index values from Postgres to local storage."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1794,6 +1952,7 @@ async def perform_sync_index_data(bot):
             print(f"Error storing index to local database : {e}")
 
 async def perform_sync_cgpa_tracker(bot):
+    """Sync CGPA tracker state from Postgres to local storage."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1826,6 +1985,7 @@ async def perform_sync_cgpa_tracker(bot):
             print(f"Error storing cgpa_tracker data to local database : {e}")
 
 async def perform_sync_cie_tracker(bot):
+    """Sync CIE tracker state from Postgres to local storage."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1858,6 +2018,7 @@ async def perform_sync_cie_tracker(bot):
             print(f"Error storing cie_tracker data to local database : {e}")
 
 async def perform_sync_labs_data(bot):
+    """Sync labs metadata (subjects/weeks) from Postgres to local storage."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     try:
@@ -1890,9 +2051,10 @@ async def perform_sync_labs_data(bot):
 
 async def sync_databases(bot):
     """
-    This Function is used to execute all the functions which sync the local database with the Postgres database.
-    
-    :param bot: Pyrogram client
+    Run a one-way sync from Postgres into local SQLite for all categories.
+
+    Args:
+        bot: Pyrogram client used for optional admin/maintainer status reports.
     """
     await perform_sync_index_data(bot)
     await perform_sync_bot_manager_data(bot)
@@ -1905,10 +2067,7 @@ async def sync_databases(bot):
     await perform_sync_reports(bot)
 
 async def help_command(bot,message):
-    """
-    Handler function for the /help command.
-    Provides information about the available commands.
-    """
+    """Show available commands tailored to user role (user/admin/maintainer)."""
     chat_id = message.chat.id
     help_msg = """Available commands:
 
@@ -2004,6 +2163,7 @@ async def help_command(bot,message):
             await buttons.start_user_buttons(bot,message)
 
 async def reset_user_sessions_database(bot,message):
+    """Admin-only: clear the local sessions table (force re-login for all)."""
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     chat_id = message.chat.id
     if chat_id in admin_chat_ids:
