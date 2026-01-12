@@ -539,7 +539,7 @@ async def biometric(bot, message):
     for row in biometric_rows:
         # Extract data from each row
         cells = row.find_all('td')
-        status = cells[6].text.strip()
+        status = cells[status_index].text.strip()
         if status.lower() == 'present':
             attendance_data['Total Days Present'] += 1
         else:
