@@ -235,7 +235,8 @@ async def add_admin_by_authorization(bot,message):
 async def announcement_to_all_users(bot, message):
     """
     This function is used to announce a message to all the users that are present in the 
-    Postgres database, this can only be used by BOT_DEVELOPER or BOT_MAINTAINER
+    Postgres database, this can only be used by BOT_DEVELOPER or BOT_MAINTAINER.
+    Uses queue-based rate limiting (20-25 messages/second) to avoid Telegram rate limits.
     """
     admin_or_maintainer_chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
@@ -266,72 +267,112 @@ async def announcement_to_all_users(bot, message):
 
 {developer_announcement}
 """
-    # Track successful sends
+    # Track successful sends and failures
     successful_sends = 0
+    failed_sends = 0
+    total_users = len(chat_ids)
+    
     announcement_status_dev = f"""
 ```ANNOUNCEMENT
 ● STATUS : Started sending.
+
+● TOTAL USERS : {total_users}
 ```
 """ 
     message_to_developer = await bot.send_message(admin_or_maintainer_chat_id,announcement_status_dev)
-    # Iterate over each chat ID and send the announcement message and documents
+    
+    # Create a queue for chat IDs
+    from asyncio import Queue
+    chat_queue = Queue()
+    
+    # Add all chat IDs to queue
     for chat_id in chat_ids:
-        total_users = len(chat_ids)
+        await chat_queue.put(chat_id)
+    
+    # Rate limiting: 20 messages per second (safe limit)
+    MESSAGES_PER_SECOND = 20
+    DELAY_BETWEEN_MESSAGES = 1.0 / MESSAGES_PER_SECOND
+    
+    # Last update time for status message
+    last_update_time = asyncio.get_event_loop().time()
+    UPDATE_INTERVAL = 2.0  # Update status every 2 seconds
+    
+    # Process queue
+    while not chat_queue.empty():
+        chat_id = await chat_queue.get()
+        
         try:
+            # Fetch UI mode for this user
             ui_mode = await user_settings.fetch_ui_bool(chat_id)
-            if ui_mode[0] == 0:
-                await bot.send_message(chat_id, announcement_message_updated_ui)
-            elif ui_mode[0] == 1:
-                await bot.send_message(chat_id, announcement_message_traditional_ui)
+            
+            # Determine which message format to use
+            if ui_mode and ui_mode[0] == 1:
+                message_to_send = announcement_message_traditional_ui
             else:
-                await bot.send_message(chat_id, announcement_message_updated_ui)
+                message_to_send = announcement_message_updated_ui
+            
+            # Send the announcement
+            await bot.send_message(chat_id, message_to_send)
             successful_sends += 1
+            
+            # Rate limiting delay
+            await asyncio.sleep(DELAY_BETWEEN_MESSAGES)
+            
+        except FloodWait as e:
+            # Handle FloodWait: Pause and re-queue
+            await bot.send_message(admin_or_maintainer_chat_id, f"⚠️ FloodWait triggered. Pausing for {e.value} seconds.")
+            await asyncio.sleep(e.value)
+            # Re-add to queue for retry
+            await chat_queue.put(chat_id)
+            continue
+            
+        except Exception as e:
+            # Log error and continue
+            failed_sends += 1
+            # Optionally log the error (don't spam admin with every error)
+            if failed_sends <= 5:  # Only show first 5 errors
+                await bot.send_message(admin_or_maintainer_chat_id, f"❌ Error for chat ID {chat_id}: {str(e)[:100]}")
+        
+        # Update status message periodically
+        current_time = asyncio.get_event_loop().time()
+        if current_time - last_update_time >= UPDATE_INTERVAL:
             announcement_status_dev = f"""
 ```ANNOUNCEMENT
-● STATUS     : Started sending.
+● STATUS     : Sending...
 
-● TOTAL USERS  : {total_users}
+● TOTAL USERS      : {total_users}
 
-● SUCCESSFULL SENDS : {successful_sends}
+● SUCCESSFUL SENDS : {successful_sends}
+
+● FAILED SENDS     : {failed_sends}
+
+● REMAINING        : {chat_queue.qsize()}
 ```
-""" 
-            await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
-        except FloodWait as e:
-            # Handle FloodWait: Pause and retry
-            await bot.send_message(admin_or_maintainer_chat_id, f"FloodWait triggered. Pausing for {e.value} seconds.")
-            await asyncio.sleep(e.value)  # Pause for the duration of the FloodWait
+"""
             try:
-                ui_mode = await user_settings.fetch_ui_bool(chat_id)
-                if ui_mode[0] == 0:
-                    await bot.send_message(chat_id, announcement_message_updated_ui)
-                elif ui_mode[0] == 1:
-                    await bot.send_message(chat_id, announcement_message_traditional_ui)
-                else:
-                    await bot.send_message(chat_id, announcement_message_updated_ui)
-                
-                successful_sends += 1
-            except Exception as retry_error:
-                await bot.send_message(admin_or_maintainer_chat_id, f"Retry failed for chat ID {chat_id}: {retry_error}")
-        except Exception as e:
-            await bot.send_message(admin_or_maintainer_chat_id, f"Error sending message to chat ID {chat_id}: {e}")
+                await bot.edit_message_text(admin_or_maintainer_chat_id, message_to_developer.id, announcement_status_dev)
+                last_update_time = current_time
+            except Exception:
+                pass  # Ignore edit errors
     
     # Calculate success percentage
-    total_attempts = len(chat_ids)
-    success_percentage = (successful_sends / total_attempts) * 100 if total_attempts > 0 else 0.0
+    success_percentage = (successful_sends / total_users) * 100 if total_users > 0 else 0.0
     announcement_status_dev = f"""
 ```ANNOUNCEMENT
-● STATUS : SENT
+● STATUS : COMPLETED
 
-● TOTAL USERS  : {total_attempts}
+● TOTAL USERS      : {total_users}
 
-● SUCCESSFULL SENDS : {successful_sends}
+● SUCCESSFUL SENDS : {successful_sends}
 
-● SUCCESS % : {success_percentage}
+● FAILED SENDS     : {failed_sends}
+
+● SUCCESS %        : {success_percentage:.2f}%
 
 ```
 """ 
-    # Send success percentage message
-    await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
+    # Send final status message
+    await bot.edit_message_text(admin_or_maintainer_chat_id, message_to_developer.id, announcement_status_dev)
 
 async def get_cgpa(bot,chat_id):
     """Return the latest CGPA for the logged-in user as a string.
