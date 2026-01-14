@@ -234,104 +234,142 @@ async def add_admin_by_authorization(bot,message):
 
 async def announcement_to_all_users(bot, message):
     """
-    This function is used to announce a message to all the users that are present in the 
-    Postgres database, this can only be used by BOT_DEVELOPER or BOT_MAINTAINER
+    Broadcast announcement to all users safely using:
+    - Queue-based distribution
+    - Multiple async workers
+
     """
-    admin_or_maintainer_chat_id = message.chat.id
-    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
-    maintainer_chat_id = await managers_handler.fetch_maintainer_chat_ids()
-    if admin_or_maintainer_chat_id not in admin_chat_ids and admin_or_maintainer_chat_id not in maintainer_chat_id:
+
+    admin_chat_id = message.chat.id
+    admin_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_ids = await managers_handler.fetch_maintainer_chat_ids()
+
+    if admin_chat_id not in admin_ids and admin_chat_id not in maintainer_ids:
         return
-    access_data = await managers_handler.get_access_data(admin_or_maintainer_chat_id)
-    maintainer_announcement_status = access_data[1]
-    if admin_or_maintainer_chat_id in maintainer_chat_id and maintainer_announcement_status != 1:
-        await bot.send_message(admin_or_maintainer_chat_id,"Permission denied. You cannot use this command.")
+
+    access_data = await managers_handler.get_access_data(admin_chat_id)
+    if admin_chat_id in maintainer_ids and access_data[1] != 1:
+        await bot.send_message(admin_chat_id, "Permission denied.")
         return
-    # Retrieve all chat IDs from database
+
+    try:
+        announcement_text = message.text.split("/announce", 1)[1].strip()
+    except Exception:
+        announcement_text = ""
+
+    if not announcement_text:
+        await bot.send_message(admin_chat_id, "Announcement cannot be empty.")
+        return
+
+    msg_updated_ui = f"""```ANNOUNCEMENT\n{announcement_text}\n```"""
+    msg_traditional_ui = f"""**ANNOUNCEMENT**\n\n{announcement_text}"""
+
+
     chat_ids = await pgdatabase.get_all_chat_ids()
-    # Get the announcement message from the input message
-    developer_announcement = message.text.split("/announce", 1)[1].strip()
-    
-    # Validate announcement message
-    if not developer_announcement:
-        await bot.send_message(admin_or_maintainer_chat_id, "Announcement cannot be empty.")
+    chat_ids.extend(admin_ids)
+    chat_ids.extend(maintainer_ids)
+    chat_ids = list(set(chat_ids))
+    total_users = len(chat_ids)
+
+    if total_users == 0:
+        await bot.send_message(admin_chat_id, "No users found.")
         return
-    announcement_message_updated_ui = f"""
-```ANNOUNCEMENT
-{developer_announcement}
-```
-"""
-    announcement_message_traditional_ui = f"""
-**ANNOUNCEMENT**
 
-{developer_announcement}
-"""
-    # Track successful sends
-    successful_sends = 0
-    announcement_status_dev = f"""
-```ANNOUNCEMENT
-● STATUS : Started sending.
-```
-""" 
-    message_to_developer = await bot.send_message(admin_or_maintainer_chat_id,announcement_status_dev)
-    # Iterate over each chat ID and send the announcement message and documents
-    for chat_id in chat_ids:
-        total_users = len(chat_ids)
-        try:
-            ui_mode = await user_settings.fetch_ui_bool(chat_id)
-            if ui_mode[0] == 0:
-                await bot.send_message(chat_id, announcement_message_updated_ui)
-            elif ui_mode[0] == 1:
-                await bot.send_message(chat_id, announcement_message_traditional_ui)
-            else:
-                await bot.send_message(chat_id, announcement_message_updated_ui)
-            successful_sends += 1
-            announcement_status_dev = f"""
-```ANNOUNCEMENT
-● STATUS     : Started sending.
+    status_message = await bot.send_message(
+        admin_chat_id,
+        f"""```ANNOUNCEMENT
+● STATUS : STARTED
+● TOTAL USERS : {total_users}
+```"""
+    )
 
-● TOTAL USERS  : {total_users}
+    queue = Queue()
+    for cid in chat_ids:
+        await queue.put(cid)
 
-● SUCCESSFULL SENDS : {successful_sends}
-```
-""" 
-            await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
-        except FloodWait as e:
-            # Handle FloodWait: Pause and retry
-            await bot.send_message(admin_or_maintainer_chat_id, f"FloodWait triggered. Pausing for {e.value} seconds.")
-            await asyncio.sleep(e.value)  # Pause for the duration of the FloodWait
+    successful = 0
+    failed = 0
+
+    WORKERS = 12
+    DELAY = 0.25 
+
+    last_update = asyncio.get_event_loop().time()
+    UPDATE_INTERVAL = 3.0
+
+    async def worker():
+        nonlocal successful, failed, last_update
+
+        while True:
+            try:
+                chat_id = queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return
+
             try:
                 ui_mode = await user_settings.fetch_ui_bool(chat_id)
-                if ui_mode[0] == 0:
-                    await bot.send_message(chat_id, announcement_message_updated_ui)
-                elif ui_mode[0] == 1:
-                    await bot.send_message(chat_id, announcement_message_traditional_ui)
-                else:
-                    await bot.send_message(chat_id, announcement_message_updated_ui)
-                
-                successful_sends += 1
-            except Exception as retry_error:
-                await bot.send_message(admin_or_maintainer_chat_id, f"Retry failed for chat ID {chat_id}: {retry_error}")
-        except Exception as e:
-            await bot.send_message(admin_or_maintainer_chat_id, f"Error sending message to chat ID {chat_id}: {e}")
+                text = msg_traditional_ui if ui_mode and ui_mode[0] == 1 else msg_updated_ui
+
+                await bot.send_message(chat_id, text)
+                successful += 1
+                await sleep(DELAY)
+
+            except FloodWait as e:
+                await sleep(e.value)
+                await queue.put(chat_id)
+
+            except Exception:
+                failed += 1
+
+            finally:
+                queue.task_done()
+
+            now = asyncio.get_event_loop().time()
+            if now - last_update >= UPDATE_INTERVAL:
+                try:
+                    await bot.edit_message_text(
+                        admin_chat_id,
+                        status_message.id,
+                        f"""```ANNOUNCEMENT
+● STATUS : SENDING
+● TOTAL USERS : {total_users}
+● SUCCESSFUL : {successful}
+● FAILED : {failed}
+● REMAINING : {queue.qsize()}
+```"""
+                    )
+                    last_update = now
+                except Exception:
+                    pass
+
+    start_time = asyncio.get_event_loop().time()
+    tasks = [create_task(worker()) for _ in range(WORKERS)]
+    await asyncio.gather(*tasks)
+    end_time = asyncio.get_event_loop().time()
+
+    total_seconds = end_time - start_time
+    minutes = int(total_seconds // 60)
+    seconds = int(total_seconds % 60)
     
-    # Calculate success percentage
-    total_attempts = len(chat_ids)
-    success_percentage = (successful_sends / total_attempts) * 100 if total_attempts > 0 else 0.0
-    announcement_status_dev = f"""
-```ANNOUNCEMENT
-● STATUS : SENT
+    processed_count = successful + failed
+    avg_time = (total_seconds / processed_count) if processed_count > 0 else 0.0
 
-● TOTAL USERS  : {total_attempts}
+    success_rate = (successful / total_users) * 100
 
-● SUCCESSFULL SENDS : {successful_sends}
+    await bot.edit_message_text(
+        admin_chat_id,
+        status_message.id,
+        f"""```ANNOUNCEMENT
+● STATUS : COMPLETED
+● TOTAL USERS : {total_users}
+● SUCCESSFUL : {successful}
+● FAILED : {failed}
+● SUCCESS % : {success_rate:.2f}%
 
-● SUCCESS % : {success_percentage}
+● TOTAL TIME : {minutes}m {seconds}s
+● AVG TIME/USER : {avg_time:.3f}s
+```"""
+    )
 
-```
-""" 
-    # Send success percentage message
-    await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
 
 async def get_cgpa(bot,chat_id):
     """Return the latest CGPA for the logged-in user as a string.
