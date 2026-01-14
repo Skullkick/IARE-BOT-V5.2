@@ -21,6 +21,8 @@ from bs4 import BeautifulSoup
 import sqlite3,os
 from pyrogram.errors import FloodWait
 import asyncio
+from asyncio import Queue, create_task, sleep
+from pyrogram.errors import FloodWait
 
 # access_users = access_data[0]
 # announcement = access_data[1]
@@ -369,8 +371,6 @@ async def announcement_to_all_users(bot, message):
 ● AVG TIME/USER : {avg_time:.3f}s
 ```"""
     )
-
-
 async def get_cgpa(bot,chat_id):
     """Return the latest CGPA for the logged-in user as a string.
 
