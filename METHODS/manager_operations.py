@@ -1,3 +1,16 @@
+"""
+Manager operations for the bot: admin/maintainer workflows, access control,
+announcements, academic trackers, and maintenance utilities.
+
+This module coordinates privileged actions (ban/unban usernames, manage maintainers
+and admins), broadcasts announcements, and runs trackers for CGPA/CIE updates.
+It integrates with local SQLite and remote PostgreSQL via `DATABASE.*`, user
+preferences in `user_settings`, and UI helpers in `Buttons.*`. Network calls
+use `requests` and Samvidha endpoints; parsing uses BeautifulSoup. Functions are
+asynchronous to work with Pyrogram's bot event loop. No business logic is altered
+by these docstrings.
+"""
+
 # This file containg all the code regarding manager operations on database, testing,etc..
 
 from DATABASE import tdatabase,pgdatabase,managers_handler,user_settings
@@ -8,6 +21,9 @@ from bs4 import BeautifulSoup
 import sqlite3,os
 from pyrogram.errors import FloodWait
 import asyncio
+
+from asyncio import Queue, create_task, sleep
+from pyrogram.errors import FloodWait
 
 # access_users = access_data[0]
 # announcement = access_data[1]
@@ -24,15 +40,21 @@ import asyncio
 ADMIN_AUTHORIZATION_CODE = os.environ.get("ADMIN_AUTHORIZATION_PASS")
 
 async def get_username(bot,chat_id):
+    """Return a user's display name given their chat id.
+
+    - bot: Pyrogram client used to fetch user info.
+    - chat_id: Telegram chat/user id to resolve.
+    """
     user = await bot.get_users(chat_id)
     user_name = f"{user.first_name} {user.last_name}" 
     return user_name
-async def get_all_details(bot,chat_id):
-    user = await bot.get_users(5877699254)
-    phone_number = user.phone_number if user.phone_number else "Phone number not available"
-    name = user.first_name + (" " + user.last_name if user.last_name else "")
-    return f"Name: {name} \n\n Phone number : {phone_number}"
 async def ban_username(bot,message):
+    """Ban one or more usernames.
+
+    - Validates caller permissions (admin/maintainer with access flag).
+    - Accepts multiple patterns; supports base + suffix expansion.
+    - Persists bans in both local (SQLite) and cloud (Postgres) stores.
+    """
     chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
@@ -91,6 +113,11 @@ async def ban_username(bot,message):
         await bot.send_message(chat_id,"Username banned successfully")
 
 async def unban_username(bot,message):
+    """Unban one or more usernames.
+
+    Mirrors `ban_username` logic but removes entries from local and cloud
+    ban lists, validating permissions and inputs.
+    """
     chat_id = message.chat.id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids() # Fetch all admin chat ids
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()# Fetch all maintainer chat ids
@@ -210,106 +237,149 @@ async def add_admin_by_authorization(bot,message):
 
 async def announcement_to_all_users(bot, message):
     """
-    This function is used to announce a message to all the users that are present in the 
-    Postgres database, this can only be used by BOT_DEVELOPER or BOT_MAINTAINER
+    Broadcast announcement to all users safely using:
+    - Queue-based distribution
+    - Multiple async workers
+
     """
-    admin_or_maintainer_chat_id = message.chat.id
-    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
-    maintainer_chat_id = await managers_handler.fetch_maintainer_chat_ids()
-    if admin_or_maintainer_chat_id not in admin_chat_ids and admin_or_maintainer_chat_id not in maintainer_chat_id:
+
+    admin_chat_id = message.chat.id
+    admin_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_ids = await managers_handler.fetch_maintainer_chat_ids()
+
+    if admin_chat_id not in admin_ids and admin_chat_id not in maintainer_ids:
         return
-    access_data = await managers_handler.get_access_data(admin_or_maintainer_chat_id)
-    maintainer_announcement_status = access_data[1]
-    if admin_or_maintainer_chat_id in maintainer_chat_id and maintainer_announcement_status != 1:
-        await bot.send_message(admin_or_maintainer_chat_id,"Permission denied. You cannot use this command.")
+
+    access_data = await managers_handler.get_access_data(admin_chat_id)
+    if admin_chat_id in maintainer_ids and access_data[1] != 1:
+        await bot.send_message(admin_chat_id, "Permission denied.")
         return
-    # Retrieve all chat IDs from database
+
+    try:
+        announcement_text = message.text.split("/announce", 1)[1].strip()
+    except Exception:
+        announcement_text = ""
+
+    if not announcement_text:
+        await bot.send_message(admin_chat_id, "Announcement cannot be empty.")
+        return
+
+    msg_updated_ui = f"""```ANNOUNCEMENT\n{announcement_text}\n```"""
+    msg_traditional_ui = f"""**ANNOUNCEMENT**\n\n{announcement_text}"""
+
+
     chat_ids = await pgdatabase.get_all_chat_ids()
-    # Get the announcement message from the input message
-    developer_announcement = message.text.split("/announce", 1)[1].strip()
-    
-    # Validate announcement message
-    if not developer_announcement:
-        await bot.send_message(admin_or_maintainer_chat_id, "Announcement cannot be empty.")
+    chat_ids.extend(admin_ids)
+    chat_ids.extend(maintainer_ids)
+    chat_ids = list(set(chat_ids))
+    total_users = len(chat_ids)
+
+    if total_users == 0:
+        await bot.send_message(admin_chat_id, "No users found.")
         return
-    announcement_message_updated_ui = f"""
-```ANNOUNCEMENT
-{developer_announcement}
-```
-"""
-    announcement_message_traditional_ui = f"""
-**ANNOUNCEMENT**
 
-{developer_announcement}
-"""
-    # Track successful sends
-    successful_sends = 0
-    announcement_status_dev = f"""
-```ANNOUNCEMENT
-● STATUS : Started sending.
-```
-""" 
-    message_to_developer = await bot.send_message(admin_or_maintainer_chat_id,announcement_status_dev)
-    # Iterate over each chat ID and send the announcement message and documents
-    for chat_id in chat_ids:
-        total_users = len(chat_ids)
-        try:
-            ui_mode = await user_settings.fetch_ui_bool(chat_id)
-            if ui_mode[0] == 0:
-                await bot.send_message(chat_id, announcement_message_updated_ui)
-            elif ui_mode[0] == 1:
-                await bot.send_message(chat_id, announcement_message_traditional_ui)
-            else:
-                await bot.send_message(chat_id, announcement_message_updated_ui)
-            successful_sends += 1
-            announcement_status_dev = f"""
-```ANNOUNCEMENT
-● STATUS     : Started sending.
+    status_message = await bot.send_message(
+        admin_chat_id,
+        f"""```ANNOUNCEMENT
+● STATUS : STARTED
+● TOTAL USERS : {total_users}
+```"""
+    )
 
-● TOTAL USERS  : {total_users}
+    queue = Queue()
+    for cid in chat_ids:
+        await queue.put(cid)
 
-● SUCCESSFULL SENDS : {successful_sends}
-```
-""" 
-            await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
-        except FloodWait as e:
-            # Handle FloodWait: Pause and retry
-            await bot.send_message(admin_or_maintainer_chat_id, f"FloodWait triggered. Pausing for {e.value} seconds.")
-            await asyncio.sleep(e.value)  # Pause for the duration of the FloodWait
+    successful = 0
+    failed = 0
+
+    WORKERS = 12
+    DELAY = 0.25 
+
+    last_update = asyncio.get_event_loop().time()
+    UPDATE_INTERVAL = 3.0
+
+    async def worker():
+        nonlocal successful, failed, last_update
+
+        while True:
+            try:
+                chat_id = queue.get_nowait()
+            except asyncio.QueueEmpty:
+                return
+
             try:
                 ui_mode = await user_settings.fetch_ui_bool(chat_id)
-                if ui_mode[0] == 0:
-                    await bot.send_message(chat_id, announcement_message_updated_ui)
-                elif ui_mode[0] == 1:
-                    await bot.send_message(chat_id, announcement_message_traditional_ui)
-                else:
-                    await bot.send_message(chat_id, announcement_message_updated_ui)
-                
-                successful_sends += 1
-            except Exception as retry_error:
-                await bot.send_message(admin_or_maintainer_chat_id, f"Retry failed for chat ID {chat_id}: {retry_error}")
-        except Exception as e:
-            await bot.send_message(admin_or_maintainer_chat_id, f"Error sending message to chat ID {chat_id}: {e}")
+                text = msg_traditional_ui if ui_mode and ui_mode[0] == 1 else msg_updated_ui
+
+                await bot.send_message(chat_id, text)
+                successful += 1
+                await sleep(DELAY)
+
+            except FloodWait as e:
+                await sleep(e.value)
+                await queue.put(chat_id)
+
+            except Exception:
+                failed += 1
+
+            finally:
+                queue.task_done()
+
+            now = asyncio.get_event_loop().time()
+            if now - last_update >= UPDATE_INTERVAL:
+                try:
+                    await bot.edit_message_text(
+                        admin_chat_id,
+                        status_message.id,
+                        f"""```ANNOUNCEMENT
+● STATUS : SENDING
+● TOTAL USERS : {total_users}
+● SUCCESSFUL : {successful}
+● FAILED : {failed}
+● REMAINING : {queue.qsize()}
+```"""
+                    )
+                    last_update = now
+                except Exception:
+                    pass
+
+    start_time = asyncio.get_event_loop().time()
+    tasks = [create_task(worker()) for _ in range(WORKERS)]
+    await asyncio.gather(*tasks)
+    end_time = asyncio.get_event_loop().time()
+
+    total_seconds = end_time - start_time
+    minutes = int(total_seconds // 60)
+    seconds = int(total_seconds % 60)
     
-    # Calculate success percentage
-    total_attempts = len(chat_ids)
-    success_percentage = (successful_sends / total_attempts) * 100 if total_attempts > 0 else 0.0
-    announcement_status_dev = f"""
-```ANNOUNCEMENT
-● STATUS : SENT
+    processed_count = successful + failed
+    avg_time = (total_seconds / processed_count) if processed_count > 0 else 0.0
 
-● TOTAL USERS  : {total_attempts}
+    success_rate = (successful / total_users) * 100
 
-● SUCCESSFULL SENDS : {successful_sends}
+    await bot.edit_message_text(
+        admin_chat_id,
+        status_message.id,
+        f"""```ANNOUNCEMENT
+● STATUS : COMPLETED
+● TOTAL USERS : {total_users}
+● SUCCESSFUL : {successful}
+● FAILED : {failed}
+● SUCCESS % : {success_rate:.2f}%
 
-● SUCCESS % : {success_percentage}
+● TOTAL TIME : {minutes}m {seconds}s
+● AVG TIME/USER : {avg_time:.3f}s
+```"""
+    )
 
-```
-""" 
-    # Send success percentage message
-    await bot.edit_message_text(admin_or_maintainer_chat_id,message_to_developer.id, announcement_status_dev)
 
 async def get_cgpa(bot,chat_id):
+    """Return the latest CGPA for the logged-in user as a string.
+
+    Uses the existing session or attempts silent auto-login. Validates session
+    against Samvidha and parses CGPA from the credit register page.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -350,6 +420,11 @@ async def get_cgpa(bot,chat_id):
     return str(cgpa)
 
 async def total_cie_marks(bot,chat_id):
+    """Compute and return total CIE marks for the current semester.
+
+    Scrapes the CIE page, aggregates CIE-1 and CIE-2 marks, and returns the
+    numeric total as a string. Returns an exception object on failure.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -427,6 +502,11 @@ async def total_cie_marks(bot,chat_id):
         return e
 
 async def gpa(bot,chat_id):
+    """Send SGPA per semester and CGPA summary to the user.
+
+    Parses the credit register page for SGPA values and latest CGPA and formats
+    a message based on the user's UI preference.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -484,6 +564,11 @@ async def gpa(bot,chat_id):
     except Exception as e:
         await bot.send_message(chat_id,f"Error Retrieving GPA : {e}")
 async def cie_marks(bot,chat_id):
+    """Send a formatted CIE-1 subject-wise breakdown and totals.
+
+    Extracts subject rows until practical marks, computes totals, and sends
+    a message in the selected UI style.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
@@ -580,6 +665,11 @@ async def cie_marks(bot,chat_id):
 
 
 async def cgpa_tracker(bot,chat_id):
+    """Notify the user when CGPA changes compared to the stored tracker.
+
+    When a change is detected and current CGPA is non-zero, sends a celebratory
+    update, displays GPA details, and disables the tracker in both databases.
+    """
     current_cgpa = await get_cgpa(bot,chat_id)
     all_tracker_data = await managers_handler.get_cgpa_tracker_details(chat_id) # retrieve previously stored cgpa
     if all_tracker_data:
@@ -609,6 +699,11 @@ The CGPA tracker has been reset. We hope you are happy with your semester result
 
 
 async def cie_tracker(bot,chat_id):
+    """Notify the user when total CIE changes compared to the tracker.
+
+    Sends an update and the detailed CIE marks, then disables the tracker
+    entries in local and cloud databases.
+    """
     current_cie_marks = await total_cie_marks(bot,chat_id)
     if not current_cie_marks:
         return
@@ -640,6 +735,12 @@ The CIA tracker has been reset. We hope you are happy with your CIA results.
 
 
 async def auto_login_by_database_silent(bot,chat_id):
+    """Attempt silent login using stored credentials.
+
+    Checks for banned usernames and removes credentials if banned. On success,
+    stores a fresh session and username for the chat id.
+    Returns True on success, False otherwise.
+    """
     # username,password = await pgdatabase.retrieve_credentials_from_database(chat_id) This Can be used if you want to take credentials from cloud database.
     username,password = await tdatabase.fetch_credentials_from_database(chat_id) # This can be used to Fetch credentials from the Local database.
     # Initializes settings for the user if the settings are not present
@@ -664,6 +765,11 @@ async def auto_login_by_database_silent(bot,chat_id):
         return False
 
 async def silent_logout(chat_id):
+    """Log out from Samvidha for the given chat id without messaging the user.
+
+    Uses stored session cookies/headers, calls logout, and clears the local
+    session from SQLite.
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     logout_url = 'https://samvidha.iare.ac.in/logout'
     cookies,headers = session_data['cookies'], session_data['headers']
@@ -671,6 +777,10 @@ async def silent_logout(chat_id):
     await tdatabase.delete_user_session(chat_id)
 
 async def get_server_stats():
+    """Return a human-readable summary of CPU, memory, disk, and network stats.
+
+    Uses `psutil` metrics and formats them for quick diagnostic messages.
+    """
     try:# CPU stats
         cpu_percent = psutil.cpu_percent(interval=1)
         cpu_freq = psutil.cpu_freq().current
@@ -700,6 +810,11 @@ async def get_server_stats():
         return f"Error : {e}"
 
 async def backup_all_credentials_and_settings(bot,message):
+    """Create and send a SQLite backup of user credentials and settings.
+
+    Reads credentials/settings from Postgres, writes them into a local SQLite
+    file, and sends the file as a document to the requesting user.
+    """
     user_chat_id = message.chat.id
     # admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     # if chat_id not in admin_chat_ids:

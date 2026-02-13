@@ -1,3 +1,17 @@
+"""
+IARE-BOT main entrypoint.
+
+This module wires Pyrogram command and callback handlers, initializes
+databases, and starts the bot. It also configures basic error logging.
+
+Environment variables required:
+- BOT_TOKEN: Telegram bot token
+- API_ID: Telegram API ID
+- API_HASH: Telegram API hash
+
+Run: Executed directly, it schedules `main()` and calls `bot.run()`.
+"""
+
 from pyrogram import Client, filters,errors
 import asyncio,os
 from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
@@ -5,9 +19,9 @@ from METHODS import labs_handler, operations,manager_operations,lab_operations,p
 from Buttons import buttons,manager_buttons
 from pyrogram.errors import FloodWait
 import time,logging
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-API_ID = os.environ.get("API_ID")
-API_HASH = os.environ.get("API_HASH")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")  # Bot token
+API_ID = os.environ.get("API_ID")  # API ID
+API_HASH = os.environ.get("API_HASH")  # API Hash
 bot = Client(
         "IARE BOT",
         bot_token = BOT_TOKEN,
@@ -20,21 +34,38 @@ logging.basicConfig(level=logging.ERROR,
                         logging.FileHandler("bot_errors.log"),
                         logging.StreamHandler()
                     ])
-
 @bot.on_message(filters.command(commands=['start']))
 async def _start(bot,message):
+    """Handle /start command.
+
+    Sends a random greeting and initial help to the user.
+
+    Args:
+        bot: Pyrogram client instance.
+        message: Incoming message carrying chat/user context.
+    """
     try:
         await operations.get_random_greeting(bot, message)
     except Exception as e:
         logging.error("Error in 'start' command: %s", e)
+
 @bot.on_message(filters.command(commands=['login']))
 async def _login(bot,message):
+    """Handle /login command.
+
+    Triggers the login flow handled in `operations.login`.
+
+    Args:
+        bot: Pyrogram client instance.
+        message: Incoming message with user context.
+    """
     try:
         await operations.login(bot, message)
     except Exception as e:
         logging.error("Error in 'login' command: %s", e)
 @bot.on_message(filters.command(commands=['logout']))
 async def _logout(bot,message):
+    """Handle /logout command to clear current session."""
     try:
         await operations.logout(bot, message)
     except Exception as e:
@@ -42,18 +73,24 @@ async def _logout(bot,message):
 
 @bot.on_message(filters.command(commands=['report']))
 async def _report(bot,message):
+    """Handle /report command to submit a report/request."""
     try:
         await operations.report(bot, message)
     except Exception as e:
         logging.error("Error in 'report' command: %s", e)
 @bot.on_message(filters.command(commands=['help']))
 async def _help(bot,message):
+    """Handle /help command to show available actions."""
     try:
         await operations.help_command(bot, message)
     except Exception as e:
         logging.error("Error in 'help' command: %s", e)
 @bot.on_message(filters.command(commands="settings"))
 async def settings_buttons(bot,message):
+    """Handle /settings command.
+
+    Ensures user settings exist, then shows interactive settings buttons.
+    """
     # Initializes settings for the user
     chat_id = message.chat.id
     try:
@@ -91,12 +128,14 @@ async def delete_pdf(bot,message):
         await bot.send_message(chat_id,"Failed")
 @bot.on_message(filters.command(commands=['reply']))
 async def _reply(bot,message):
+    """Handle /reply command for maintainers/admins to reply to reports."""
     try:
         await operations.reply_to_user(bot, message)
     except Exception as e:
         logging.error("Error in 'reply' command: %s", e)
 @bot.on_message(filters.command(commands=['rshow']))
 async def _show_requests(bot,message):
+    """Handle /rshow command to list pending user reports."""
     try:
         await operations.show_reports(bot, message)
     except Exception as e:
@@ -104,6 +143,7 @@ async def _show_requests(bot,message):
 
 @bot.on_message(filters.command(commands=['announce']))
 async def _announce(bot,message):
+    """Handle /announce command to broadcast a message to all users."""
     try:
         await manager_operations.announcement_to_all_users(bot, message)
     except Exception as e:
@@ -111,24 +151,28 @@ async def _announce(bot,message):
 
 @bot.on_message(filters.command(commands=['lusers']))
 async def _users_list(bot,message):
+    """Handle /lusers command to list logged-in users for this chat."""
     try:
         await operations.list_users(bot, message.chat.id)
     except Exception as e:
         logging.error("Error in 'lusers' command: %s", e)
 @bot.on_message(filters.command(commands=['tusers']))
 async def _total_users(bot,message):
+    """Handle /tusers command to show total users stats."""
     try:
         await operations.total_users(bot, message)
     except Exception as e:
         logging.error("Error in 'tusers' command: %s", e)
 @bot.on_message(filters.command(commands=['rclear']))
 async def _clear_requests(bot,message):
+    """Handle /rclear command to purge pending reports queue."""
     try:
         await operations.clean_pending_reports(bot, message)
     except Exception as e:
         logging.error("Error in 'rclear' command: %s", e)
 @bot.on_message(filters.command(commands=['reset']))
 async def _reset_sqlite(bot,message):
+    """Handle /reset command to reset user sessions database."""
     try:
         await operations.reset_user_sessions_database(bot, message)
     except Exception as e:
@@ -139,6 +183,10 @@ async def _total_users_pg_database(bot,message):
     await pgdatabase.total_users_pg_database(bot,chat_id)
 @bot.on_message(filters.command(commands="admin"))
 async def admin_buttons(bot,message):
+    """Handle /admin command.
+
+    Shows admin control panel if the user is an admin.
+    """
     chat_id = message.chat.id
     try:
         admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
@@ -149,12 +197,14 @@ async def admin_buttons(bot,message):
 
 @bot.on_message(filters.command(commands="maintainer"))
 async def maintainer_buttons(bot,message):
+    """Handle /maintainer command to show maintainer options."""
     try:
         await manager_buttons.start_maintainer_button(bot, message)
     except Exception as e:
         logging.error("Error in 'maintainer' command: %s", e)
 @bot.on_message(filters.command(commands="ban"))
 async def ban_username(bot,message):
+    """Handle /ban command to ban a username/user id."""
     try:
         await manager_operations.ban_username(bot, message)
     except Exception as e:
@@ -162,6 +212,7 @@ async def ban_username(bot,message):
 
 @bot.on_message(filters.command(commands="unban"))
 async def unban_username(bot,message):
+    """Handle /unban command to remove a ban for a user."""
     try:
         await manager_operations.unban_username(bot, message)
     except Exception as e:
@@ -169,6 +220,7 @@ async def unban_username(bot,message):
 
 @bot.on_message(filters.command(commands="authorize"))
 async def authorize_and_add_admin(bot,message):
+    """Handle /authorize command to add an admin after verification."""
     try:
         await manager_operations.add_admin_by_authorization(bot, message)
     except Exception as e:
@@ -176,13 +228,16 @@ async def authorize_and_add_admin(bot,message):
 @bot.on_message(filters.forwarded | filters.command(commands="add_maintainer"))
 async def add_maintainer(bot, message):
     try:
+        # Added this line to ensure that even forwarded files are accepted when sending PDFs to the bot for lab uploads.
         await labs_handler.download_pdf(bot, message, pdf_compress_scrape=pdf_compressor.use_pdf_compress_scrape)
+        # Trigger verification flow to add maintainer
         await manager_operations.verification_to_add_maintainer(bot, message)
     except Exception as e:
         logging.error("Error in 'add_maintainer' command: %s", e)
 
 @bot.on_message(filters.private & filters.document)
 async def _download_pdf(bot,message):
+    """Handle private document messages to ingest PDFs for lab uploads."""
     try:
         await labs_handler.download_pdf(bot, message, pdf_compress_scrape=pdf_compressor.use_pdf_compress_scrape)
     except Exception as e:
@@ -191,6 +246,7 @@ async def _download_pdf(bot,message):
 
 @bot.on_message(filters.private & ~filters.service)
 async def _get_title_from_user(bot,message):
+    """Handle private text messages to capture PDF titles from users."""
     try:
         if message.text:
             await labs_handler.get_title_from_user(bot, message)
@@ -199,6 +255,11 @@ async def _get_title_from_user(bot,message):
             
 @bot.on_callback_query()
 async def _callback_function(bot,callback_query):
+    """Route callback queries to user or manager button handlers.
+
+    If callback data contains "manager", routes to manager buttons; otherwise
+    to general user buttons.
+    """
     try:
         if "manager" in callback_query.data:
             await manager_buttons.manager_callback_function(bot, callback_query)
@@ -208,6 +269,11 @@ async def _callback_function(bot,callback_query):
         logging.error("Error in '_callback_function': %s", e)
 
 async def main(bot):
+    """Application bootstrap.
+
+    Creates required tables across storage backends and synchronizes state
+    between them on startup.
+    """
     try:
         await tdatabase.create_all_tdatabase_tables()
         await pgdatabase.create_all_pgdatabase_tables()
@@ -217,15 +283,19 @@ async def main(bot):
     except Exception as e:
         logging.error("Error in 'main' function: %s", e)
 
+    # NOTE: The following code is for CGPA and CIE tracking for maintainers and admins only.
+    # This feature is still under development.
+    # IMPORTANT: Do NOT enable or provide this feature for all users in the future,
+    # as it may significantly slow down the campus management portal.
     # while True:
     #     cgpa_tracker_chat_ids = await managers_handler.get_all_cgpa_tracker_chat_ids()
     #     cie_tracker_chat_ids = await managers_handler.get_all_cie_tracker_chat_ids()
     #     if cgpa_tracker_chat_ids:
     #         for chat_id in cgpa_tracker_chat_ids:
-    #             await manager_operations.cgpa_tracker(bot,chat_id)
+    #             await manager_operations.cgpa_tracker(bot, chat_id)
     #     if cie_tracker_chat_ids:
     #         for chat_id in cie_tracker_chat_ids:
-    #             await manager_operations.cie_tracker(bot,chat_id)
+    #             await manager_operations.cie_tracker(bot, chat_id)
     #     await asyncio.sleep(300)
 
 if __name__ == "__main__":

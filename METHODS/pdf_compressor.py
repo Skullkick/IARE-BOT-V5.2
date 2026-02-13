@@ -1,3 +1,24 @@
+"""
+PDF compression utilities for lab report workflows.
+
+This module provides two approaches for compressing user-submitted PDF files:
+
+- A headless browser scraping workflow that uploads the PDF to an online
+    compressor (disabled by default via `use_pdf_compress_scrape`).
+- A fully local fallback that rasterizes PDF pages to images, compresses them,
+    and reassembles a compact PDF.
+
+Integrations and side effects:
+- Reads and writes files in the `pdfs` folder using the pattern `C-<chat_id>.pdf`
+    for original files and `C-<chat_id>-comp.pdf` for compressed output.
+- Communicates status to users through the provided bot instance.
+- Uses Selenium with a bundled uBlock extension to reduce page noise in the
+    scraping pathway.
+
+All public functions aim to be non-intrusive to the rest of the bot codebase and
+report clear success/failure with actionable messages.
+"""
+
 import os,sys,stat,uuid
 import tempfile
 import logging
@@ -16,6 +37,31 @@ from webdriver_manager.chrome import ChromeDriverManager
 use_pdf_compress_scrape = False
 
 async def compress_pdf_scrape(bot, message):
+    """Compress a PDF via a headless browser using an online service.
+    This async routine automates a Chromium instance to upload the user's PDF
+    to BigPDF (11zon) and iteratively tries multiple compression levels until
+    the resulting size drops below 1 MB, then downloads the compressed file.
+    Behavior and side effects:
+    - Checks for the expected input file `pdfs/C-<chat_id>.pdf` and whether a
+        compressed variant already exists.
+    - Sends status updates to the user via `bot.send_message`.
+    - Writes the compressed file to `pdfs/C-<chat_id>-comp.pdf` and removes the
+        original file when successful.
+    - Runs Chrome in headless mode and installs a local uBlock extension to
+        minimize popups and ads.
+    Args:
+            bot: A bot/client instance capable of `send_message(chat_id, text)`.
+            message: An incoming message object providing `chat.id`.
+    Returns:
+            tuple[bool, str]:
+                    - True, success_message when a compressed file is produced and
+                        saved.
+                    - False, error_message when the input is missing, already compressed,
+                        or compression fails to reach the target size.
+    Raises:
+            No exception is intentionally propagated; unexpected errors are caught
+            and returned in the message while yielding `(False, <details>)`.
+    """
     try:
         download_wait_time = 120  # Maximum time to wait for the download to complete
         extension_folder = "EXTENSION"
@@ -69,10 +115,25 @@ async def compress_pdf_scrape(bot, message):
         driver = webdriver.Chrome(service=service, options=options)
 
         def rename_downloaded_file(download_directory, chat_id):
-            """
-            Rename the downloaded file to the specified filename
-            :param download_directory: Directory of the downloaded file
-            :param chat_id: Chat id of the user
+            """Rename the downloaded PDF to the expected compressed filename.
+
+            This helper looks for the file pattern created by the 11zon site
+            ("C-<chat_id>_11zon.pdf"), removes any pre-existing compressed file,
+            and renames the fresh download to "C-<chat_id>-comp.pdf". It also
+            removes the original uncompressed file once the rename completes.
+
+            Args:
+                download_directory (str): Absolute path where the file was
+                    downloaded.
+                chat_id (int | str): The user's chat identifier used in the
+                    naming convention.
+
+            Returns:
+                None
+
+            Notes:
+                All filesystem errors are caught and logged to stdout to avoid
+                interrupting the outer compression flow.
             """
             try:
                 pdf_folder = "pdfs"
@@ -181,7 +242,22 @@ async def compress_pdf_scrape(bot, message):
         return False, f"An unexpected error occurred: {str(e)}"
 
 def pdf_image_generator(input_path):
-    """A generator function to yield images from a PDF file."""
+    """Yield PIL images converted from a PDF file path.
+
+    This generator streams each page of the PDF as a `PIL.Image.Image` using
+    `pdf2image.convert_from_path`, which helps keep memory usage bounded for
+    large documents.
+
+    Args:
+        input_path (str): Absolute path to the input PDF.
+
+    Yields:
+        PIL.Image.Image: The next page converted to an RGB image.
+
+    Raises:
+        Exceptions from `convert_from_path` are caught and logged, and the
+        generator terminates early.
+    """
     try:
         for img in convert_from_path(input_path):
             yield img
@@ -189,6 +265,36 @@ def pdf_image_generator(input_path):
         print(f"Error in pdf image generator : {e}")
 
 async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
+    """Compress a PDF locally by rasterizing pages and recombining.
+
+    The local fallback workflow converts each page of the user's PDF into a
+    JPEG image with reduced dimensions and quality, then assembles the images
+    back into a single PDF. This approach does not rely on any external web
+    service and works offline.
+
+    Behavior and side effects:
+    - Validates the presence of `pdfs/C-<chat_id>.pdf` and whether a compressed
+      file already exists.
+    - Sends status messages to the user via `bot.send_message` in early exit
+      cases.
+    - On success, writes `pdfs/C-<chat_id>-comp.pdf` and removes the original
+      input PDF.
+
+    Args:
+        bot: A bot/client instance used for user notifications.
+        chat_id (int | str): Identifier used to resolve file locations and send
+            messages.
+        batch_size (int, optional): Reserved for future batching improvements;
+            currently unused. Default is 1.
+
+    Returns:
+        bool: True if compression succeeded and the compressed file was saved;
+        False otherwise.
+
+    Raises:
+        No exceptions are propagated; unexpected errors are caught and logged,
+        and the function returns False.
+    """
     
     try:
         # Check whether the PDF is present or not
@@ -229,7 +335,22 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
         return False
 
 async def compile_and_save_pdf_batch(image_paths: list, output_path: str):
-    """Compile a batch of image files into a temporary PDF file."""
+    """Compile a batch of images into a single PDF file.
+
+    Opens the provided image paths with Pillow and saves them into a single PDF
+    at the requested `output_path`.
+
+    Args:
+        image_paths (list[str]): File paths to images ordered by page index.
+        output_path (str): Target path for the resulting PDF.
+
+    Returns:
+        None
+
+    Raises:
+        Any unexpected Pillow-related errors are caught and logged; the
+        function does not raise.
+    """
     try:
         images = [Image.open(img_path) for img_path in image_paths]
         images[0].save(output_path, "PDF", resolution=100.0, save_all=True, append_images=images[1:])

@@ -1,3 +1,19 @@
+"""
+Helper handlers for lab PDF intake and upload workflow.
+
+This module coordinates receiving lab record PDFs from users, validating
+file type and size, capturing the title/metadata, and delegating the actual
+upload to `METHODS.lab_operations`. It relies on temporary state stored in
+`DATABASE.tdatabase` to track per-chat status (expecting PDF vs title), and
+never performs long-running compression itself here.
+
+Key responsibilities:
+- Orchestrate PDF receipt with size checks and status updates
+- Collect a properly formatted title from the user
+- Resolve subject/week info via `tdatabase` and call `lab_operations.upload_lab_record`
+- Provide small utilities to check size, rename files, and clean up
+"""
+
 from pyrogram import filters
 import os
 from time import sleep
@@ -16,6 +32,21 @@ STATUS : Receiving
 
 
 async def download_pdf(bot, message,pdf_compress_scrape):
+    """Receive a PDF from the user and validate its size.
+
+    Behavior:
+    - Only proceeds when the chat's PDF status is set to receive (1).
+    - Saves the file to `pdfs/C-<chat_id>.pdf` and reports status updates.
+    - Checks size against `allowable_size` (10MB by default, 125MB when
+      `pdf_compress_scrape` is True).
+    - If too large, deletes and asks the user to resend; otherwise clears the
+      PDF status and triggers `initialize_lab_upload` to continue the flow.
+
+    Args:
+        bot: Pyrogram client.
+        message: Incoming message expected to contain a PDF document.
+        pdf_compress_scrape: If True, allow larger files (for external compression).
+    """
     chat_id = message.chat.id
     download_folder = "pdfs"
     if pdf_compress_scrape is True:
@@ -108,10 +139,16 @@ PDF SIZE : {size} MB.
                 await bot.send_message(chat_id, "This File type is not supported.")
 
 async def initialize_lab_upload(bot,message):
-    """
-    This function is used to know the status of pdf and the title
-    
-    :param chat_id: Chat id of the user
+    """Transition after PDF receipt: ensure title and file, then upload.
+
+    Validates the presence of a stored title and a received PDF (compressed or
+    not). If both are available, resolves `title`, `subject_code`, and
+    `week_no` from `tdatabase` and calls
+    `lab_operations.upload_lab_record(...)`.
+
+    Args:
+        bot: Pyrogram client.
+        message: Context message used for chat id and replying.
     """
     chat_id = message.chat.id
     pdf_present,pdf_comp = await check_recieved_pdf_file(bot,chat_id)
@@ -127,6 +164,20 @@ async def initialize_lab_upload(bot,message):
         await lab_operations.upload_lab_record(bot,message,title=title,subject_code=subject_code,week_no=week_no)
 
 async def rename_to_upload_pdf(pdf_path,chat_id,week_no):
+    """Rename received file to a standard `ROLLNO_week<no>.pdf` format.
+
+    Uses the logged-in username for the chat to generate a deterministic
+    filename and moves the file under the `pdfs/` folder, replacing any
+    existing file of the same name.
+
+    Args:
+        pdf_path: Absolute or relative path to the source PDF.
+        chat_id: Telegram chat id used to resolve the username.
+        week_no: Week number to embed in the filename.
+
+    Returns:
+        tuple[str, str]: (new_filename, absolute_path_of_renamed_pdf).
+    """
     session_data = await tdatabase.load_user_session(chat_id)
     username = session_data['username'][:10].upper()
     pdf_folder = "pdfs"
@@ -139,14 +190,21 @@ async def rename_to_upload_pdf(pdf_path,chat_id,week_no):
     return pdf_file_name,updated_pdf_path
 
 async def check_pdf_size(chat_id,allowed_size):
-        """This Function checks whether the pdf file is above allowed pdf size or not,
-        If the file is above 1mb then it returns true and the file size ."""
-        file_size= os.path.getsize(os.path.abspath(f"pdfs/C-{chat_id}.pdf"))
-        file_size_mb = round((file_size/(1024*1024)),3)
-        if file_size_mb > allowed_size:
-            return True, file_size_mb
-        else:
-            return False, file_size_mb
+    """Check if `C-<chat_id>.pdf` exceeds the allowed size.
+
+    Args:
+        chat_id: Telegram chat id used for file naming.
+        allowed_size: Size limit in MB.
+
+    Returns:
+        tuple[bool, float]: (is_above_limit, size_in_mb).
+    """
+    file_size= os.path.getsize(os.path.abspath(f"pdfs/C-{chat_id}.pdf"))
+    file_size_mb = round((file_size/(1024*1024)),3)
+    if file_size_mb > allowed_size:
+        return True, file_size_mb
+    else:
+        return False, file_size_mb
 
 async def check_pdf_size_above_1mb(chat_id):
         """This Function checks whether the pdf file is above 1 mb or not,
@@ -163,21 +221,26 @@ async def check_pdf_size_above_1mb(chat_id):
 
 
 async def check_pdf_size_after_compression(chat_id):
-        """This Function checks whether the compressed pdf file is above 1mb or not,
-        If the file is above 1mb then it returns true and the file size .
-        :return: If the file size is above 1 mb then it returns True, Else it returns false"""
-        file_size = os.path.getsize(os.path.abspath(f"pdfs/C-{chat_id}-comp.pdf"))
-        file_size_mb = round((file_size/(1024*1024)),3)
-        if file_size_mb > 1:
-            return True, file_size_mb
-        else:
-            return False, file_size_mb
+    """Check if the compressed PDF `C-<chat_id>-comp.pdf` is over 1MB.
+
+    Returns:
+        tuple[bool, float] | tuple[bool, None]: (is_above_1mb, size_in_mb)
+    """
+    file_size = os.path.getsize(os.path.abspath(f"pdfs/C-{chat_id}-comp.pdf"))
+    file_size_mb = round((file_size/(1024*1024)),3)
+    if file_size_mb > 1:
+        return True, file_size_mb
+    else:
+        return False, file_size_mb
 
 async def get_pdf_size(bot,chat_id):
-    """
-    This Function is used to get the PDF size in mb.
-    
-    :param chat_id: Chat id of the user
+    """Return the size in MB of the current (compressed or raw) PDF.
+
+    Prefers the compressed file if present, otherwise the raw file.
+
+    Args:
+        bot: Pyrogram client.
+        chat_id: Telegram chat id used for file naming.
     """
     pdf_folder = "pdfs"
     check_present , check_compress = await check_recieved_pdf_file(bot,chat_id)
@@ -191,8 +254,18 @@ async def get_pdf_size(bot,chat_id):
 
 
 async def get_title_from_user(bot, message):
-    """This Function Gets the title from the message that user has sent."""
-    print("recieved message")
+    """Capture and store the lab title from a user's text message.
+
+    The chat must be in a state expecting a title. Parses after the first
+    colon, e.g. "TITLE: My Experiment", acknowledges, and saves to
+    `tdatabase`. Afterwards, clears the title status and calls
+    `initialize_lab_upload` to proceed.
+
+    Args:
+        bot: Pyrogram client.
+        message: Incoming text message with the title content.
+    """
+    # print("recieved message")
     chat_id = message.chat.id
     # Checks the status
     status = await tdatabase.fetch_title_status(chat_id)
@@ -215,8 +288,11 @@ async def get_title_from_user(bot, message):
             await initialize_lab_upload(bot,message)
 
 async def remove_pdf_file(bot,chat_id):
-    """This function retreive the file is present or not and compressed or not from the check_recieved_pdf_file function,
-    Based on that result it deletes the pdf file"""
+    """Delete the user's current PDF (compressed or raw) if present.
+
+    Uses `check_recieved_pdf_file` to determine which file exists and removes
+    it. Returns True on success, False otherwise.
+    """
     pdf_folder = "pdfs"
     check_present , check_compress = await check_recieved_pdf_file(bot,chat_id)
     if check_present and check_compress:
@@ -237,12 +313,18 @@ async def remove_pdf_file(bot,chat_id):
         return False
 
 async def check_recieved_pdf_file(bot,chat_id):
-    """This Function Can be used to check whether the file is present or not,
-    and Whether the current pdf file is compressed or not.
-    
-    :return: Boolean_1,Boolean_2 
-    :Boolean_1: File is present or not.
-    :Boolean_2: File is compressed or not."""
+    """Check if a PDF exists for the chat and whether it's compressed.
+
+    Returns two booleans: (present, compressed). When present is False,
+    compressed will be None.
+
+    Args:
+        bot: Pyrogram client.
+        chat_id: Telegram chat id used for file naming.
+
+    Returns:
+        tuple[bool, bool | None]: (is_present, is_compressed)
+    """
     pdf_folder = "pdfs"
     pdf_folder = os.path.abspath(pdf_folder)
     file_name = f"C-{chat_id}.pdf"

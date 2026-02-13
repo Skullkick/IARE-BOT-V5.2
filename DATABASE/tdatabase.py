@@ -1,5 +1,27 @@
-# This file is used to store userdata temporarily in local storage
-# Current server restarts every 24hrs So all the data present in the databases will be lost
+"""
+Temporary/local SQLite databases used by the bot.
+
+This module centralizes all short-lived, node-local storage that the bot
+relies on for day-to-day operation. The current server restarts roughly
+every 24 hours, so all data in these databases is considered ephemeral and
+can be lost at restart. Nothing here should be treated as a durable source
+of truth.
+
+Datastores managed in this file:
+- user_sessions.db: Per-chat temporary session blobs and cached user_id.
+- total_users.db: List of usernames that have interacted with the bot.
+- reports.db: Pending and replied user reports for maintainers.
+- labuploads.db: Transient state for lab PDF uploads (subject/week/title).
+- credentials.db: Local copy of usernames/passwords and banned usernames.
+
+Notes
+- All functions are async to match the surrounding bot codebase, though the
+    underlying sqlite3 calls are synchronous. Callers can await to keep a
+    coherent async flow.
+- Do not store sensitive data here long-term; this layer is for convenience
+    and UX only.
+"""
+
 import sqlite3, json
 import os
 DATABASE_FILE = "user_sessions.db"
@@ -14,6 +36,13 @@ CREDENTIALS_DATABASE = "credentials.db"
 
 
 async def create_all_tdatabase_tables():
+    """Create all required tables across the temporary/local databases.
+
+    This is a convenience initializer that ensures every lightweight
+    datastore used by the bot exists with the expected schema before use.
+    Safe to call multiple times; each table is created with
+    ``CREATE TABLE IF NOT EXISTS``.
+    """
     await create_user_sessions_tables()
     await create_total_users_table()
     await create_reports_table()
@@ -22,7 +51,12 @@ async def create_all_tdatabase_tables():
     await create_banned_users_table()
 async def create_user_sessions_tables():
     """
-    Create the necessary tables in the SQLite database.
+    Create the ``sessions`` table in ``user_sessions.db`` if missing.
+
+    Schema
+    - chat_id: INTEGER PRIMARY KEY — Telegram chat id
+    - session_data: TEXT — JSON-encoded session payload
+    - user_id: TEXT — Optional cached user id
     """
     with sqlite3.connect(DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -39,7 +73,10 @@ async def create_user_sessions_tables():
 #The usernames accessed this bot
 async def create_total_users_table():
     """
-    Create the total_users table in the SQLite database.
+    Create the ``users`` table in ``total_users.db`` if missing.
+
+    Tracks unique usernames that have interacted with the bot. Useful for
+    aggregate stats and announcements.
     """
     with sqlite3.connect(TOTAL_USERS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -53,6 +90,21 @@ async def create_total_users_table():
 
 
 async def create_reports_table():
+    """Create the ``pending_reports`` table in ``reports.db`` if missing.
+
+    Stores both pending (reply_status = 0) and replied (reply_status = 1)
+    reports. Maintainers can fetch pending items for triage and update the
+    reply fields when responding.
+
+    Columns
+    - unique_id: TEXT PRIMARY KEY — Stable id for a report thread
+    - user_id: TEXT — Sender identifier (free-form)
+    - message: TEXT — Original report content
+    - chat_id: INTEGER — Chat the report came from
+    - replied_message: TEXT — Maintainer reply text (if any)
+    - replied_maintainer: TEXT — Who replied
+    - reply_status: BOOLEAN — 0 = pending, 1 = replied
+    """
     with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -69,6 +121,20 @@ async def create_reports_table():
         conn.commit()
 
 async def create_lab_upload_table():
+    """Create the ``lab_upload_info`` table in ``labuploads.db`` if missing.
+
+    Holds in-progress selections for lab uploads on a per-chat basis:
+    subject choice, week index, chosen title, and flags that steer the
+    upload workflow.
+
+    Columns
+    - chat_id: TEXT PRIMARY KEY — Telegram chat id
+    - title: TEXT — Experiment title (optional)
+    - subject: TEXT — Subject code/identifier
+    - week_index: INTEGER — Selected week index
+    - pdf_status: TEXT — Workflow state/flag for PDF reception
+    - get_title: BOOLEAN — Whether to prompt/expect a title
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -85,7 +151,11 @@ async def create_lab_upload_table():
 
 async def create_tables_credentials():
     """
-    Create the necessary tables to store credentails in the SQLite database.
+    Create the necessary tables to store credentials in ``credentials.db``.
+
+    Tables
+    - credentials(chat_id INTEGER PRIMARY KEY, username TEXT, password TEXT)
+    - banned_users(username TEXT PRIMARY KEY) — created by a sibling helper
     """
     with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -102,7 +172,7 @@ async def create_tables_credentials():
 
 async def create_banned_users_table():
     """
-    Create the banned_users table in the SQLite database.
+    Create the ``banned_users`` table in ``credentials.db`` if missing.
     """
     with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
         cursor = conn.cursor()
@@ -114,6 +184,10 @@ async def create_banned_users_table():
         conn.commit()
 
 async def fetch_usernames_total_users_db():
+    """Return all usernames seen by the bot from ``total_users.db``.
+
+    :return: List of usernames (strings). Empty list if none found.
+    """
     with sqlite3.connect(TOTAL_USERS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT username FROM users")
@@ -122,6 +196,10 @@ async def fetch_usernames_total_users_db():
 
 
 async def fetch_number_of_total_users_db():
+    """Return the count of distinct usernames stored in ``total_users.db``.
+
+    :return: Total number of users as an integer.
+    """
     with sqlite3.connect(TOTAL_USERS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM users")
@@ -131,11 +209,12 @@ async def fetch_number_of_total_users_db():
 
 async def store_user_session(chat_id, session_data, user_id):
     """
-    Store the user session data in the SQLite database.
+    Store the user session data in ``user_sessions.db``.
 
     Parameters:
         chat_id (int): The chat ID of the user.
         session_data (str): JSON-formatted string containing the session data.
+        user_id (str): Optional cached user identifier to store alongside.
     """
     with sqlite3.connect(DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -145,6 +224,14 @@ async def store_user_session(chat_id, session_data, user_id):
         conn.commit()
 
 async def load_user_session(chat_id):
+    """Load and decode a user's session from ``user_sessions.db``.
+
+    The stored JSON is parsed to a dict. If the payload does not contain a
+    ``username`` key, ``None`` is returned to signal an incomplete session.
+
+    :param chat_id: Telegram chat id.
+    :return: Dict with session fields or ``None`` if not found/incomplete.
+    """
     with sqlite3.connect(DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT session_data FROM sessions WHERE chat_id=?", (chat_id,))
@@ -158,6 +245,14 @@ async def load_user_session(chat_id):
                 return None
 
 async def load_username(chat_id):
+    """Fetch the full ``sessions`` row for a chat id.
+
+    Useful when callers need all stored columns (``chat_id, session_data, user_id``)
+    without parsing. Returns ``None`` if the chat id is not present.
+
+    :param chat_id: Telegram chat id.
+    :return: Tuple row or ``None``.
+    """
     with sqlite3.connect(DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM sessions WHERE chat_id=?", (chat_id,))
@@ -181,7 +276,9 @@ async def delete_user_session(chat_id):
 
 async def clear_sessions_table():
     """
-    Clear all rows from the sessions table.
+    Clear all rows from the ``sessions`` table in ``user_sessions.db``.
+
+    Warning: This removes every stored session for every user.
     """
     with sqlite3.connect(DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -203,12 +300,17 @@ async def store_username(username):
 
 
 async def store_lab_info(chat_id,title,subject_code,week_index,get_title:bool):
-    """Store lab information in the database.
-    
+    """Store or update transient lab-upload selections for a chat.
+
+    - If a row for ``chat_id`` exists, only non-None fields are updated.
+    - If no row exists, a new one is inserted. When ``get_title`` is True,
+      ``title`` is expected and will be stored as well.
+
     :param chat_id: Chat ID of the user.
-    :param title: Title of the experiment.
-    :param subject_code: Selected subject index.
+    :param title: Title of the experiment (optional; used when ``get_title``).
+    :param subject_code: Selected subject/subject code.
     :param week_index: Selected week index.
+    :param get_title: Whether to store/update the ``title`` value now.
     """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -235,10 +337,11 @@ async def store_lab_info(chat_id,title,subject_code,week_index,get_title:bool):
         conn.commit()
 
 async def store_subject_code(chat_id,subject_code):
-    """This function is used to store the subject in the database to retrieve later
+    """Persist the selected subject code for a given chat.
 
-    :param chat_id: chat_id of the user based on the message received from the user.
-    :param subject_code: Selected subject_code is stored in the database"""
+    :param chat_id: Chat id of the user.
+    :param subject_code: Selected subject code to store.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -247,10 +350,10 @@ async def store_subject_code(chat_id,subject_code):
             cursor.execute('UPDATE lab_upload_info SET subject = ? WHERE chat_id = ?', (subject_code, chat_id))
         conn.commit()
 async def delete_subject_code(chat_id):
-    """
-    This function is used to delete the stored subject code from the database
-    
-    :param subject_code: Code of the selected subject
+    """Clear the stored subject code for the given chat, if present.
+
+    :param chat_id: Chat id of the user whose subject code is to be cleared.
+    :return: True if a row existed and was updated, else False.
     """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -264,10 +367,11 @@ async def delete_subject_code(chat_id):
 
 
 async def store_week_index(chat_id,week_index):
-    """This function is used to store the week_index in the database to retrieve later
+    """Persist the selected week index for a given chat.
 
-    :param chat_id: chat_id of the user based on the message received from the user.
-    :param week_index: Selected week_index is stored in the database"""
+    :param chat_id: Chat id of the user.
+    :param week_index: Selected week index to store.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -277,10 +381,11 @@ async def store_week_index(chat_id,week_index):
         conn.commit()
 
 async def store_title(chat_id,title):
-    """This function is used to store the title in the database to use later
+    """Store or upsert the experiment title for a given chat.
 
-    :param chat_id: chat_id of the user based on the message received from the user.
-    :param title: Title is stored in the database"""
+    :param chat_id: Chat id of the user.
+    :param title: Experiment title to store.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -293,10 +398,11 @@ async def store_title(chat_id,title):
         conn.commit()
 
 async def store_pdf_status(chat_id,status):
-    """This function is used to store the pdf status
+    """Store or upsert the PDF intake status flag for a chat.
 
-    :param chat_id: chat_id of the user based on the message received from the user.
-    :param status: Boolean"""
+    :param chat_id: Chat id of the user.
+    :param status: Status/flag value to store.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -309,10 +415,11 @@ async def store_pdf_status(chat_id,status):
         conn.commit()
 
 async def store_title_status(chat_id,status):
-    """This function is used to store the title status
+    """Store or upsert the "prompt for title" flag for a chat.
 
-    :param chat_id: chat_id of the user based on the message received from the user
-    :param status: Boolean"""
+    :param chat_id: Chat id of the user.
+    :param status: Boolean-like flag indicating whether to get the title.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -325,9 +432,11 @@ async def store_title_status(chat_id,status):
         conn.commit()
 
 async def fetch_required_lab_info(chat_id):
-    """This function is used to fetch the title,subject,week_index from the database
+    """Fetch the trio (title, subject, week_index) for the given chat.
 
-    :param chat_id: chat_id of the user based on the messagee."""
+    :param chat_id: Chat id of the user.
+    :return: Tuple (title, subject, week_index) or ``None`` if not found.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT title,subject, week_index FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -338,10 +447,11 @@ async def fetch_required_lab_info(chat_id):
             return None
 
 async def  fetch_title_lab_info(chat_id):
-    """This Function is used to fetch the title from the lab_upload_info
+    """Fetch only the title from ``lab_upload_info`` for the given chat.
 
-    :param chat_id: The chat_id of the user
-    :return: title_info"""
+    :param chat_id: Chat id of the user.
+    :return: Tuple containing the title, or ``None`` if not found.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT title FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -353,10 +463,11 @@ async def  fetch_title_lab_info(chat_id):
 
 
 async def fetch_pdf_status(chat_id):
-    """This Function is used to get the status of the pdf, This is necessary for receiving the pdf from the user
+    """Get the stored PDF intake status flag for a chat.
 
-    :param chat_id: chat_id of the user based on message.
-    :return: pdf_status"""
+    :param chat_id: Chat id of the user.
+    :return: Stored status value or ``None`` if not present.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT pdf_status FROM lab_upload_info WHERE chat_id = ?',(chat_id,))
@@ -367,10 +478,11 @@ async def fetch_pdf_status(chat_id):
             return None
 
 async def fetch_title_status(chat_id):
-    """This Function is used to get the status of the title, This is necessary for receiving the title from the user
+    """Get the stored "prompt for title" flag for a chat.
 
-    :param chat_id: chat_id of the user based on message.
-    :return: title_status"""
+    :param chat_id: Chat id of the user.
+    :return: Boolean-like value or ``None`` if not present.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT get_title FROM lab_upload_info WHERE chat_id = ?',(chat_id,))
@@ -381,9 +493,11 @@ async def fetch_title_status(chat_id):
             return None
 
 async def delete_title_status_info(chat_id):
-    """This function removes the status of the title from the database
+    """Clear the stored "prompt for title" flag for the given chat.
 
-    :param chat_id: chat_id of the user based on the message received."""
+    :param chat_id: Chat id of the user.
+    :return: True if a row existed and was updated, else False.
+    """
 
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -395,10 +509,11 @@ async def delete_title_status_info(chat_id):
         else:
             return False
 async def delete_pdf_status_info(chat_id):
-    """This Function is used to remove the pdf status of a specified user in the database
-    
-    :param chat_id: chat_id of the user
-    :return: Boolean"""
+    """Clear the stored PDF intake status for the given chat.
+
+    :param chat_id: Chat id of the user.
+    :return: True if a row existed and was updated, else False.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -410,8 +525,11 @@ async def delete_pdf_status_info(chat_id):
             return False
 
 async def delete_indexes_and_title_info(chat_id):
-    """This function deletes the selected index values and the title information stored in the database
-    :param chat_id: chat_id of the user"""
+    """Clear title, subject, and week index selections for the given chat.
+
+    :param chat_id: Chat id of the user.
+    :return: True if a row existed and was updated; otherwise, None.
+    """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -422,7 +540,7 @@ async def delete_indexes_and_title_info(chat_id):
             return True
 
 async def delete_lab_upload_data(chat_id):
-    """This function is used to delete the row of a user based on chat_id in lab_upload_info table"""
+    """Delete the entire ``lab_upload_info`` row for the given chat id."""
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM lab_upload_info WHERE chat_id=?",(chat_id,))
@@ -430,7 +548,7 @@ async def delete_lab_upload_data(chat_id):
 
 async def delete_labs_subjects_weeks_all_users():
     """
-    This function is used to clear lab_upload_info table
+    Clear the entire ``lab_upload_info`` table for all users/chats.
     """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -438,6 +556,15 @@ async def delete_labs_subjects_weeks_all_users():
         conn.commit()
 
 async def store_credentials_in_database(chat_id, username, password):
+    """Upsert a chat's credentials into ``credentials.db``.
+
+    If a row for ``chat_id`` exists it is updated, otherwise a new row is
+    inserted.
+
+    :param chat_id: Chat id of the user.
+    :param username: Username to store.
+    :param password: Password to store.
+    """
     with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
         cursor = conn.cursor()
         # Check if the chat_id already exists
@@ -647,7 +774,20 @@ async def fetch_row_count_reports_database():
 
 async def store_reports(unique_id, user_id, message, chat_id, 
                         replied_message, replied_maintainer, reply_status):
-    """This function is used to store the reports sent by the user"""
+    """Insert or update a user report in ``reports.db``.
+
+    If a report with the same ``unique_id`` already exists, only the
+    non-None fields provided will be updated. Otherwise, a new record is
+    inserted.
+
+    :param unique_id: Stable report/thread identifier.
+    :param user_id: Sender identifier (optional).
+    :param message: The original report text (optional for updates).
+    :param chat_id: Chat id from which the report came (optional for updates).
+    :param replied_message: Maintainer reply text (optional).
+    :param replied_maintainer: Who replied (optional).
+    :param reply_status: 0 for pending, 1 for replied.
+    """
     try:
         with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
             c = conn.cursor()
@@ -680,7 +820,11 @@ async def store_reports(unique_id, user_id, message, chat_id,
         print(f"Error storing the report message {e}")
 
 async def load_reports(unique_id):
-    """This Function can be used to get a reports info based on unique_id"""
+    """Fetch a single report row by ``unique_id`` from ``reports.db``.
+
+    :param unique_id: The report/thread identifier.
+    :return: Tuple row if found; otherwise None.
+    """
     with sqlite3.connect(REPORTS_DATABASE_FILE ) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM pending_reports WHERE unique_id=?",(unique_id,))
@@ -688,8 +832,10 @@ async def load_reports(unique_id):
         return row
     
 async def load_allreports():
-    """This function is used to get all the reports present in the database
-    returns all reports"""
+    """Return all pending reports (``reply_status = 0``).
+
+    :return: List of tuples (unique_id, user_id, message, chat_id).
+    """
     with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT unique_id, user_id, message, chat_id FROM pending_reports WHERE reply_status = 0")
@@ -697,8 +843,10 @@ async def load_allreports():
         return all_messages
 
 async def load_all_replied_reports():
-    """This function is used to get all the reports present in the database
-    returns all reports"""
+    """Return all replied reports (``reply_status = 1``).
+
+    :return: List of tuples for every replied report.
+    """
     with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM pending_reports WHERE reply_status = 1")
@@ -708,13 +856,13 @@ async def load_all_replied_reports():
 
 
 async def delete_report(unique_id):
-    """This Function deletes the report based on unique_id"""
+    """Delete the report row that matches ``unique_id`` from ``reports.db``."""
     with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM pending_reports WHERE unique_id=?",(unique_id,))
         conn.commit()
 async def clear_reports():
-    """This function is used to clear all the reports in the reports database"""
+    """Clear all rows from the ``pending_reports`` table."""
     with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM pending_reports")
@@ -722,7 +870,9 @@ async def clear_reports():
 
 async def pg_bool_to_sqlite_bool(pgbool):
     """
-    This function is used to convert the boolean values from TRUE to 1, and FALSE to 0
-    :return: returns boolean values in the form of 0's and 1's
+    Convert a Python/PG boolean into an integer suitable for SQLite.
+
+    :param pgbool: Truthy/falsy value.
+    :return: 1 if truthy else 0.
     """
     return 1 if pgbool else 0
