@@ -451,14 +451,17 @@ async def attendance(bot,message):
 # ● Status            -  {attendance_status}
                 # att_msg = f"Course: {course_name}, Attendance: {attendance_percentage}"
                 
-                sum_attendance += float(attendance_percentage)
+                # sum_attendance += float(attendance_percentage)
+                sum_attended_classes += int(attended)
+                sum_conducted_classes += int(conducted)
                 if int(conducted) > 0:
                         count_att += 1
                 if ui_mode[0] == 0:
                     await bot.send_message(chat_id,att_msg_updated_ui)
                 else:
                     await bot.send_message(chat_id,att_msg_traditional_ui)
-        aver_attendance = round(sum_attendance/count_att, 2)
+        # aver_attendance = round(sum_attendance/count_att, 2)
+        aver_attendance = round((sum_attended_classes/sum_conducted_classes)*100,2)
         over_all_attendance = f"**Overall Attendance is {aver_attendance}**"
         await bot.send_message(chat_id,over_all_attendance)
 
