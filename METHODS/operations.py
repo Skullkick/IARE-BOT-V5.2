@@ -397,6 +397,7 @@ async def attendance(bot,message):
         sum_attendance = 0
         count_att = 0
         sum_attended_classes = 0
+        sum_conducted_classes 
         all_attendance_indexes_dictionary = await user_settings.get_attendance_index_values()
         if all_attendance_indexes_dictionary:
             course_name_index = all_attendance_indexes_dictionary['course_name']
