@@ -154,7 +154,21 @@ async def perform_login( username, password):
         response = s.get(index_url)
         cookie_to_extract = 'PHPSESSID'
         cookie_value = response.cookies.get(cookie_to_extract)
-        cookies['PHPSESSID'] = cookie_value
+        if cookie_value:
+            cookies['PHPSESSID'] = cookie_value
+
+        # Extract CSRF token if present (resilient to attribute order, extra attributes, and future portal changes)
+        csrf_match = re.search(
+            r'<meta\s+[^>]*name=["\']csrf-token["\'][^>]*content=["\']([^"\']+)["\']',
+            response.text,
+            re.IGNORECASE
+        ) or re.search(
+            r'<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*name=["\']csrf-token["\']',
+            response.text,
+            re.IGNORECASE
+        )
+        if csrf_match:
+            headers['X-CSRF-Token'] = csrf_match.group(1)
 
         s.post(login_url, cookies=cookies, headers=headers, data=data)
 
