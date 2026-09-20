@@ -197,15 +197,14 @@
 ---
 
 #### 10. String Literal Argument Passed in `lab_operations.py`
-- **File & Line:** [METHODS/lab_operations.py:32](file:///d:/IARE-BOT-V5.2/METHODS/lab_operations.py#L32)
-- **Fault Mechanism:** The function passes `"message"` as a string literal:
-  `auto_login_status = await operations.auto_login_by_database(bot, "message", chat_id)`
-  instead of the Pyrogram `message` object.
-- **Input to Reproduce:** Unauthenticated user triggers `fetch_available_labs`.
-- **Recommended Defensive Patch:**
-  ```python
-  auto_login_status = await operations.auto_login_by_database(bot, message, chat_id)
-  ```
+- **Status:** **DISMISSED / INTENTIONAL ARCHITECTURAL PATTERN (Not a Defect)**
+- **File & Line:** [METHODS/lab_operations.py:33, 173, 252, 287, 379, 469](file:///d:/IARE-BOT-V5.2/METHODS/lab_operations.py)
+- **Analysis & Rationale:**
+  - `operations.auto_login_by_database(bot, message, chat_id)` accepts `message` as an optional context parameter, but never uses it; all user notifications are sent directly via `await bot.send_message(chat_id, ...)`.
+  - Background and helper functions in `METHODS/lab_operations.py` (such as `fetch_submitted_lab_records`, `delete_lab_record`, `user_lab_data`, and `fetch_experiment_names_html`) only receive `chat_id` and do not have a Pyrogram `message` object in their local scope.
+  - Attempting to pass a `message` variable in those functions resulted in runtime `NameError: name 'message' is not defined` crashes.
+  - Passing a dummy placeholder string `"message"` (or `""`, as also seen in [operations.py:1248](file:///d:/IARE-BOT-V5.2/METHODS/operations.py#L1248) and [manager_operations.py:570](file:///d:/IARE-BOT-V5.2/METHODS/manager_operations.py#L570)) is the intended design pattern throughout the codebase to satisfy the 3-positional argument signature without fabricating a mock `Message` object.
+- **Resolution:** Reverted string literal `"message"` across all call sites in `METHODS/lab_operations.py`. Verified that all functions execute cleanly without `NameError`.
 
 ---
 
