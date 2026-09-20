@@ -10,7 +10,7 @@ the bot's event loop, and no business logic is changed by these docstrings.
 """
 
 from bs4 import BeautifulSoup
-import requests
+from METHODS.portal_client import async_fetch_page, get_http_client
 from DATABASE import user_settings,tdatabase
 from METHODS import operations,labs_handler,pdf_compressor
 from Buttons import buttons
@@ -42,17 +42,12 @@ async def fetch_available_labs(bot,message):
 
     # Access the Lab record page and retrieve the content
     lab_record_url = 'https://samvidha.iare.ac.in/home?action=labrecord_std'
-    
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-
-        lab_record_response = s.get(lab_record_url)
+    html_content = await async_fetch_page(lab_record_url, session_data.get('cookies') if session_data else None)
+    if html_content is None:
+        await bot.send_message(chat_id, "Error retrieving the available lab data.")
+        return
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    # data = BeautifulSoup(attendance_response.text, 'html.parser')
-    if lab_record_response.status_code == 200:
-            html_content = lab_record_response.text
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in html_content:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in html_content:
         if chat_id_in_local_database:
             await operations.silent_logout_user_if_logged_out(bot,chat_id)
             return await fetch_available_labs(bot,message)
@@ -184,12 +179,8 @@ async def fetch_submitted_lab_records(bot,chat_id,user_details,sub_code):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-
-   # Make the POST request
-    response = requests.post(url, headers=headers, cookies=cookies, data=data)
+    client = get_http_client()
+    response = await client.post(url, headers=headers, cookies=session_data.get('cookies') if session_data else None, data=data)
     
     # Check if the response is successful
     if response.status_code != 200:
@@ -266,10 +257,8 @@ async def delete_lab_record(bot,chat_id,sub_code, user_details, week_number):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-    response = requests.post(url, headers=headers, data=data, cookies=cookies)
+    client = get_http_client()
+    response = await client.post(url, headers=headers, data=data, cookies=session_data.get('cookies') if session_data else None)
     return response.json()
 
 async def get_subject_name(subject_code,lab_details):
@@ -302,14 +291,12 @@ async def user_lab_data(bot,chat_id):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     url = 'https://samvidha.iare.ac.in/home?action=labrecord_std'
-    with requests.session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        lab_record_user_data_response = s.get(url)
-    if lab_record_user_data_response.status_code == 200:
-        html_content = lab_record_user_data_response.text
-        soup = BeautifulSoup(html_content, 'html.parser') 
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in html_content:
+    html_content = await async_fetch_page(url, session_data.get('cookies') if session_data else None)
+    if html_content is None:
+        return
+    soup = BeautifulSoup(html_content, 'html.parser')
+    chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in html_content:
         if chat_id_in_local_database:
             await operations.silent_logout_user_if_logged_out(bot,chat_id)
             await user_lab_data(bot,chat_id)
@@ -393,11 +380,8 @@ async def fetch_experiment_names_html(bot,chat_id,user_details, sub_code)->str:
             elif ui_mode[0] == 1:
                 await bot.send_message(chat_id,text=operations.login_message_traditional_ui)
             return
-    session_data = await tdatabase.load_user_session(chat_id)
-    with requests.session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-    response = requests.post(url, headers=headers, data=data, cookies=cookies)
+    client = get_http_client()
+    response = await client.post(url, headers=headers, data=data, cookies=session_data.get('cookies') if session_data else None)
     return response.text
 
 async def get_experiment_title(experiment_names_html, week_no):
@@ -452,41 +436,41 @@ async def upload_pdf(bot,message,sub_code,user_details,upload_details):
         'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         'x-requested-with': 'XMLHttpRequest',
     }
+    with open(upload_details['file_path'], 'rb') as f:
+        pdf_content = f.read()
+
     files = {
-        'ay': (None, user_details['ay']),
-        'rollno': (None, user_details['roll_no']),
-        'current_sem': (None, user_details['current_sem']),
-        'dept_id': (None, user_details['dept_id']),
-        'sec': (None, user_details['sec']),
-        'sub_code': (None, sub_code),
-        'lab_batch_no': (None, user_details['lab_batch_no']),
-        'week_no': (None, upload_details['week_no']),
-        'exp_title': (None, upload_details['exp_title']),
-        # 'prog_doc': (upload_details['file_name'], open(upload_details['file_name'], 'rb'), fr"{upload_details['file_path']}"),
-        'prog_doc': (upload_details['file_name'], open(upload_details['file_path'], 'rb'), 'application/pdf'),
-        'action': (None, 'upload_lab_record_student'),
+        'prog_doc': (upload_details['file_name'], pdf_content, 'application/pdf'),
+    }
+    data = {
+        'ay': user_details['ay'],
+        'rollno': user_details['roll_no'],
+        'current_sem': user_details['current_sem'],
+        'dept_id': user_details['dept_id'],
+        'sec': user_details['sec'],
+        'sub_code': sub_code,
+        'lab_batch_no': user_details['lab_batch_no'],
+        'week_no': upload_details['week_no'],
+        'exp_title': upload_details['exp_title'],
+        'action': 'upload_lab_record_student',
     }
     chat_id = message.chat.id
-    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id) 
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
         auto_login_status = await operations.auto_login_by_database(bot,message,chat_id)
-        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
+        chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
         if auto_login_status is False and chat_id_in_local_database is False:
-            # Login message if no user found in database based on chat_id
             if ui_mode[0] == 0:
                 await bot.send_message(chat_id,text=operations.login_message_updated_ui)
             elif ui_mode[0] == 1:
                 await bot.send_message(chat_id,text=operations.login_message_traditional_ui)
             return
     session_data = await tdatabase.load_user_session(chat_id)
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-    response = requests.post(url, headers=headers, files=files, cookies=cookies)
+    client = get_http_client()
+    response = await client.post(url, headers=headers, data=data, files=files, cookies=session_data.get('cookies') if session_data else None)
     return response.json()
 
 
