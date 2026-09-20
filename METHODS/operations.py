@@ -20,6 +20,7 @@ from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
 from Buttons import buttons
 from bs4 import BeautifulSoup 
 import requests,json,uuid,os,pyqrcode,random,re
+from METHODS.portal_client import perform_async_login, async_fetch_page, async_logout_portal, invalidate_user_cache, get_soup
 from pytz import timezone
 from datetime import datetime
 import io,shutil
@@ -110,79 +111,13 @@ async def is_user_logged_in(bot,message):
     chat_id = message.chat.id
     if await tdatabase.load_user_session(chat_id):
         return True
-async def perform_login( username, password):
-    """Log into Samvidha with credentials and return session payload.
+async def perform_login(username, password):
+    """Log into Samvidha with credentials and return session payload asynchronously.
 
-    Establishes a session, extracts `PHPSESSID`, posts credentials, and verifies
+    Establishes an async session, extracts cookies/tokens, posts credentials, and verifies
     the student dashboard title to confirm success.
-
-    Args:
-        username: Roll number/username used by Samvidha.
-        password: Associated password.
-
-    Returns:
-        dict | None: On success, dict with `cookies`, `headers`, `username`;
-        otherwise None.
     """
-    # Set up the necessary headers and cookies
-    cookies = {'PHPSESSID': ''}
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/115.0',
-        'Accept': '*/*',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Origin': 'https://samvidha.iare.ac.in',
-        'DNT': '1',
-        'Connection': 'keep-alive',
-        'Referer': 'https://samvidha.iare.ac.in/index',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-    }
-
-    data = {
-        'username': username,
-        'password': password,
-    }
-
-    with requests.Session() as s:
-        index_url = "https://samvidha.iare.ac.in/index"
-        login_url = "https://samvidha.iare.ac.in/pages/login/checkUser.php"
-        home_url = "https://samvidha.iare.ac.in/home"
-
-        response = s.get(index_url)
-        cookie_to_extract = 'PHPSESSID'
-        cookie_value = response.cookies.get(cookie_to_extract)
-        if cookie_value:
-            cookies['PHPSESSID'] = cookie_value
-
-        # Extract CSRF token if present (resilient to attribute order, extra attributes, and future portal changes)
-        csrf_match = re.search(
-            r'<meta\s+[^>]*name=["\']csrf-token["\'][^>]*content=["\']([^"\']+)["\']',
-            response.text,
-            re.IGNORECASE
-        ) or re.search(
-            r'<meta\s+[^>]*content=["\']([^"\']+)["\'][^>]*name=["\']csrf-token["\']',
-            response.text,
-            re.IGNORECASE
-        )
-        if csrf_match:
-            headers['X-CSRF-Token'] = csrf_match.group(1)
-
-        s.post(login_url, cookies=cookies, headers=headers, data=data)
-
-        response = s.get(home_url)
-        if '<title>IARE - Dashboard - Student</title>' in response.text:
-
-            session_data = {
-                'cookies': s.cookies.get_dict(),
-                'headers': headers,
-                'username': username  # Save the username in the session data
-            }
-            return session_data
-        else:   
-            return None
+    return await perform_async_login(username, password)
 
 
 async def login(bot,message):
@@ -299,10 +234,10 @@ async def logout(bot,message):
             await bot.send_message(chat_id,text=login_message_traditional_ui)
         return
 
-    logout_url = 'https://samvidha.iare.ac.in/logout'
     session_data = await tdatabase.load_user_session(chat_id)
-    cookies,headers = session_data['cookies'], session_data['headers']
-    requests.get(logout_url, cookies=cookies, headers=headers)
+    cookies = session_data.get('cookies', {})
+    await async_logout_portal(cookies)
+    invalidate_user_cache(chat_id)
     await tdatabase.delete_user_session(chat_id)
     await message.reply("Logout successful.")
 
@@ -315,10 +250,9 @@ async def logout_user_and_remove(bot,message):
         await bot.send_message(chat_id,text="You are already logged out.")
         return
 
-    logout_url = 'https://samvidha.iare.ac.in/logout'
-    session_data = await tdatabase.load_user_session(chat_id)
-    cookies,headers = session_data['cookies'], session_data['headers']
-    requests.get(logout_url, cookies=cookies, headers=headers)
+    cookies = session_data.get('cookies', {})
+    await async_logout_portal(cookies)
+    invalidate_user_cache(chat_id)
     await tdatabase.delete_user_session(chat_id)
 
     await message.reply("Logout successful.")
@@ -372,37 +306,30 @@ async def attendance(bot,message):
 
     # Access the attendance page and retrieve the content
     attendance_url = 'https://samvidha.iare.ac.in/home?action=stud_att_STD'
-    
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
+    cookies = session_data.get('cookies', {})
+    attendance_text = await async_fetch_page(attendance_url, cookies, chat_id=chat_id, cache_action="attendance")
 
-        attendance_response = s.get(attendance_url)
+    if not attendance_text:
+        await bot.send_message(chat_id, "Unable to reach the Samvidha portal. Please try again shortly.")
+        await buttons.start_user_buttons(bot, message)
+        return
+
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    data = BeautifulSoup(attendance_response.text, 'html.parser')
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_text:
+        invalidate_user_cache(chat_id)
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             await attendance(bot,message)
         else:
             await logout_user_if_logged_out(bot,chat_id)
         return
+
+    data = get_soup(attendance_text)
     table_all = data.find_all('table', class_='table table-striped table-bordered table-hover table-head-fixed responsive')
     if len(table_all) > 1:
         req_table = table_all[1]
-
         table_data = []
-
         rows = req_table.tbody.find_all('tr')
-        
-        # ATTENDANCE HEADING
-        
-        attendance_heading = f"""
-```ATTENDANCE
-@iare_unofficial_bot
-```
-"""
-        await bot.send_message(chat_id,attendance_heading)
 
         for row in rows:
             cells = row.find_all('td')
@@ -423,6 +350,8 @@ async def attendance(bot,message):
             attended_classes_index = 6
             attendance_percentage_index = 7
             attendance_status_index = 8
+
+        cards = []
         for row in table_data[0:]:
             course_name = row[course_name_index]
             conducted = row[conducted_classes_index]
@@ -430,51 +359,34 @@ async def attendance(bot,message):
             attendance_percentage = row[attendance_percentage_index]
             attendance_status = row[attendance_status_index]
             if course_name and attendance_percentage:
-                att_msg_updated_ui = f"""
-```{course_name}
-
-● Conducted         -  {conducted}
-             
-● Attended          -  {attended}  
-         
-● Attendance %      -  {attendance_percentage} 
-            
-● Status            -  {attendance_status}  
-         
-```
-"""
-                
-                att_msg_traditional_ui = f"""
-\n**{course_name}**
-
-● Conducted         -  {conducted}
-             
-● Attended            -  {attended}   
-         
-● Attendance %    -  {attendance_percentage} 
-            
-● Status                 -  {attendance_status}
- 
-"""
-# ● Conducted         -  {conducted}
-             
-# ● Attended          -  {attended}  
-         
-# ● Attendance %      -  {attendance_percentage} 
-            
-# ● Status            -  {attendance_status}
-                # att_msg = f"Course: {course_name}, Attendance: {attendance_percentage}"
-                
+                if ui_mode[0] == 0:
+                    cards.append(f"```{course_name}\n● Conducted    -  {conducted}\n● Attended     -  {attended}\n● Attendance % -  {attendance_percentage}%\n● Status       -  {attendance_status}\n```")
+                else:
+                    cards.append(f"**{course_name}**\n● Conducted: {conducted} | Attended: {attended}\n● Attendance: {attendance_percentage}% ({attendance_status})\n")
                 sum_attendance += float(attendance_percentage)
                 if int(conducted) > 0:
-                        count_att += 1
-                if ui_mode[0] == 0:
-                    await bot.send_message(chat_id,att_msg_updated_ui)
+                    count_att += 1
+
+        aver_attendance = round(sum_attendance/count_att, 2) if count_att > 0 else 0.0
+        header = "```ATTENDANCE\n@iare_unofficial_bot\n```\n" if ui_mode[0] == 0 else "**ATTENDANCE SUMMARY**\n\n"
+        footer = f"\n**Overall Attendance is {aver_attendance}%**"
+
+        # Consolidate all courses into batched message to prevent FloodWait rate limits
+        full_msg = header + "\n".join(cards) + footer
+        if len(full_msg) <= 4000:
+            await bot.send_message(chat_id, full_msg)
+        else:
+            await bot.send_message(chat_id, header)
+            chunk = ""
+            for c in cards:
+                if len(chunk) + len(c) > 3500:
+                    await bot.send_message(chat_id, chunk)
+                    chunk = c + "\n"
                 else:
-                    await bot.send_message(chat_id,att_msg_traditional_ui)
-        aver_attendance = round(sum_attendance/count_att, 2)
-        over_all_attendance = f"**Overall Attendance is {aver_attendance}**"
-        await bot.send_message(chat_id,over_all_attendance)
+                    chunk += c + "\n"
+            if chunk:
+                await bot.send_message(chat_id, chunk)
+            await bot.send_message(chat_id, footer)
 
     else:
         await bot.send_message(chat_id,"Attendance data not found.")
@@ -507,23 +419,27 @@ async def biometric(bot, message):
     session_data = await tdatabase.load_user_session(chat_id)
 
     biometric_url = 'https://samvidha.iare.ac.in/home?action=std_bio'
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        headers = session_data['headers']
-        response = s.get(biometric_url, headers=headers)
+    cookies = session_data.get('cookies', {})
+    response_text = await async_fetch_page(biometric_url, cookies, chat_id=chat_id, cache_action="biometric")
 
-        # Parse the HTML content using BeautifulSoup
-        Biometric_html = BeautifulSoup(response.text, 'html.parser')
+    if not response_text:
+        await bot.send_message(chat_id, "Unable to reach Samvidha portal. Please try again shortly.")
+        await buttons.start_user_buttons(bot, message)
+        return
+
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
     # Check if the response contains the expected title
-    if '<title>Samvidha - Campus Management Portal - IARE</title>' in response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in response_text:
+        invalidate_user_cache(chat_id)
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot, chat_id)
             await biometric(bot, message)
         else:
             await logout_user_if_logged_out(bot, chat_id)
         return
+
+    # Parse the HTML content using fast lxml parser
+    Biometric_html = get_soup(response_text)
 
     # Find the table
     biometric_table = Biometric_html.find('table', class_='table')
@@ -741,16 +657,17 @@ async def bunk(bot,message):
     session_data = await tdatabase.load_user_session(chat_id)
 
     attendance_url = 'https://samvidha.iare.ac.in/home?action=stud_att_STD'
-    
-    with requests.Session() as s:
+    cookies = session_data.get('cookies', {})
+    attendance_text = await async_fetch_page(attendance_url, cookies, chat_id=chat_id, cache_action="attendance")
 
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
+    if not attendance_text:
+        await bot.send_message(chat_id, "Unable to reach Samvidha portal. Please try again shortly.")
+        await buttons.start_user_buttons(bot, message)
+        return
 
-        attendance_response = s.get(attendance_url)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    data = BeautifulSoup(attendance_response.text, 'html.parser')
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_text:
+        invalidate_user_cache(chat_id)
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             await bunk(bot,message)
@@ -758,43 +675,34 @@ async def bunk(bot,message):
             await logout_user_if_logged_out(bot,chat_id)
         return
 
+    data = get_soup(attendance_text)
     table_all = data.find_all('table', class_='table table-striped table-bordered table-hover table-head-fixed responsive')
     if len(table_all) > 1:
-
         req_table = table_all[1]
         table_data = []
         rows = req_table.tbody.find_all('tr')
         
-        # BUNK HEADING
         attendance_threshold = await user_settings.fetch_attendance_threshold(chat_id)
-        bunk_heading = f"""
-```BUNK
-@iare_unofficial_bot
+        threshold_val = attendance_threshold[0] if attendance_threshold else 75
 
-● Attendance Threshold - {attendance_threshold[0]}
-```
-"""
-        await bot.send_message(chat_id,bunk_heading)
-        
         for row in rows:
             cells = row.find_all('td')
-
             row_data = [cell.get_text(strip=True) for cell in cells]
-
             table_data.append(row_data)
+
         all_attendance_indexes_dictionary = await user_settings.get_attendance_index_values()
         if all_attendance_indexes_dictionary:
             course_name_index = all_attendance_indexes_dictionary['course_name']
             conducted_classes_index = all_attendance_indexes_dictionary['conducted_classes']
             attended_classes_index = all_attendance_indexes_dictionary['attended_classes']
             attendance_percentage_index = all_attendance_indexes_dictionary['attendance_percentage']
-            attendance_status_index = all_attendance_indexes_dictionary['status']
         else:
             course_name_index = 2
             conducted_classes_index = 5
             attended_classes_index = 6
             attendance_percentage_index = 7
-            attendance_status_index = 8
+
+        bunk_cards = []
         for row in table_data[0:]:
             course_name = row[course_name_index]
             attendance_percentage = row[attendance_percentage_index]
@@ -802,80 +710,41 @@ async def bunk(bot,message):
                 attendance_present = float(attendance_percentage)
                 conducted_classes = int(row[conducted_classes_index])
                 attended_classes = int(row[attended_classes_index])
-                classes_bunked = 0
                 
-                if attendance_present >= attendance_threshold[0]:
+                if attendance_present >= threshold_val:
                     classes_bunked = 0
-                    while (attended_classes / (conducted_classes + classes_bunked)) * 100 >= attendance_threshold[0]:
+                    while (attended_classes / (conducted_classes + classes_bunked)) * 100 >= threshold_val:
                         classes_bunked += 1
                     classes_bunked -= 1
-                    bunk_can_msg_updated = f"""
-```{course_name}
-⫷
-
-● Attendance  -  {attendance_percentage}
-
-● You can bunk {classes_bunked} classes
-
-⫸
-
-```
-"""
-                    bunk_can_msg_traditional = f"""
-**{course_name}**
-
-⫷
-
-● Current Attendance      -  {attendance_percentage}
-
-● You can bunk {classes_bunked} classes
-
-⫸
-
-"""
                     if ui_mode[0] == 0:
-                        await bot.send_message(chat_id,bunk_can_msg_updated)
+                        bunk_cards.append(f"```{course_name}\n● Attendance : {attendance_percentage}%\n● Can Bunk   : {classes_bunked} classes\n```")
                     else:
-                        await bot.send_message(chat_id,bunk_can_msg_traditional)
-                  
-                    
+                        bunk_cards.append(f"**{course_name}**\n● Attendance: {attendance_percentage}% | Can bunk: {classes_bunked} classes\n")
                 else:
                     classes_needattend = 0
-                    if conducted_classes == 0:
-                        classes_needattend = 0
-                    else:
-                        while((attended_classes + classes_needattend) / (conducted_classes + classes_needattend)) * 100 < attendance_threshold[0]:
-                            classes_needattend += 1    
-                    bunk_recover_msg_updated = f"""
-```{course_name}
-⫷
-
-● Attendance  -  Below {attendance_threshold[0]}%
-
-● Attend  {classes_needattend} classes for {attendance_threshold[0]}%
-
-● No Bunk Allowed
-
-⫸
-
-```
-"""
-                    bunk_recover_msg_traditional = f"""
-**{course_name}**
-
-⫷
-
-● Attendance  -  Below {attendance_threshold[0]}%
-
-● Attend  {classes_needattend} classes for {attendance_threshold[0]}%
-
-● No Bunk Allowed
-
-⫸"""
+                    if conducted_classes > 0:
+                        while ((attended_classes + classes_needattend) / (conducted_classes + classes_needattend)) * 100 < threshold_val:
+                            classes_needattend += 1
                     if ui_mode[0] == 0:
-                        await bot.send_message(chat_id,bunk_recover_msg_updated)
+                        bunk_cards.append(f"```{course_name}\n● Attendance : {attendance_percentage}% (Below {threshold_val}%)\n● Need Attend: {classes_needattend} classes to recover\n● Status     : No Bunk Allowed\n```")
                     else:
-                        await bot.send_message(chat_id,bunk_recover_msg_traditional)              
+                        bunk_cards.append(f"**{course_name}**\n● Attendance: {attendance_percentage}% (Below {threshold_val}%)\n● Need to attend {classes_needattend} classes | No Bunk\n")
+
+        header = f"```BUNK ANALYSIS\n@iare_unofficial_bot\n● Threshold: {threshold_val}%\n```\n" if ui_mode[0] == 0 else f"**BUNK ANALYSIS (Threshold: {threshold_val}%)**\n\n"
+        full_msg = header + "\n".join(bunk_cards)
+        if len(full_msg) <= 4000:
+            await bot.send_message(chat_id, full_msg)
+        else:
+            await bot.send_message(chat_id, header)
+            chunk = ""
+            for card in bunk_cards:
+                if len(chunk) + len(card) > 3500:
+                    await bot.send_message(chat_id, chunk)
+                    chunk = card + "\n"
+                else:
+                    chunk += card + "\n"
+            if chunk:
+                await bot.send_message(chat_id, chunk)
     else:
         await message.reply("Data not found.")
     await buttons.start_user_buttons(bot,message)
@@ -941,25 +810,25 @@ async def pat_attendance(bot,message):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     pat_attendance_url = "https://samvidha.iare.ac.in/home?action=Attendance_std"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        pat_attendance_response = s.get(pat_attendance_url)
+    cookies = session_data.get('cookies', {})
+    pat_attendance_response_text = await async_fetch_page(pat_attendance_url, cookies, chat_id=chat_id, cache_action="pat_attendance")
+
+    if not pat_attendance_response_text:
+        await bot.send_message(chat_id, "Unable to reach Samvidha portal. Please try again shortly.")
+        await buttons.start_user_buttons(bot, message)
+        return
+
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in pat_attendance_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in pat_attendance_response_text:
+        invalidate_user_cache(chat_id)
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             await pat_attendance(bot,message)
         else:
             await logout_user_if_logged_out(bot,chat_id)
         return
-    pat_att_heading = f"""
-```PAT ATTENDANCE
-@iare_unofficial_bot
-```
-"""
-    await bot.send_message(chat_id,pat_att_heading)
-    data = BeautifulSoup(pat_attendance_response.text, 'html.parser')
+
+    data = get_soup(pat_attendance_response_text)
     tables = data.find_all('table')
     all_pat_attendance_indexes = await user_settings.get_pat_attendance_index_values()
     if all_pat_attendance_indexes:
@@ -976,6 +845,7 @@ async def pat_attendance(bot,message):
         attendance_status_index = 6
     sum_of_attendance = 0
     count_of_attendance = 0
+    cards = []
     for table in tables:
         rows = table.find_all('tr')
 
@@ -987,41 +857,36 @@ async def pat_attendance(bot,message):
                 attended_classes = columns[attended_classes_index].text.strip()  
                 attendance_percentage = columns[attendance_percentage_index].text.strip()
                 att_status = columns[attendance_status_index].text.strip()
-                att_msg_updated_ui = f"""
-```{course_name}
 
-● Conducted         -  {conducted_classes}
-             
-● Attended          -  {attended_classes}  
-         
-● Attendance %      -  {attendance_percentage} 
-            
-● Status            -  {att_status}  
-         
-```
-"""
-                
-                att_msg_traditional_ui = f"""
-\n**{course_name}**
-
-● Conducted         -  {conducted_classes}
-             
-● Attended            -  {attended_classes}   
-         
-● Attendance %    -  {attendance_percentage} 
-            
-● Status                 -  {att_status}
-"""
-                sum_of_attendance+=float(attendance_percentage)
-                if int(conducted_classes) > 0:
-                        count_of_attendance += 1
                 if ui_mode[0] == 0:
-                    await bot.send_message(chat_id,att_msg_updated_ui)
+                    cards.append(f"```{course_name}\n● Conducted    -  {conducted_classes}\n● Attended     -  {attended_classes}\n● Attendance % -  {attendance_percentage}%\n● Status       -  {att_status}\n```")
                 else:
-                    await bot.send_message(chat_id,att_msg_traditional_ui)
-    aver_attendance = round(sum_of_attendance/count_of_attendance, 2)
-    over_all_attendance = f"**Overall PAT Attendance is {aver_attendance}**"
-    await bot.send_message(chat_id,over_all_attendance)
+                    cards.append(f"**{course_name}**\n● Conducted: {conducted_classes} | Attended: {attended_classes}\n● Attendance: {attendance_percentage}% ({att_status})\n")
+
+                sum_of_attendance += float(attendance_percentage)
+                if int(conducted_classes) > 0:
+                    count_of_attendance += 1
+
+    aver_attendance = round(sum_of_attendance/count_of_attendance, 2) if count_of_attendance > 0 else 0.0
+    header = "```PAT ATTENDANCE\n@iare_unofficial_bot\n```\n" if ui_mode[0] == 0 else "**PAT ATTENDANCE SUMMARY**\n\n"
+    footer = f"\n**Overall PAT Attendance is {aver_attendance}%**"
+
+    full_msg = header + "\n".join(cards) + footer
+    if len(full_msg) <= 4000:
+        await bot.send_message(chat_id, full_msg)
+    else:
+        await bot.send_message(chat_id, header)
+        chunk = ""
+        for c in cards:
+            if len(chunk) + len(c) > 3500:
+                await bot.send_message(chat_id, chunk)
+                chunk = c + "\n"
+            else:
+                chunk += c + "\n"
+        if chunk:
+            await bot.send_message(chat_id, chunk)
+        await bot.send_message(chat_id, footer)
+
     await buttons.start_user_buttons(bot,message)
 
 async def gpa(bot,message):
@@ -1043,12 +908,15 @@ async def gpa(bot,message):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     gpa_url = "https://samvidha.iare.ac.in/home?action=credit_register"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        gpa_response = s.get(gpa_url)
+    cookies = session_data.get('cookies', {})
+    gpa_response_text = await async_fetch_page(gpa_url, cookies, chat_id=chat_id, cache_action="gpa")
+    if not gpa_response_text:
+        await bot.send_message(chat_id, "Unable to reach Samvidha portal. Please try again shortly.")
+        await buttons.start_user_buttons(bot, message)
+        return
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_response_text:
+        invalidate_user_cache(chat_id)
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             return await gpa(bot,message)
@@ -1058,9 +926,9 @@ async def gpa(bot,message):
     try:
         sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
         cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
-        sgpa_values = re.findall(sgpa_pattern,gpa_response.text)
+        sgpa_values = re.findall(sgpa_pattern,gpa_response_text)
         sgpa_values = [float(x) for x in sgpa_values]
-        cgpa_values = re.findall(cgpa_pattern,gpa_response.text)
+        cgpa_values = re.findall(cgpa_pattern,gpa_response_text)
         if len(cgpa_values) == 0:
             cgpa = 0.00
         else:
