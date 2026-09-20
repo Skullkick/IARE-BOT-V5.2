@@ -525,8 +525,15 @@ async def broadcast_announcement(
 
 def main():
     """Main entrypoint when launched as a standalone MCP server."""
-    logger.info("Starting IARE-BOT MCP Server over stdio transport...")
-    mcp.run(transport="stdio")
+    transport = os.environ.get("MCP_TRANSPORT", "stdio").strip().lower()
+    if transport == "sse":
+        host = os.environ.get("MCP_HOST", "0.0.0.0").strip()
+        port = int(os.environ.get("MCP_PORT", "8000"))
+        logger.info("Starting IARE-BOT MCP Server over SSE transport on %s:%d...", host, port)
+        mcp.run(transport="sse", host=host, port=port)
+    else:
+        logger.info("Starting IARE-BOT MCP Server over stdio transport...")
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

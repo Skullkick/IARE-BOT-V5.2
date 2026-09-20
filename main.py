@@ -13,7 +13,7 @@ Run: Executed directly, it schedules `main()` and calls `bot.run()`.
 """
 
 from pyrogram import Client, filters,errors
-import asyncio,os
+import asyncio, os, sys, subprocess, atexit
 from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
 from METHODS import labs_handler, operations,manager_operations,lab_operations,pdf_compressor
 from Buttons import buttons,manager_buttons
@@ -266,6 +266,39 @@ async def _callback_function(bot,callback_query):
     except Exception as e:
         logging.error("Error in '_callback_function': %s", e)
 
+_MCP_PROCESS = None
+
+def start_mcp_server_if_enabled():
+    """Start iare_mcp_server as a background subprocess if ENABLE_MCP_SERVER is set to true."""
+    global _MCP_PROCESS
+    enable_flag = os.environ.get("ENABLE_MCP_SERVER", "").strip().lower()
+    if enable_flag not in ("1", "true", "yes", "on"):
+        logging.info("MCP server is disabled (ENABLE_MCP_SERVER is not set to true).")
+        return None
+
+    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "iare_mcp_server.py")
+    try:
+        _MCP_PROCESS = subprocess.Popen([sys.executable, script_path], env=os.environ.copy())
+        logging.info("Started background MCP server subprocess (PID: %d)", _MCP_PROCESS.pid)
+        return _MCP_PROCESS
+    except Exception as exc:
+        logging.error("Failed to start background MCP server: %s", exc, exc_info=True)
+        return None
+
+def stop_mcp_server():
+    """Terminate the background MCP server subprocess on bot shutdown."""
+    global _MCP_PROCESS
+    if _MCP_PROCESS and _MCP_PROCESS.poll() is None:
+        logging.info("Shutting down background MCP server (PID: %d)...", _MCP_PROCESS.pid)
+        _MCP_PROCESS.terminate()
+        try:
+            _MCP_PROCESS.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            _MCP_PROCESS.kill()
+        _MCP_PROCESS = None
+
+atexit.register(stop_mcp_server)
+
 async def main(bot):
     """Application bootstrap.
 
@@ -279,6 +312,7 @@ async def main(bot):
         await user_settings.create_user_settings_tables()
         await managers_handler.create_required_bot_manager_tables()
         await operations.sync_databases(bot)
+        start_mcp_server_if_enabled()
     except Exception as e:
         logging.error("Error in 'main' function: %s", e, exc_info=True)
 

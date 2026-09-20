@@ -242,3 +242,20 @@ DIRECTIVES:
 1. **Credential Isolation:** Passwords and encrypted session tokens are NEVER returned in tool responses.
 2. **Network Decoupling:** `send_reply` uses direct HTTP `POST https://api.telegram.org/bot<TOKEN>/sendMessage`. It does not touch or block the Pyrogram client session.
 3. **Database Consistency:** Dual-write to SQLite and Postgres ensures synchronization across local test benches and cloud deployments.
+
+---
+
+## 6. Lifecycle & Subprocess Management
+
+When running the main Telegram bot (`python main.py`), the MCP server can either remain idle (for client-spawned stdio runners) or be automatically started as an isolated background subprocess.
+
+### Environment Variables
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `ENABLE_MCP_SERVER` | `false` | When set to `true`, `main.py` automatically spawns `iare_mcp_server.py` as an isolated subprocess. |
+| `MCP_TRANSPORT` | `stdio` | Transport protocol: `"stdio"` (for local agent pipes) or `"sse"` (for network/remote agents). |
+| `MCP_HOST` | `0.0.0.0` | Host interface to bind when running SSE transport. |
+| `MCP_PORT` | `8000` | Port to listen on when running SSE transport (`/sse` endpoint). |
+
+### Graceful Shutdown
+`main.py` uses `atexit` signal handlers to ensure that whenever the bot process shuts down (e.g., `SIGINT`, `SIGTERM`, or crash), the background MCP server subprocess is cleanly terminated with no zombie processes left running.

@@ -463,3 +463,32 @@ async def test_broadcast_announcement_floodwait_retry(monkeypatch):
     assert res["status"] == "completed"
     assert res["successful"] == 1
     assert call_count >= 2  # Proves retry happened after 429
+
+
+@pytest.mark.asyncio
+async def test_start_mcp_server_toggle(monkeypatch):
+    """Verify start_mcp_server_if_enabled in main.py respects ENABLE_MCP_SERVER."""
+    import main
+
+    # 1. Disabled by default
+    monkeypatch.delenv("ENABLE_MCP_SERVER", raising=False)
+    proc_disabled = main.start_mcp_server_if_enabled()
+    assert proc_disabled is None
+
+    # 2. Disabled explicitly
+    monkeypatch.setenv("ENABLE_MCP_SERVER", "false")
+    proc_false = main.start_mcp_server_if_enabled()
+    assert proc_false is None
+
+    # 3. Enabled (mocking subprocess.Popen)
+    monkeypatch.setenv("ENABLE_MCP_SERVER", "true")
+    mock_popen = MagicMock(pid=99999, poll=MagicMock(return_value=None))
+    monkeypatch.setattr(main.subprocess, "Popen", MagicMock(return_value=mock_popen))
+
+    proc_enabled = main.start_mcp_server_if_enabled()
+    assert proc_enabled is not None
+    assert proc_enabled.pid == 99999
+
+    # Cleanup shutdown test
+    main.stop_mcp_server()
+    assert main._MCP_PROCESS is None

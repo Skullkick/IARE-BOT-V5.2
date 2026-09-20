@@ -156,6 +156,36 @@ if __name__ == "__main__":
 
 ---
 
+### Option E: Running Automatically with `main.py` (Remote Agents via SSE)
+
+If you want `python main.py` to automatically launch the MCP server in the background so remote agents can connect over the network/internet:
+
+1. In your `.env` (or environment variables), enable the MCP server and configure SSE transport:
+   ```env
+   ENABLE_MCP_SERVER=true
+   MCP_TRANSPORT=sse
+   MCP_HOST=0.0.0.0
+   MCP_PORT=8000
+   ```
+
+2. Run your bot normally:
+   ```bash
+   python main.py
+   ```
+   `main.py` will automatically start `iare_mcp_server.py` as an isolated background subprocess on port `8000`!
+
+3. Now, **any remote agent** (e.g. running on another server, VPS, or cloud) can connect over HTTP/SSE:
+   - **SSE Endpoint URL:** `http://YOUR_SERVER_IP:8000/sse`
+
+   In Hermes Agent `~/.hermes/config.yaml` on the remote machine:
+   ```yaml
+   mcp_servers:
+     iare_bot:
+       url: "http://YOUR_SERVER_IP:8000/sse"
+   ```
+
+---
+
 ## Step 3: How to Instruct Your Agent (Prompting)
 
 Give your AI agent these system instructions so it acts as an **automated resolution engine**, not a chatty assistant:
