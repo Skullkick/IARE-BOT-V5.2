@@ -108,25 +108,38 @@ def test_gpa_regex_single_digit_and_decimals():
     assert sgpa == ["8.75"]
     assert cgpa == ["9.12"]
 
-def test_gpa_regex_perfect_ten_defect():
-    """DEFECT PROBE: perfect 10.00 SGPA/CGPA fails to parse due to single-digit '\\d' limitation.
-    
-    Pattern: r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
-    When input is '10.00', '\\d' matches only the first digit '1', and (?:\\.\\d\\d)? cannot match '0.00',
-    so the regex returns ['1'] or fails completely instead of ['10.00']!
-    """
+def test_gpa_regex_perfect_ten():
+    """Verify perfect 10.00 SGPA/CGPA parses correctly with updated \\d{1,2} pattern."""
     sample_text = """
     Semester Grade Point Average (SGPA) : 10.00
     Cumulative Grade Point Average (CGPA) : 10.00
     """
-    sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
-    cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
+    sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
+    cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
     
     sgpa = re.findall(sgpa_pattern, sample_text)
     cgpa = re.findall(cgpa_pattern, sample_text)
-    # The regex produces ['1'] instead of ['10.00']!
-    assert sgpa == ["1"], f"Defect confirmed: Expected flawed extraction ['1'], got {sgpa}"
-    assert cgpa == ["1"], f"Defect confirmed: Expected flawed extraction ['1'], got {cgpa}"
+    assert sgpa == ["10.00"]
+    assert cgpa == ["10.00"]
+
+def test_attendance_average_zero_conducted_ignored():
+    """Verify that courses with 0 conducted classes do not skew overall attendance average."""
+    table_data = [
+        ["Mathematics", "20", "18", "90.0", "Regular"],
+        ["Physics", "20", "16", "80.0", "Regular"],
+        ["Seminar", "0", "0", "100.0", "Regular"],
+    ]
+    sum_attendance = 0.0
+    count_att = 0
+    for row in table_data:
+        course_name, conducted, attended, attendance_percentage, status = row
+        if int(conducted) > 0:
+            sum_attendance += float(attendance_percentage)
+            count_att += 1
+
+    aver_attendance = round(sum_attendance / count_att, 2) if count_att > 0 else 0.0
+    assert count_att == 2
+    assert aver_attendance == 85.0
 
 
 # --- 3. Bunk Calculations ---

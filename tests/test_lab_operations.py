@@ -3,8 +3,8 @@ from bs4 import BeautifulSoup
 from METHODS import lab_operations
 from DATABASE import user_settings, tdatabase
 
-async def test_fetch_available_labs_missing_delimiter_defect(mock_bot, mock_message, monkeypatch):
-    """DEFECT PROBE: options missing ' - ' separator cause IndexError caught and returned as error string."""
+async def test_fetch_available_labs_missing_delimiter_handled(mock_bot, mock_message, monkeypatch):
+    """Verify options missing ' - ' separator are parsed gracefully without IndexError."""
     chat_id = mock_message.chat.id
     await user_settings.create_user_settings_tables()
     await tdatabase.create_all_tdatabase_tables()
@@ -26,9 +26,8 @@ async def test_fetch_available_labs_missing_delimiter_defect(mock_bot, mock_mess
     monkeypatch.setattr(lab_operations, "async_fetch_page", mock_fetch)
 
     res = await lab_operations.fetch_available_labs(mock_bot, mock_message)
-    # IndexError: list index out of range was caught and returned as string
-    assert isinstance(res, str)
-    assert "list index out of range" in res
+    assert isinstance(res, dict)
+    assert res == {"InvalidFormatWithoutHyphen": "1"}
 
 async def test_get_week_details_empty_tr_defect():
     """DEFECT PROBE: table row without <td> raises unhandled IndexError in get_week_details."""

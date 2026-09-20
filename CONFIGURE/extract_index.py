@@ -135,6 +135,9 @@ async def get_pat_indexes(bot,message):
             await operations.logout_user_if_logged_out(bot,chat_id)
         return
     tables_list = data.find_all('table')
+    if len(tables_list) < 3:
+        await bot.send_message(chat_id, "PAT attendance table format unexpected.")
+        return None
     attendance_table = tables_list[2]
 
     headers = [header for header in attendance_table.find_all('th')]

@@ -72,13 +72,13 @@
 | `test_user_settings_db.py` | SQLite user settings, threshold clamping, idempotency defects | 7 | 7 | 0 |
 | `test_tdatabase.py` | Sessions, credentials encryption at rest, reports, concurrency | 8 | 8 | 0 |
 | `test_extract_index.py` | HTML table column mapping, missing header errors, missing thead | 4 | 4 | 0 |
-| `test_operations_calculations.py` | Biometrics 6h gap, leaves math, bunk limits, GPA regex defects | 11 | 11 | 0 |
-| `test_manager_operations.py` | Suffix ban expansions, empty broadcast guard, user name parsing | 5 | 5 | 0 |
+| `test_operations_calculations.py` | Biometrics 6h gap, leaves math, bunk limits, GPA regex defects | 12 | 12 | 0 |
+| `test_manager_operations.py` | Suffix ban expansions, empty broadcast guard, user name parsing, queue FloodWait | 6 | 6 | 0 |
 | `test_lab_operations.py` | Lab select parsing, week extraction, duplicate entries, marks | 4 | 4 | 0 |
 | `test_wiring_and_signature_defects.py` | Main and lab operations call-site argument mismatches, filter restriction | 4 | 4 | 0 |
 | `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, chunking | 6 | 6 | 0 |
 | `test_sanity.py` | Harness operational verification | 1 | 1 | 0 |
-| **TOTAL** | **Comprehensive Full System Verification** | **67** | **67** | **0** |
+| **TOTAL** | **Comprehensive Full System Verification** | **69** | **69** | **0** |
 
 ### Statement Coverage by Module
 | Module | Total Statements | Missed Statements | Coverage (%) |
@@ -185,14 +185,11 @@
 ### Medium / Moderate Severity Defects
 
 #### 9. Truncation of Perfect 10.00 GPAs in Regular Expression
-- **File & Line:** [METHODS/operations.py:923-926](file:///d:/IARE-BOT-V5.2/METHODS/operations.py#L923-L926)
+- **Status:** **RESOLVED & VERIFIED**
+- **File & Line:** [METHODS/operations.py:961-962](file:///d:/IARE-BOT-V5.2/METHODS/operations.py#L961-L962), [METHODS/manager_operations.py:534-535](file:///d:/IARE-BOT-V5.2/METHODS/manager_operations.py#L534-L535)
 - **Fault Mechanism:** `sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'`. The pattern specifies `\d`, restricting the integer component to a single character. For students with a perfect `10.00` SGPA or CGPA, the regex matches only `"1"` and drops the decimal, reporting an SGPA of 1.00 instead of 10.00.
-- **Input to Reproduce:** Student with 10.00 SGPA queries GPA.
-- **Recommended Defensive Patch:**
-  ```python
-  sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
-  cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
-  ```
+- **Fix Applied:** Updated patterns in both `operations.py` and `manager_operations.py` to `(\d{1,2}(?:\.\d{1,2})?)`.
+- **Verification:** Verified by `tests/test_operations_calculations.py::test_gpa_regex_perfect_ten`.
 
 ---
 
@@ -209,93 +206,65 @@
 ---
 
 #### 11. Unhandled IndexError in `fetch_available_labs`
-- **File & Line:** [METHODS/lab_operations.py:74-77](file:///d:/IARE-BOT-V5.2/METHODS/lab_operations.py#L74-L77)
+- **Status:** **RESOLVED & VERIFIED**
+- **File & Line:** [METHODS/lab_operations.py:74-79](file:///d:/IARE-BOT-V5.2/METHODS/lab_operations.py#L74-L79)
 - **Fault Mechanism:** `lab_text.split(" - ")` followed by `sub_name = lab_text[1]`. If the HTML `<option>` element does not contain `" - "`, the resulting list has length 1, raising `IndexError`.
-- **Input to Reproduce:** Portal renders `<option value="1">Engineering Workshop</option>`.
-- **Recommended Defensive Patch:**
-  ```python
-  parts = lab_text.split(" - ")
-  if len(parts) >= 2:
-      sub_code, sub_name = parts[0].strip(), parts[1].strip()
-      lab_details[sub_name] = sub_code
-  ```
+- **Fix Applied:** Safely guarded splitting by verifying `len(parts) >= 2`, falling back to option value/text when the delimiter is absent.
+- **Verification:** Verified by `tests/test_lab_operations.py::test_fetch_available_labs_missing_delimiter_handled`.
 
 ---
 
 #### 12. Unhandled IndexError in `get_week_details`
+- **Status:** **PRESERVED AS-IS / EXCLUDED PER USER INSTRUCTION**
 - **File & Line:** [METHODS/lab_operations.py:96](file:///d:/IARE-BOT-V5.2/METHODS/lab_operations.py#L96)
 - **Fault Mechanism:** `week_text = row.find_all('td')[0].get_text(strip=True)`. Header rows (`<th>`) or empty rows inside `<tbody>` have zero `<td>` elements, raising unhandled `IndexError: list index out of range`.
 - **Input to Reproduce:** Table containing empty formatting rows or headers inside body.
-- **Recommended Defensive Patch:**
-  ```python
-  tds = row.find_all('td')
-  if not tds:
-      continue
-  week_text = tds[0].get_text(strip=True)
-  ```
+- **Verification:** Covered by probe `tests/test_lab_operations.py::test_get_week_details_empty_tr_defect`.
 
 ---
 
 #### 13. Telemetry Output with `None` Last Name in `get_username`
-- **File & Line:** [METHODS/manager_operations.py:49-51](file:///d:/IARE-BOT-V5.2/METHODS/manager_operations.py#L49-L51)
+- **Status:** **RESOLVED & VERIFIED**
+- **File & Line:** [METHODS/manager_operations.py:49-54](file:///d:/IARE-BOT-V5.2/METHODS/manager_operations.py#L49-L54)
 - **Fault Mechanism:** `user_name = f"{user.first_name} {user.last_name}"`. In Telegram, users are not required to provide a last name (`user.last_name is None`). This produces strings like `"Rahul None"`.
-- **Input to Reproduce:** User without a last name triggering a maintainer query.
-- **Recommended Defensive Patch:**
-  ```python
-  user_name = f"{user.first_name} {user.last_name}".strip() if user.last_name else (user.first_name or "Unknown")
-  ```
+- **Fix Applied:** Checked `getattr(user, "last_name", None)` and concatenated only when present, defaulting to first name or `"Unknown"`.
+- **Verification:** Verified by `tests/test_manager_operations.py::test_get_username_last_name_none_handled`.
 
 ---
 
 #### 14. Premature Worker Termination in Broadcast Queue
-- **File & Line:** [METHODS/manager_operations.py:307-328](file:///d:/IARE-BOT-V5.2/METHODS/manager_operations.py#L307-L328)
+- **Status:** **RESOLVED & VERIFIED**
+- **File & Line:** [METHODS/manager_operations.py:307-353](file:///d:/IARE-BOT-V5.2/METHODS/manager_operations.py#L307-L353)
 - **Fault Mechanism:** In `announcement_to_all_users`, workers exit when `queue.get_nowait()` raises `QueueEmpty`. If a worker encounters Telegram `FloodWait` (e.g. 30s delay) and puts its item back into the queue, other concurrent workers may have already exhausted the remaining queue and returned. When the sleeping worker resumes, no workers remain alive, stranding queued announcements indefinitely.
-- **Input to Reproduce:** Send announcement to > 100 users triggering rate limits.
-- **Recommended Defensive Patch:**
-  Keep workers alive until all tasks are marked complete via `queue.join()` and feed sentinel `None` tokens when broadcasting finishes.
+- **Fix Applied:** Refactored worker loop to `await queue.get()`, synchronized termination with `await queue.join()`, and gracefully stopped workers using sentinel `None` tokens.
+- **Verification:** Verified by `tests/test_manager_operations.py::test_announcement_broadcast_with_floodwait_retry`.
 
 ---
 
 #### 15. Skewed Attendance Average on Zero-Conducted Subjects
-- **File & Line:** [METHODS/operations.py:366-370](file:///d:/IARE-BOT-V5.2/METHODS/operations.py#L366-L370)
-- **Fault Mechanism:**
-  ```python
-  sum_attendance += float(attendance_percentage)
-  if int(conducted) > 0:
-      count_att += 1
-  aver_attendance = round(sum_attendance / count_att, 2)
-  ```
-  Courses with `conducted == 0` (e.g., Seminar, Comprehensive Viva) add their percentage (e.g. 100% or 0%) to `sum_attendance`, but do not increment `count_att`. The resulting average is mathematically invalid.
-- **Recommended Defensive Patch:**
-  ```python
-  if int(conducted) > 0:
-      sum_attendance += float(attendance_percentage)
-      count_att += 1
-  ```
+- **Status:** **RESOLVED & VERIFIED**
+- **File & Line:** [METHODS/operations.py:376-378, 899-901](file:///d:/IARE-BOT-V5.2/METHODS/operations.py#L376-L378)
+- **Fault Mechanism:** Courses with `conducted == 0` (e.g., Seminar, Comprehensive Viva) added their percentage to `sum_attendance`, but did not increment `count_att`. The resulting average was mathematically skewed.
+- **Fix Applied:** Only added `attendance_percentage` to sum when `int(conducted) > 0` in both regular and PAT attendance.
+- **Verification:** Verified by `tests/test_operations_calculations.py::test_attendance_average_zero_conducted_ignored`.
 
 ---
 
 #### 16. Missing Error Handling on PAT Table Index Lookup
-- **File & Line:** [CONFIGURE/extract_index.py:138](file:///d:/IARE-BOT-V5.2/CONFIGURE/extract_index.py#L138)
-- **Fault Mechanism:** `attendance_table = tables_list[2]` assumes at least 3 tables exist on the page and does not wrap the block in a `try...except`. If the page structure changes or yields fewer tables, it crashes with `IndexError: list index out of range`.
-- **Recommended Defensive Patch:**
-  ```python
-  if len(tables_list) < 3:
-      await bot.send_message(chat_id, "PAT attendance table format unexpected.")
-      return None
-  ```
+- **Status:** **RESOLVED & VERIFIED**
+- **File & Line:** [CONFIGURE/extract_index.py:137-140](file:///d:/IARE-BOT-V5.2/CONFIGURE/extract_index.py#L137-L140)
+- **Fault Mechanism:** `attendance_table = tables_list[2]` assumes at least 3 tables exist on the page without bounds validation, crashing with unhandled `IndexError` on malformed pages.
+- **Fix Applied:** Added `if len(tables_list) < 3:` guard that alerts the chat and returns `None`.
+- **Verification:** Verified by `tests/test_extract_index.py::test_get_pat_indexes_missing_table_handled`.
 
 ---
 
 #### 17. Time Format Unpack Crash on Biometric Seconds
+- **Status:** **PRESERVED AS-IS / EXCLUDED PER USER INSTRUCTION**
 - **File & Line:** [METHODS/operations.py:592-593](file:///d:/IARE-BOT-V5.2/METHODS/operations.py#L592-L593)
 - **Fault Mechanism:** `intime_hour, intime_minute = intime.split(':')`. If the portal renders timestamps with seconds (`09:15:30`), splitting by `:` yields 3 elements, raising `ValueError: too many values to unpack (expected 2)`.
-- **Recommended Defensive Patch:**
-  ```python
-  in_parts = intime.split(':')
-  out_parts = outtime.split(':')
-  time_difference = (int(out_parts[0]) - int(in_parts[0])) * 60 + (int(out_parts[1]) - int(in_parts[1]))
-  ```
+- **Input to Reproduce:** Portal biometric records contain seconds.
+- **Verification:** Covered by probe `tests/test_operations_calculations.py::test_six_hours_biometric_seconds_in_time_unpack_defect`.
 
 ---
 

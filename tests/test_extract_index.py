@@ -100,8 +100,8 @@ async def test_get_attendance_indexes_no_thead_crash(mock_bot, mock_message, mon
     mock_bot.send_message.assert_called_once()
     assert "Error :" in mock_bot.send_message.call_args[0][1]
 
-async def test_get_pat_indexes_missing_table_unhandled_crash(mock_bot, mock_message, monkeypatch):
-    """DEFECT PROBE: get_pat_indexes lacks try/except and crashes with unhandled IndexError when < 3 tables exist."""
+async def test_get_pat_indexes_missing_table_handled(mock_bot, mock_message, monkeypatch):
+    """Verify get_pat_indexes handles fewer than 3 tables gracefully without unhandled IndexError."""
     chat_id = mock_message.chat.id
     await tdatabase.create_all_tdatabase_tables()
     await tdatabase.store_user_session(chat_id, '{"username": "test", "cookies": {}}', "test")
@@ -111,5 +111,6 @@ async def test_get_pat_indexes_missing_table_unhandled_crash(mock_bot, mock_mess
         return "<html><body><table><tr><th>Only 1 Table</th></tr></table></body></html>"
     monkeypatch.setattr(extract_index, "async_fetch_page", mock_fetch)
 
-    with pytest.raises(IndexError):
-        await extract_index.get_pat_indexes(mock_bot, mock_message)
+    res = await extract_index.get_pat_indexes(mock_bot, mock_message)
+    assert res is None
+    mock_bot.send_message.assert_called_with(chat_id, "PAT attendance table format unexpected.")

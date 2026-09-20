@@ -373,8 +373,8 @@ async def attendance(bot,message):
                     cards.append(f"```{course_name}\n● Conducted    -  {conducted}\n● Attended     -  {attended}\n● Attendance % -  {attendance_percentage}%\n● Status       -  {attendance_status}\n```")
                 else:
                     cards.append(f"**{course_name}**\n● Conducted: {conducted} | Attended: {attended}\n● Attendance: {attendance_percentage}% ({attendance_status})\n")
-                sum_attendance += float(attendance_percentage)
                 if int(conducted) > 0:
+                    sum_attendance += float(attendance_percentage)
                     count_att += 1
 
         aver_attendance = round(sum_attendance/count_att, 2) if count_att > 0 else 0.0
@@ -896,8 +896,8 @@ async def pat_attendance(bot,message):
                 else:
                     cards.append(f"**{course_name}**\n● Conducted: {conducted_classes} | Attended: {attended_classes}\n● Attendance: {attendance_percentage}% ({att_status})\n")
 
-                sum_of_attendance += float(attendance_percentage)
                 if int(conducted_classes) > 0:
+                    sum_of_attendance += float(attendance_percentage)
                     count_of_attendance += 1
 
     aver_attendance = round(sum_of_attendance/count_of_attendance, 2) if count_of_attendance > 0 else 0.0
@@ -958,8 +958,8 @@ async def gpa(bot,message):
             await logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
-        cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
+        sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
+        cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
         sgpa_values = re.findall(sgpa_pattern,gpa_response_text)
         sgpa_values = [float(x) for x in sgpa_values]
         cgpa_values = re.findall(cgpa_pattern,gpa_response_text)

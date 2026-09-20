@@ -47,7 +47,10 @@ async def get_username(bot,chat_id):
     - chat_id: Telegram chat/user id to resolve.
     """
     user = await bot.get_users(chat_id)
-    user_name = f"{user.first_name} {user.last_name}" 
+    if getattr(user, "last_name", None):
+        user_name = f"{user.first_name} {user.last_name}".strip()
+    else:
+        user_name = (getattr(user, "first_name", "") or "Unknown").strip()
     return user_name
 async def ban_username(bot,message):
     """Ban one or more usernames.
@@ -304,10 +307,10 @@ async def announcement_to_all_users(bot, message):
         nonlocal successful, failed, last_update
 
         while True:
-            try:
-                chat_id = queue.get_nowait()
-            except asyncio.QueueEmpty:
-                return
+            chat_id = await queue.get()
+            if chat_id is None:
+                queue.task_done()
+                break
 
             try:
                 ui_mode = await user_settings.fetch_ui_bool(chat_id)
@@ -347,6 +350,9 @@ async def announcement_to_all_users(bot, message):
 
     start_time = asyncio.get_event_loop().time()
     tasks = [create_task(worker()) for _ in range(WORKERS)]
+    await queue.join()
+    for _ in range(WORKERS):
+        await queue.put(None)
     await asyncio.gather(*tasks)
     end_time = asyncio.get_event_loop().time()
 
@@ -531,8 +537,8 @@ async def gpa(bot,chat_id):
             await operations.logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
-        cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
+        sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
+        cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d{1,2}(?:\.\d{1,2})?)'
         sgpa_values = re.findall(sgpa_pattern, gpa_html)
         sgpa_values = [float(x) for x in sgpa_values]
         cgpa_values = re.findall(cgpa_pattern, gpa_html)

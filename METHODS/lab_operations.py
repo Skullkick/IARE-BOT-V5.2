@@ -72,10 +72,15 @@ async def fetch_available_labs(bot,message):
         for option in select_element.find_all('option'):
             lab_text = option.text.strip()
             if lab_text and lab_text != "Select Lab":  # Exclude the placeholder "Select Lab"
-                lab_text = lab_text.split(" - ")
-                sub_code = lab_text[0]
-                sub_name = lab_text[1]
-                lab_details[sub_name] = sub_code
+                parts = lab_text.split(" - ")
+                if len(parts) >= 2:
+                    sub_code = parts[0].strip()
+                    sub_name = parts[1].strip()
+                    lab_details[sub_name] = sub_code
+                elif parts and parts[0].strip():
+                    sub_name = parts[0].strip()
+                    sub_code = option.get('value', '').strip() or sub_name
+                    lab_details[sub_name] = sub_code
 
         return lab_details
     
