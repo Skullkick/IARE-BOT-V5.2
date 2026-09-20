@@ -155,7 +155,7 @@ async def delete_user_settings(chat_id):
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute("DELETE * FROM user_settings WHERE chat_id = ?",(chat_id,))
+            cursor.execute("DELETE FROM user_settings WHERE chat_id = ?",(chat_id,))
             conn.commit()
             return True
         except:

@@ -206,6 +206,10 @@ async def fetch_number_of_total_users_db():
         cursor.execute("SELECT COUNT(*) FROM users")
         total_count = cursor.fetchone()[0]
     return total_count
+
+async def fetch_row_count_total_users():
+    """Alias for fetch_number_of_total_users_db."""
+    return await fetch_number_of_total_users_db()
         
 
 async def store_user_session(chat_id, session_data, user_id):
@@ -283,7 +287,7 @@ async def clear_sessions_table():
     """
     with sqlite3.connect(DATABASE_FILE) as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE * FROM sessions")
+        cursor.execute("DELETE FROM sessions")
         conn.commit()
 
 async def store_username(username):
@@ -553,7 +557,7 @@ async def delete_labs_subjects_weeks_all_users():
     """
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE * FROM lab_upload_info")
+        cursor.execute("DELETE FROM lab_upload_info")
         conn.commit()
 
 async def store_credentials_in_database(chat_id, username, password):
@@ -746,6 +750,8 @@ async def remove_banned_username(username):
         cursor = conn.cursor()
         cursor.execute('DELETE FROM banned_users WHERE username = ?',(username,))
         conn.commit()
+
+delete_banned_username = remove_banned_username
 
 async def get_bool_banned_username(username):
     """
