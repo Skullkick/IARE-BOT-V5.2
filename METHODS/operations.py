@@ -1939,23 +1939,23 @@ async def perform_sync_labs_data(bot):
                 for chat_id in maintainer_chat_ids:
                     await bot.send_message(chat_id,"Error retrieving data from labs_data database")
             if not admin_chat_ids and not maintainer_chat_ids:
-                print("Error retrieving data from cie_tracker database")
+                print("Error retrieving data from labs_data database")
             return
         if labs_data is not None:
             for row in labs_data:
                 chat_id,subject,weeks = row
-                await tdatabase.store_lab_info(chat_id,subject_index= None,week_index=None,subjects=subject,weeks=weeks)
+                await tdatabase.store_lab_info(chat_id, title=None, subject_code=subject, week_index=weeks, get_title=False)
         else:
-            print("There is no data present in the cgpa_tracker database to sync with the local database.")
+            print("There is no data present in the labs_data database to sync with the local database.")
     except Exception as e :
         if admin_chat_ids:
             for chat_id in admin_chat_ids:
-                await bot.send_message(chat_id,f"Error storing cgpa_tracker data to local database : {e}")
+                await bot.send_message(chat_id,f"Error storing labs_data to local database : {e}")
         if maintainer_chat_ids:
             for chat_id in maintainer_chat_ids:
-                await bot.send_message(chat_id,f"Error storing cgpa_tracker data to local database : {e}")
+                await bot.send_message(chat_id,f"Error storing labs_data to local database : {e}")
         if not admin_chat_ids and not maintainer_chat_ids:
-            print(f"Error storing cgpa_tracker data to local database : {e}")
+            print(f"Error storing labs_data to local database : {e}")
 
 async def sync_databases(bot):
     """
@@ -1968,7 +1968,7 @@ async def sync_databases(bot):
     await perform_sync_bot_manager_data(bot)
     await perform_sync_credentials(bot)
     await perform_sync_user_settings(bot)
-    # await perform_sync_labs_data(bot)
+    await perform_sync_labs_data(bot)
     await perform_sync_banned_users(bot)
     await perform_sync_cgpa_tracker(bot)
     await perform_sync_cie_tracker(bot)

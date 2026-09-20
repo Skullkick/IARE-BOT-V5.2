@@ -304,7 +304,7 @@ async def store_username(username):
         conn.commit()
 
 
-async def store_lab_info(chat_id,title,subject_code,week_index,get_title:bool):
+async def store_lab_info(chat_id, title=None, subject_code=None, week_index=None, get_title: bool = False, **kwargs):
     """Store or update transient lab-upload selections for a chat.
 
     - If a row for ``chat_id`` exists, only non-None fields are updated.
@@ -317,6 +317,11 @@ async def store_lab_info(chat_id,title,subject_code,week_index,get_title:bool):
     :param week_index: Selected week index.
     :param get_title: Whether to store/update the ``title`` value now.
     """
+    if subject_code is None:
+        subject_code = kwargs.get('subject_index') or kwargs.get('subjects')
+    if week_index is None:
+        week_index = kwargs.get('weeks')
+
     with sqlite3.connect(LAB_UPLOAD_DATABASE_FILE) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM lab_upload_info WHERE chat_id = ?', (chat_id,))
@@ -329,11 +334,9 @@ async def store_lab_info(chat_id,title,subject_code,week_index,get_title:bool):
             if get_title is True:
                 if title is not None:
                     cursor.execute('UPDATE lab_upload_info SET title = ? WHERE chat_id = ?', (title, chat_id))
-            # if subjects is not None:
-            #     cursor.execute('UPDATE lab_upload_info SET subjects = ? WHERE chat_id = ?', (subjects, chat_id))
         else:
             if get_title is True:
-                cursor.execute('INSERT INTO lab_upload_info (chat_id, title, subject, week_index) VALUES (?, ?, ?)',
+                cursor.execute('INSERT INTO lab_upload_info (chat_id, title, subject, week_index) VALUES (?, ?, ?, ?)',
                         (chat_id, title, subject_code, week_index))
             else:
                 cursor.execute('INSERT INTO lab_upload_info (chat_id, subject, week_index) VALUES (?, ?, ?)',

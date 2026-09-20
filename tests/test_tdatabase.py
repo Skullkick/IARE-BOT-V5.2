@@ -126,3 +126,24 @@ async def test_tdatabase_corrupt_session_json():
     with pytest.raises(json.JSONDecodeError):
         await tdatabase.load_user_session(chat_id)
 
+async def test_store_lab_info_lifecycle():
+    """Verify storing, updating, and querying lab info in SQLite."""
+    await tdatabase.create_all_tdatabase_tables()
+    chat_id = 88888
+
+    # New insert with get_title=True (verifying 4-value insert bugfix)
+    await tdatabase.store_lab_info(chat_id, title="Exp 1", subject_code="CS501", week_index=1, get_title=True)
+    info = await tdatabase.fetch_required_lab_info(chat_id)
+    assert info == ("Exp 1", "CS501", 1)
+
+    # Update existing row
+    await tdatabase.store_lab_info(chat_id, title="Exp 1 Updated", subject_code="CS502", week_index=2, get_title=True)
+    info_updated = await tdatabase.fetch_required_lab_info(chat_id)
+    assert info_updated == ("Exp 1 Updated", "CS502", 2)
+
+    # Calling with kwargs (backward compatibility for sync routine)
+    chat_id_2 = 88889
+    await tdatabase.store_lab_info(chat_id_2, subject_index=None, week_index=None, subjects="IT501", weeks="W1")
+    info_kwargs = await tdatabase.fetch_required_lab_info(chat_id_2)
+    assert info_kwargs[1] == "IT501"
+

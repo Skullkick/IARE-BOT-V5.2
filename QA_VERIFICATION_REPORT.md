@@ -70,15 +70,15 @@
 | `test_pdf_compressor.py` | In-memory PDF compression, corrupt files, zero-byte handling | 6 | 6 | 0 |
 | `test_portal_client.py` | TTL caching, targeted user invalidation, parser fallbacks | 4 | 4 | 0 |
 | `test_user_settings_db.py` | SQLite user settings, threshold clamping, idempotency defects | 7 | 7 | 0 |
-| `test_tdatabase.py` | Sessions, credentials encryption at rest, reports, concurrency | 8 | 8 | 0 |
+| `test_tdatabase.py` | Sessions, credentials encryption at rest, reports, lab info storage | 9 | 9 | 0 |
 | `test_extract_index.py` | HTML table column mapping, missing header errors, missing thead | 4 | 4 | 0 |
 | `test_operations_calculations.py` | Biometrics 6h gap, leaves math, bunk limits, GPA regex defects | 12 | 12 | 0 |
 | `test_manager_operations.py` | Suffix ban expansions, empty broadcast guard, user name parsing, queue FloodWait | 6 | 6 | 0 |
 | `test_lab_operations.py` | Lab select parsing, week extraction, duplicate entries, marks | 4 | 4 | 0 |
 | `test_wiring_and_signature_defects.py` | Main and lab operations call-site argument mismatches, filter restriction | 4 | 4 | 0 |
-| `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, chunking | 6 | 6 | 0 |
+| `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, lab sync | 7 | 7 | 0 |
 | `test_sanity.py` | Harness operational verification | 1 | 1 | 0 |
-| **TOTAL** | **Comprehensive Full System Verification** | **69** | **69** | **0** |
+| **TOTAL** | **Comprehensive Full System Verification** | **71** | **71** | **0** |
 
 ### Statement Coverage by Module
 | Module | Total Statements | Missed Statements | Coverage (%) |
