@@ -1,62 +1,52 @@
-# 📖 IARE Bot — Complete Beginner's Guide
+# 📱 IARE Bot — Complete Student Guide
 
-Welcome to **IARE-BOT**! This guide is designed to help anyone—whether you are a student using the bot for the first time, a maintainer managing the platform, or a developer running the bot locally—easily understand and make the most out of every feature.
+Welcome to the **IARE Bot Student Guide**! This simple handbook walks you through everything you need to know about using the bot to check attendance, calculate bunks, view biometric hours, upload lab records, and track your marks directly inside Telegram.
 
 ---
 
 ## 📌 Table of Contents
-1. [What is IARE Bot?](#what-is-iare-bot)
-2. [Quick Start: For Students](#quick-start-for-students)
+1. [What Can the Bot Do for You?](#what-can-the-bot-do-for-you)
+2. [Step-by-Step: Getting Started](#step-by-step-getting-started)
    - [Step 1: Start the Bot](#step-1-start-the-bot)
-   - [Step 2: Log In to Samvidha](#step-2-log-in-to-samvidha)
-   - [Step 3: Handling Passwords with Spaces](#step-3-handling-passwords-with-spaces)
-3. [Exploring Bot Features & Buttons](#exploring-bot-features--buttons)
-   - [📊 Attendance Tracker](#-attendance-tracker)
+   - [Step 2: Log In with Your College ID](#step-2-log-in-with-your-college-id)
+   - [Step 3: What If Your Password Has Spaces?](#step-3-what-if-your-password-has-spaces)
+3. [Understanding the Main Menu Buttons](#understanding-the-main-menu-buttons)
+   - [📊 Attendance](#-attendance)
    - [🎯 Bunk Calculator (Safe-Miss Planner)](#-bunk-calculator-safe-miss-planner)
    - [🕒 Biometric Log](#-biometric-log)
    - [💼 PAT Attendance](#-pat-attendance)
-   - [📑 Lab Records Management](#-lab-records-management)
-   - [🎓 Student Information & Academic History](#-student-information--academic-history)
-   - [⚙️ User Settings & Customization](#️-user-settings--customization)
-   - [🔒 Saved Credentials & Auto-Login](#-saved-credentials--auto-login)
+   - [📑 Lab Records (View & Upload)](#-lab-records-view--upload)
+   - [🎓 Student Info (CGPA, Mid Marks, Fees)](#-student-info-cgpa-mid-marks-fees)
+   - [⚙️ Saved Username & Auto-Login](#️-saved-username--auto-login)
    - [🚪 Logging Out](#-logging-out)
-4. [Reporting Issues & Getting Help](#reporting-issues--getting-help)
-5. [Guide for Maintainers & Admins](#guide-for-maintainers--admins)
-   - [Admin & Maintainer Panels](#admin--maintainer-panels)
-   - [Adding New Maintainers (Forward Method)](#adding-new-maintainers-forward-method)
-   - [Reviewing & Replying to Reports](#reviewing--replying-to-reports)
-   - [Broadcasting Announcements](#broadcasting-announcements)
-   - [User Analytics & Access Control](#user-analytics--access-control)
-6. [AI Agent Integration (MCP Server)](#ai-agent-integration-mcp-server)
-7. [Running the Bot Locally (For Developers)](#running-the-bot-locally-for-developers)
-8. [Frequently Asked Questions (FAQ)](#frequently-asked-questions-faq)
+4. [Customizing Your Preferences (`/settings`)](#customizing-your-preferences-settings)
+5. [Reporting an Issue or Asking for Help (`/report`)](#reporting-an-issue-or-asking-for-help-report)
+6. [Frequently Asked Questions (FAQ)](#frequently-asked-questions-faq)
 
 ---
 
-## What is IARE Bot?
+## What Can the Bot Do for You?
 
-**IARE-BOT** is an unofficial Telegram automation assistant built for students of the **Institute of Aeronautical Engineering (IARE)**. It securely communicates with the college's [SAMVIDHA Portal](https://samvidha.iare.ac.in/index) to deliver:
-- **Instant attendance figures** and safe bunk planning.
-- **Daily biometric logs** with in/out timestamps and total campus hours.
-- **Lab record uploads** with automatic smart PDF compression (< 1MB).
-- **Exam marks, CGPA/SGPA summaries**, and fee payment receipts.
-- **Direct support reporting** with IST timestamped responses.
+Instead of opening your browser, logging into the Samvidha portal, and navigating multiple slow pages, you can get all your college information with a single tap in Telegram:
+
+- **Instant Attendance:** View subject-wise and overall attendance in seconds.
+- **Bunk Calculator:** Know exactly how many classes you can skip without dropping below your target percentage.
+- **Biometric Punch Times:** Check your daily in-time, out-time, and total hours on campus.
+- **Lab Record Uploads:** Send your lab experiment PDF right in chat; if it's too large, the bot compresses it for you automatically.
+- **Academic Grades & Marks:** Check your SGPA, cumulative CGPA, CIE mid marks, and fee payment receipts.
 
 ---
 
-## Quick Start: For Students
+## Step-by-Step: Getting Started
 
 ### Step 1: Start the Bot
-Open your Telegram app, search for the bot handle (e.g., `@IARE_Bot`), and press the **Start** button or send:
-```text
-/start
-```
-The bot will greet you and present basic navigation instructions.
+Open Telegram, find the bot, and click the **Start** button at the bottom of the chat (or send `/start`).
+The bot will say hello and show you the basic commands.
 
 ---
 
-### Step 2: Log In to Samvidha
-To fetch your academic data, log in using your college Roll Number and Samvidha password:
+### Step 2: Log In with Your College ID
+To fetch your personal college data, log in using your Roll Number and Samvidha password:
 
 ```text
 /login <ROLL_NUMBER> <PASSWORD>
@@ -64,30 +54,30 @@ To fetch your academic data, log in using your college Roll Number and Samvidha 
 
 **Example:**
 ```text
-/login 21951A0501 MySecretPassword123
+/login 21951A0501 MyPassword123
 ```
 
-> 💡 **Security Guarantee**: Your credentials are encrypted using industry-standard **AES-256 encryption** before being stored. They are solely used to authenticate your session against Samvidha and are never shared.
+Once logged in, the bot will display your main action menu with buttons!
 
 ---
 
-### Step 3: Handling Passwords with Spaces
-If your Samvidha password contains one or more spaces, wrap the password in **double quotes (`"..."`)** or **single quotes (`'...'`)**:
+### Step 3: What If Your Password Has Spaces?
+If your Samvidha password contains one or more spaces, put your password inside **double quotation marks (`"..."`)** or **single quotation marks (`'...'`)**:
 
 **Example:**
 ```text
-/login 21951A0501 "my pass 123"
+/login 21951A0501 "my secret password"
 ```
 or
 ```text
-/login 21951A0501 'my pass 123'
+/login 21951A0501 'my secret password'
 ```
 
 ---
 
-## Exploring Bot Features & Buttons
+## Understanding the Main Menu Buttons
 
-Once you log in, the bot sends you an interactive menu with quick-action buttons:
+After logging in, you will see an interactive keyboard with the following buttons:
 
 ```text
 ┌───────────────────────────┐
@@ -105,239 +95,128 @@ Once you log in, the bot sends you an interactive menu with quick-action buttons
 └───────────────────────────┘
 ```
 
-### 📊 Attendance Tracker
-- **Button:** `Attendance`
-- **What it does:** Fetches your current attendance across all registered courses.
-- **What you see:**
-  - Course name & code.
-  - Number of classes conducted vs number attended.
+Here is what each button does:
+
+### 📊 Attendance
+- **What it shows:**
+  - Every course you are registered for this semester.
+  - Number of classes conducted vs classes you attended.
+  - Subject-wise attendance percentage.
   - Overall aggregate attendance percentage.
 
 ---
 
 ### 🎯 Bunk Calculator (Safe-Miss Planner)
-- **Button:** `Bunk`
-- **What it does:** Helps you plan your schedule safely while staying compliant with the college attendance threshold (default: **75%**, adjustable in `/settings`).
-- **How to read the result:**
-  - **If your attendance is ABOVE the threshold:**
-    > *"You can safely miss up to **X** classes and still remain above 75%."*
-  - **If your attendance is BELOW the threshold:**
-    > *"You need to attend the next **Y** consecutive classes to restore your attendance to 75%."*
+- **What it shows:**
+  - This is one of the most useful features of the bot! It compares your current attendance against your target attendance percentage (default is **75%**, but you can customize it in `/settings`).
+  - **If your attendance is above 75%:**
+    The bot calculates the exact number of classes you can safely miss while remaining above the threshold.
+  - **If your attendance is below 75%:**
+    The bot tells you exactly how many consecutive upcoming classes you must attend to pull your attendance back up to 75%.
 
 ---
 
 ### 🕒 Biometric Log
-- **Button:** `Biometric`
-- **What it does:** Displays your daily RFID/Biometric gate and lab punch records.
-- **Details provided:**
-  - First In-Time and Last Out-Time.
-  - Total duration spent on campus.
-  - Minimum required hours progress indicator.
+- **What it shows:**
+  - Your first swipe-in time of the day.
+  - Your most recent swipe-out time.
+  - Total elapsed time spent on campus today.
+  - Whether you have met the minimum daily hours requirement.
 
 ---
 
 ### 💼 PAT Attendance
-- **Button:** Accessible via secondary menu.
-- **What it does:** Shows dedicated attendance percentages for Placement and Training (PAT) sessions and specialized modules.
+- **What it shows:**
+  - Separate attendance statistics specifically for Placement & Training (PAT) sessions and special training classes.
 
 ---
 
-### 📑 Lab Records Management
-- **Button:** `Labs Records`
-- **What it does:** Enables you to upload, review, and organize laboratory experiment PDFs directly through Telegram.
-- **Uploading a Lab PDF:**
-  1. Simply send a `.pdf` file in the private chat with the bot.
-  2. The bot will prompt you for the experiment title (or extract it automatically depending on your `/settings`).
-  3. **Automatic PDF Compression:** If your document exceeds 1MB, the bot automatically optimizes and compresses it so it stays within Samvidha's upload limits without losing readability.
-- **Viewing & Deleting:**
-  - You can view previously uploaded files per subject and remove outdated files with a single tap.
+### 📑 Lab Records (View & Upload)
+- **What it shows:**
+  - Review your uploaded laboratory experiment files for each lab course.
+- **Uploading a Lab Record PDF:**
+  1. Simply send your experiment `.pdf` document to the bot in the chat.
+  2. The bot will ask for the experiment title (or automatically detect it if you enabled Auto Title in `/settings`).
+  3. **Automatic File Compression:** College portals often reject PDF files larger than 1MB. You don't need any third-party app—the bot automatically optimizes and compresses large PDFs so the upload goes through smoothly!
+- **Deleting a Record:**
+  - Tap on the uploaded record to remove it if you wish to re-upload a revised copy.
 
 ---
 
-### 🎓 Student Information & Academic History
-- **Button:** `Student Info`
-- **Sections available:**
-  - **Profile:** Full name, branch, semester, section, and mentor details.
-  - **CGPA & Semester SGPA:** Historical grade cards and cumulative averages.
-  - **CIE Marks:** Continuous Internal Evaluation (Mid-term) performance breakdown.
-  - **Fee Payments:** Summary of paid dues, tuition receipts, and pending balances.
+### 🎓 Student Info (CGPA, Mid Marks, Fees)
+- Tap **Student Info** to view:
+  - **Profile:** Full name, department, section, roll number, and mentor name.
+  - **CGPA & SGPA:** Your semester-by-semester Grade Point Average and overall cumulative CGPA.
+  - **CIE Marks:** Continuous Internal Evaluation (Mid-term) marks for current subjects.
+  - **Fee Payments:** Receipts of tuition, transport, or exam fee payments and remaining balance dues.
 
 ---
 
-### ⚙️ User Settings & Customization
-Send `/settings` to open the personal preferences menu:
-
-1. **Attendance Threshold:** Set your personal target attendance (e.g., 65%, 75%, 80%, or 85%). The Bunk calculator will calculate safe misses according to this value.
-2. **Biometric Threshold:** Adjust the expected minimum campus stay time.
-3. **Title Extract Mode:** Toggle between:
-   - **Auto Extract:** Automatically detects the experiment title from the first page of uploaded PDFs.
-   - **Manual Title:** Prompts you to type the title for each upload.
-4. **User Interface (UI):** Switch between:
-   - **Traditional UI:** Compact monospace text format.
-   - **Updated UI:** Modern, visually enriched layout with emoji badges and dividers.
-
----
-
-### 🔒 Saved Credentials & Auto-Login
-- **Button:** `Saved Username`
-- **How it works:** When credentials are saved, you don't need to re-type `/login` each time your session expires.
-- **Options:**
-  - **Auto-Login:** Tap to immediately refresh your session.
-  - **Remove:** Deletes your stored credentials from both local cache and database permanently.
+### ⚙️ Saved Username & Auto-Login
+- When you log in, the bot can save your roll number so you don't have to type `/login` and your password every time your session expires.
+- Tap **Saved Username** to:
+  - **Auto-Login:** Immediately refresh your session with 1 tap.
+  - **Remove:** Delete your saved credentials from the bot whenever you want.
 
 ---
 
 ### 🚪 Logging Out
-- **Command:** `/logout` or press the **Logout** button on the main menu.
-- **What it does:** Terminates the active session on Samvidha and clears temporary session cookies.
+- Tap **Logout** or send the command `/logout`.
+- This safely ends your active session.
 
 ---
 
-## Reporting Issues & Getting Help
+## Customizing Your Preferences (`/settings`)
 
-Encountered a bug, incorrect data, or have a suggestion for improvement? Use the built-in ticketing system:
+Send `/settings` to open your personal options menu:
+
+1. **Attendance Threshold:**
+   - Change your bunk calculator target (choose between **65%**, **70%**, **75%**, **80%**, or **85%**).
+2. **Biometric Threshold:**
+   - Customize the daily campus hours target.
+3. **Title Extract (For Lab Uploads):**
+   - **Auto Extract:** The bot automatically scans the first page of your PDF to find the experiment title.
+   - **Manual Title:** The bot asks you to type the title for each upload.
+4. **User Interface (UI Style):**
+   - **Traditional UI:** Clean, compact monospace format.
+   - **Updated UI:** Modern format with emoji badges, cards, and dividers.
+
+---
+
+## Reporting an Issue or Asking for Help (`/report`)
+
+If you notice that your attendance isn't matching, an upload failed, or you want to request a feature, you can send a message directly to the student maintainers:
 
 ```text
-/report <your issue or feedback>
+/report <your issue or question here>
 ```
 
 **Example:**
 ```text
-/report My attendance for Machine Learning lab is not updating since yesterday.
+/report Hi, my biometric out-time for today is not showing up. Could you check?
 ```
 
-- **Timestamped in IST:** Your report is recorded with the exact submission time in Indian Standard Time (`Asia/Kolkata`).
-- **Direct Maintainer Reply:** When an admin or maintainer reviews your ticket, you will receive an instant notification in Telegram containing their response and the resolution timestamp.
-
----
-
-## Guide for Maintainers & Admins
-
-Privileged roles ensure smooth operation, user assistance, and platform hygiene.
-
-### Admin & Maintainer Panels
-- `/admin` — Opens the full administrative dashboard (Developers & Admins).
-- `/maintainer` — Opens the operational support dashboard (Maintainers).
-
----
-
-### Adding New Maintainers (Forward Method)
-Admins can appoint new maintainers effortlessly without looking up complex Telegram IDs:
-1. Ask the student who is to become a maintainer to send you any message in Telegram.
-2. **Forward that message directly to the bot** in your private chat with the bot.
-3. The bot inspects the forwarded message, extracts the user's name and ID, and displays an inline confirmation:
-   > *"Would you like to add [Student Name] as Maintainer?"*
-   > `[ Confirm Add ]` `[ Cancel ]`
-4. Tap **Confirm Add**. The user is immediately granted maintainer permissions and receives a welcoming alert.
-
-*(Alternative command: `/add_maintainer <chat_id> [name]`)*
-
----
-
-### Reviewing & Replying to Reports
-- `/rshow` — Displays a queue of unhandled student reports along with unique Report IDs.
-- `/reply <reply text>` — Reply directly to a user's report by **replying (quote-replying)** to the report message in Telegram.
-  - The student immediately receives the answer in their private chat.
-  - The database saves the reply date & maintainer name in IST.
-- `/rclear` — Purges processed reports from the pending queue.
-
----
-
-### Broadcasting Announcements
-Need to alert all students about scheduled portal downtime, exam dates, or bot updates?
-```text
-/announce <Announcement Message>
-```
-- **FloodWait & Rate-Limit Protection:** Broadcasts are distributed across an intelligent worker pool capped at ~25 messages/second with automated exponential backoff on HTTP 429 to keep the bot token safe from Telegram limits.
-- Real-time progress indicators keep the admin updated on total sent, remaining, and failed deliveries.
-
----
-
-### User Analytics & Access Control
-- `/lusers` — Lists currently active logged-in sessions for inspection.
-- `/tusers` — Summarizes total registered users in the past 24 hours.
-- `/ban <username or chat_id>` — Restricts a malicious or unauthorized user.
-- `/unban <username or chat_id>` — Restores bot access for a previously restricted user.
-- `/reset` — Flushes local transient SQLite session caches without affecting permanent credentials.
-
----
-
-## AI Agent Integration (MCP Server)
-
-IARE-Bot includes a native **Model Context Protocol (MCP)** server (`iare_mcp_server.py`). This allows modern AI assistants (such as Cursor, Claude Desktop, or Antigravity) to act as administrative co-pilots:
-
-### Capabilities available to AI Agents:
-1. `check_portal_status`: Probes Samvidha portal health and response latency.
-2. `get_reports_summary`: Summarizes unresolved student support issues.
-3. `send_reply`: Sends maintainer replies to students on behalf of admins.
-4. `draft_announcement`: Drafts structured broadcast notices.
-5. `broadcast_announcement`: Transmits announcements with confirmation tokens.
-6. `read_recent_errors`: Reads and diagnoses recent server exceptions.
-
-To learn how to connect your AI assistant, see [HOW_TO_CONNECT_MCP.md](file:///d:/IARE-BOT-V5.2/Project%20Documents/HOW_TO_CONNECT_MCP.md) and [MCP_SPECIFICATION.md](file:///d:/IARE-BOT-V5.2/Project%20Documents/MCP_SPECIFICATION.md).
-
----
-
-## Running the Bot Locally (For Developers)
-
-### 1. Prerequisites
-- Python 3.10, 3.11, or 3.12
-- Telegram API Credentials from [my.telegram.org](https://my.telegram.org)
-- Telegram Bot Token from [@BotFather](https://t.me/BotFather)
-- (Optional) PostgreSQL database for persistent cloud sync
-
-### 2. Installation
-Clone the repository and install required Python packages:
-```bash
-git clone https://github.com/Skullkick/IARE-BOT-V5.2
-cd IARE-BOT-V5.2
-pip install -r requirements.txt
-```
-
-### 3. Configure Environment Variables
-Create a `.env` file or export the required keys:
-```env
-API_ID=12345678
-API_HASH=abcdef0123456789abcdef0123456789
-BOT_TOKEN=1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
-DEVELOPER_CHAT_ID=1122334455
-MAINTAINER_CHAT_ID=1122334455
-ADMIN_AUTHORIZATION_PASS=secret_code_here
-ENCRYPTION_KEY=your_custom_aes_hex_key_here
-
-# Optional: Background MCP Server
-ENABLE_MCP_SERVER=true
-MCP_PASSWORD=your_mcp_security_password
-```
-
-### 4. Run the Bot
-```bash
-python main.py
-```
-
-### 5. Running Automated Tests
-The project features a comprehensive test suite covering security, parsing, rate-limiting, and MCP tools:
-```bash
-python -m pytest
-```
+- **How it works:** Your message is submitted with the exact Indian time (IST).
+- **Getting a reply:** When a maintainer replies, you will receive a direct notification message in Telegram with the answer!
 
 ---
 
 ## Frequently Asked Questions (FAQ)
 
-#### Q1: Why does `/login` say "Invalid credentials"?
-- Double-check that your Samvidha password is correct by trying it on the web portal.
-- If your password has spaces, make sure you put it inside double quotes: `/login 21951A0501 "pass with space"`.
-- Verify that Samvidha is currently reachable (the college server occasionally undergoes maintenance late at night).
+#### Q1: Do I need to type `/login` every day?
+No. Once you log in, your credentials are saved. Whenever your session expires, you can simply tap the **Saved Username** button and click **Auto-Login** to reconnect in one second.
 
-#### Q2: Is my password safe?
-- Yes. Credentials stored in the bot are encrypted using AES-256 with key derivation. Passwords are never stored in plain text and are only decrypted in memory when authenticating with Samvidha.
+#### Q2: What should I do if the bot says "Login Failed"?
+- Check that your Roll Number is typed correctly (e.g., in capital letters).
+- Verify that your password matches your Samvidha portal password.
+- If your password has spaces in it, make sure you put it inside quotation marks: `/login 21951A0501 "my password with space"`.
+- Sometimes the college portal goes down for maintenance late at night. If so, try again after a little while.
 
-#### Q3: Why is the Bunk calculation different for my friend?
-- The bunk calculation depends on your personal **Attendance Threshold** configured in `/settings`. If your threshold is set to 75% and your friend's is set to 80%, the number of classes you can miss will differ.
+#### Q3: How do I change the attendance percentage for my bunk calculation?
+Send `/settings` in the chat, click on **Attendance Threshold**, and select your preferred percentage (e.g., 75% or 80%). The Bunk button will instantly start using your new target!
 
-#### Q4: Why did my uploaded lab PDF say it was compressed?
-- Samvidha restricts individual PDF file sizes. When you upload a file larger than 1MB, IARE Bot automatically applies image downsampling and optimization so that your upload succeeds seamlessly without manual editing.
+#### Q4: How do I delete my saved login from the bot?
+Click the **Saved Username** button in the main menu and press **Remove**. Your login details will be deleted immediately.
 
-#### Q5: Who can I contact if the bot is down?
-- Send `/report <message>` if the bot is responding, or contact the bot maintainers listed in the `/start` greeting.
+#### Q5: Who maintains this bot?
+The bot is developed and maintained by students of IARE. If you have any feedback, suggestions, or need help, just use `/report <your message>`!
