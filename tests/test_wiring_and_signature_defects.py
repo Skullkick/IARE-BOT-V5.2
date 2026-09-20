@@ -1,6 +1,6 @@
 import inspect
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from METHODS import labs_handler, operations, lab_operations
 
 def test_labs_handler_remove_pdf_file_signature():
@@ -76,5 +76,31 @@ async def test_add_maintainer_filter_is_command_only():
             assert bool(res) is False, "Filter should NOT match arbitrary forwarded messages"
         finally:
             main.bot.me = old_me
+
+
+@pytest.mark.asyncio
+async def test_forwarded_message_from_admin_invokes_verification(monkeypatch):
+    """Verify forwarded_message_from_admin triggers verification_to_add_maintainer for admin."""
+    import main
+    from METHODS import manager_operations
+    from DATABASE import managers_handler
+
+    mock_bot = MagicMock()
+    mock_msg = MagicMock()
+    mock_msg.chat.id = 112233
+    mock_msg.text = "Forwarded message"
+
+    monkeypatch.setattr(managers_handler, "fetch_admin_chat_ids", AsyncMock(return_value=[112233]))
+    monkeypatch.setattr(manager_operations, "verification_to_add_maintainer", AsyncMock())
+
+    await main.forwarded_message_from_admin(mock_bot, mock_msg)
+    manager_operations.verification_to_add_maintainer.assert_awaited_once_with(mock_bot, mock_msg)
+
+    # When sender is not an admin, verification is not called
+    manager_operations.verification_to_add_maintainer.reset_mock()
+    monkeypatch.setattr(managers_handler, "fetch_admin_chat_ids", AsyncMock(return_value=[999999]))
+    await main.forwarded_message_from_admin(mock_bot, mock_msg)
+    manager_operations.verification_to_add_maintainer.assert_not_called()
+
 
 

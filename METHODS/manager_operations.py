@@ -46,12 +46,25 @@ async def get_username(bot,chat_id):
     - bot: Pyrogram client used to fetch user info.
     - chat_id: Telegram chat/user id to resolve.
     """
-    user = await bot.get_users(chat_id)
-    if getattr(user, "last_name", None):
-        user_name = f"{user.first_name} {user.last_name}".strip()
-    else:
-        user_name = (getattr(user, "first_name", "") or "Unknown").strip()
-    return user_name
+    try:
+        user = await bot.get_users(int(chat_id))
+        if getattr(user, "last_name", None):
+            user_name = f"{user.first_name} {user.last_name}".strip()
+        else:
+            user_name = (getattr(user, "first_name", "") or "Unknown").strip()
+        return user_name
+    except Exception as exc:
+        logging.warning("Could not fetch user info for chat_id %s: %s", chat_id, exc)
+
+    # Fallback to local managers database if present
+    try:
+        db_name = await managers_handler.fetch_name(int(chat_id))
+        if db_name:
+            return db_name
+    except Exception:
+        pass
+
+    return f"User {chat_id}"
 async def ban_username(bot,message):
     """Ban one or more usernames.
 
@@ -191,6 +204,11 @@ async def add_maintainer(bot,message,maintainer_chat_id,maintainer_name):
     user_full_name = await get_username(bot,user_chat_id)
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     all_maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+    try:
+        maintainer_chat_id = int(maintainer_chat_id)
+    except (ValueError, TypeError):
+        pass
+
     if maintainer_chat_id in admin_chat_ids:
         await bot.send_message(user_chat_id,"You are already an admin and cannot be a maintainer.")
         return
@@ -200,30 +218,158 @@ async def add_maintainer(bot,message,maintainer_chat_id,maintainer_name):
     await managers_handler.store_as_maintainer(maintainer_name,maintainer_chat_id)
     await pgdatabase.store_as_maintainer(maintainer_name,maintainer_chat_id)
     await bot.send_message(user_chat_id,f"Successfully added {maintainer_name} as maintainer")
-    await bot.send_message(maintainer_chat_id,f"You've been added as maintainer by {user_full_name}, Use \"/maintainer\" To Access The Buttons")
+    try:
+        await bot.send_message(maintainer_chat_id,f"You've been added as maintainer by {user_full_name}, Use \"/maintainer\" To Access The Buttons")
+    except Exception as exc:
+        logging.warning("Could not notify new maintainer %s: %s", maintainer_chat_id, exc)
+
 async def verification_to_add_maintainer(bot,message):
     """
-    This Function is used to get all the maintainer details and ask admin whether he needs to be added or not.
+    Retrieve user details from a forwarded message, replied message, or command arguments,
+    and prompt the admin with a confirmation inline keyboard to add them as a maintainer.
+
     :param bot: Pyrogram client
-    :param message: Message sent by the user.
+    :param message: Message sent by the admin
     """
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     chat_id = message.chat.id
-    if message.chat.id not in admin_chat_ids:
+    if chat_id not in admin_chat_ids:
         return
-    if message.forward_from and message.text:
-        maintainer_chat_id = message.forward_from.id
-        maintainer_name = await get_username(bot,maintainer_chat_id)
-        await bot.send_message(chat_id,f"Would you like to add {maintainer_name} as Maintainer.",reply_markup = await manager_buttons.start_add_maintainer_button(maintainer_chat_id,maintainer_name))
-    if message.forward_from_chat and message.text:
-        maintainer_chat_id = message.forward_from_chat.id # Chat id of the message that user forwarded
-        maintainer_name = await get_username(bot,maintainer_chat_id) # Name of the maintainer based on the chat_id
 
-    elif message.from_user and message.text and not message.forward_from and not message.forward_from_chat:
-        # print(message.text)
-        maintainer_chat_id = message.text.split()[1:][0]
-        maintainer_name = await get_username(bot,maintainer_chat_id)
-        await bot.send_message(chat_id,f"Would you like to add {maintainer_name} as Maintainer.",reply_markup = await manager_buttons.start_add_maintainer_button(maintainer_chat_id,maintainer_name))
+    maintainer_chat_id = None
+    maintainer_name = None
+
+    def _extract_user_name(user_obj, fallback_id):
+        if not user_obj:
+            return f"User {fallback_id}"
+        first = (getattr(user_obj, "first_name", None) or "").strip()
+        last = (getattr(user_obj, "last_name", None) or "").strip()
+        full = f"{first} {last}".strip()
+        if full:
+            return full
+        if getattr(user_obj, "username", None):
+            return user_obj.username
+        return f"User {fallback_id}"
+
+    # Check 1: Message itself is forwarded
+    is_forwarded = bool(
+        getattr(message, "forward_date", None)
+        or getattr(message, "forward_from", None)
+        or getattr(message, "forward_sender_name", None)
+        or getattr(message, "forward_from_chat", None)
+    )
+
+    if is_forwarded:
+        if getattr(message, "forward_from", None):
+            maintainer_chat_id = message.forward_from.id
+            maintainer_name = _extract_user_name(message.forward_from, maintainer_chat_id)
+        elif getattr(message, "forward_sender_name", None):
+            sender_name = message.forward_sender_name
+            await bot.send_message(
+                chat_id,
+                f"⚠️ The forwarded message is from **{sender_name}**, but their Telegram privacy settings hide their user ID on forwarded messages.\n\n"
+                f"To add them as a maintainer, please ask them for their Telegram Chat ID (they can find it by messaging this bot or @RawDataBot), then run:\n"
+                f"`/add_maintainer <chat_id>`"
+            )
+            return
+        elif getattr(message, "forward_from_chat", None):
+            chat_title = getattr(message.forward_from_chat, "title", "channel/group")
+            await bot.send_message(
+                chat_id,
+                f"⚠️ The forwarded message is from a channel or group (**{chat_title}**), not an individual user.\n\n"
+                f"Please forward a message from the user's personal Telegram account, or run:\n"
+                f"`/add_maintainer <chat_id>`"
+            )
+            return
+        else:
+            await bot.send_message(
+                chat_id,
+                "⚠️ Could not retrieve user details from this forwarded message due to privacy settings.\n"
+                "Please ask the user for their Chat ID and run `/add_maintainer <chat_id>`."
+            )
+            return
+
+    # Check 2: Message is a reply to another message (/add_maintainer replied to a message)
+    elif getattr(message, "reply_to_message", None):
+        target = message.reply_to_message
+        if getattr(target, "forward_from", None):
+            maintainer_chat_id = target.forward_from.id
+            maintainer_name = _extract_user_name(target.forward_from, maintainer_chat_id)
+        elif getattr(target, "forward_sender_name", None):
+            sender_name = target.forward_sender_name
+            await bot.send_message(
+                chat_id,
+                f"⚠️ The replied forwarded message is from **{sender_name}**, but their Telegram privacy settings hide their user ID.\n\n"
+                f"Please run `/add_maintainer <chat_id>` with their numeric Chat ID."
+            )
+            return
+        elif getattr(target, "from_user", None):
+            maintainer_chat_id = target.from_user.id
+            maintainer_name = _extract_user_name(target.from_user, maintainer_chat_id)
+        else:
+            await bot.send_message(
+                chat_id,
+                "⚠️ Could not retrieve user details from the replied message.\n"
+                "Please run `/add_maintainer <chat_id>` directly."
+            )
+            return
+
+    # Check 3: Command arguments (/add_maintainer <chat_id> [optional_name])
+    elif getattr(message, "text", None):
+        tokens = message.text.strip().split()
+        args = tokens[1:] if tokens and tokens[0].startswith("/") else tokens
+        if args:
+            raw_id = args[0].strip()
+            try:
+                maintainer_chat_id = int(raw_id)
+            except ValueError:
+                await bot.send_message(
+                    chat_id,
+                    f"⚠️ Invalid Chat ID `{raw_id}`. Please provide a numeric Telegram Chat ID, e.g.:\n"
+                    f"`/add_maintainer 123456789`"
+                )
+                return
+
+            if len(args) > 1:
+                maintainer_name = " ".join(args[1:]).strip()
+            else:
+                maintainer_name = await get_username(bot, maintainer_chat_id)
+        else:
+            # /add_maintainer sent with no args, no reply, no forward
+            await bot.send_message(
+                chat_id,
+                "ℹ️ **How to add a maintainer:**\n\n"
+                "1. **Forward a message:** Forward any message from the user to this chat.\n"
+                "2. **Reply to a message:** Reply to any message from the user with `/add_maintainer`.\n"
+                "3. **Use Chat ID:** Send `/add_maintainer <chat_id> [optional_name]`\n\n"
+                "*(Users can get their Chat ID by sending `/start` or using @RawDataBot)*"
+            )
+            return
+    else:
+        await bot.send_message(
+            chat_id,
+            "ℹ️ Please forward a message from the user, reply to their message with `/add_maintainer`, or use `/add_maintainer <chat_id>`."
+        )
+        return
+
+    # If maintainer_chat_id was resolved, prompt admin
+    if maintainer_chat_id is not None:
+        if not maintainer_name:
+            maintainer_name = await get_username(bot, maintainer_chat_id)
+
+        try:
+            markup = await manager_buttons.start_add_maintainer_button(maintainer_chat_id, maintainer_name)
+            await bot.send_message(
+                chat_id,
+                f"Would you like to add {maintainer_name} as Maintainer.",
+                reply_markup=markup
+            )
+        except Exception as exc:
+            logging.error("Failed to send add_maintainer prompt: %s", exc)
+            await bot.send_message(
+                chat_id,
+                f"⚠️ Error preparing confirmation for {maintainer_name} ({maintainer_chat_id}): {exc}"
+            )
 
 async def add_admin_by_authorization(bot,message):
     """

@@ -233,6 +233,23 @@ async def add_maintainer(bot, message):
     except Exception as e:
         logging.error("Error in 'add_maintainer' command: %s", e)
 
+@bot.on_message(filters.private & filters.forwarded & ~filters.command(commands="add_maintainer"))
+async def forwarded_message_from_admin(bot, message):
+    """Handle forwarded messages sent by an admin in private chat to initiate maintainer verification."""
+    try:
+        admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+        if message.chat.id in admin_chat_ids:
+            # If admin is in the middle of a lab upload flow, let lab title handler take precedence
+            try:
+                status = await tdatabase.fetch_title_status(message.chat.id)
+                if status is not None and int(status) == 1 and message.text and "TITLE" in message.text.upper():
+                    return
+            except Exception:
+                pass
+            await manager_operations.verification_to_add_maintainer(bot, message)
+    except Exception as e:
+        logging.error("Error in 'forwarded_message_from_admin' handler: %s", e)
+
 @bot.on_message(filters.private & filters.document)
 async def _download_pdf(bot,message):
     """Handle private document messages to ingest PDFs for lab uploads."""

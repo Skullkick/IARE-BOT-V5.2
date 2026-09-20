@@ -60,6 +60,7 @@ async def start_add_maintainer_button(maintainer_chat_id,maintainer_name):
     """Build a Yes/No keyboard to confirm adding a maintainer.
 
     The "Yes" button encodes both maintainer name and chat_id in callback_data.
+    Ensures callback_data never exceeds Telegram's 64-byte limit.
 
     Parameters:
     - maintainer_chat_id: Chat ID for the prospective maintainer.
@@ -68,9 +69,22 @@ async def start_add_maintainer_button(maintainer_chat_id,maintainer_name):
     Returns:
     - InlineKeyboardMarkup with Yes/No options.
     """
+    clean_name = str(maintainer_name).replace("-", " ").strip()
+    suffix = f"-{maintainer_chat_id}"
+    prefix = "manager_add_maintainer_by_admin-"
+    max_name_len = 64 - len(prefix) - len(suffix)
+    if max_name_len < 1:
+        max_name_len = 5
+    clean_name = clean_name[:max_name_len] or f"User_{maintainer_chat_id}"
+
+    cb_data = f"{prefix}{clean_name}{suffix}"
+    while len(cb_data.encode("utf-8")) > 64 and len(clean_name) > 1:
+        clean_name = clean_name[:-1].strip()
+        cb_data = f"{prefix}{clean_name}{suffix}"
+
     add_maintainer_button = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton("Yes",callback_data=f"manager_add_maintainer_by_admin-{maintainer_name}-{maintainer_chat_id}")],
+            [InlineKeyboardButton("Yes",callback_data=cb_data)],
             [InlineKeyboardButton("No",callback_data="manager_cancel_add_maintainer")]
         ]
     )
@@ -1351,9 +1365,9 @@ STATUS INDEX            : {bio_status_index}
         await callback_query.answer()
     elif "manager_add_maintainer_by_admin" in callback_query.data:
         _message = callback_query.message
-        data = callback_query.data.split("-")[1:]
-        maintainer_name = data[0]
-        maintainer_chat_id = data[1]
+        parts = callback_query.data.split("-")
+        maintainer_chat_id = parts[-1]
+        maintainer_name = "-".join(parts[1:-1]) if len(parts) > 2 else parts[1]
         await manager_operations.add_maintainer(bot,_message,maintainer_chat_id,maintainer_name)
         await callback_query.message.delete()
     elif "manager_cancel_add_maintainer" in callback_query.data:
