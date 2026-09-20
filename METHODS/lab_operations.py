@@ -550,9 +550,13 @@ async def upload_lab_record(bot,message,title,subject_code,week_no,bypass_confir
                         )
 
                         confirmation_buttons = InlineKeyboardMarkup([
-                            [InlineKeyboardButton("Confirm & Upload", callback_data="confirm_lab_upload")],
-                            [InlineKeyboardButton("Resend Another PDF", callback_data="resend_lab_pdf")],
-                            [InlineKeyboardButton("Cancel Complete Operation", callback_data="cancel_complete_lab_operation")]
+                            [
+                                InlineKeyboardButton("Confirm", callback_data="confirm_lab_upload"),
+                                InlineKeyboardButton("Resend", callback_data="resend_lab_pdf")
+                            ],
+                            [
+                                InlineKeyboardButton("Cancel", callback_data="cancel_complete_lab_operation")
+                            ]
                         ])
 
                         await bot.send_message(chat_id, prompt_text, reply_markup=confirmation_buttons)

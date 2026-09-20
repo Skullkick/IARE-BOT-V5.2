@@ -94,10 +94,9 @@ collected 82 items
 - **Interactive High-Compression Preview & Complete Cancelation Workflow:**
   - **High-Compression Detection:** Tracks `_COMPRESSION_METRICS[chat_id]` via `pdf_compressor.get_compression_metrics(chat_id)`. If aggressive downscaling (Tier 3), grayscale conversion (Tier 4), or $> 75\%$ size reduction was required, the bot pauses before portal submission.
   - **Document Inspection:** Sends the compressed PDF directly to the Telegram chat (`bot.send_document`) so the student can verify text and handwriting legibility.
-  - **3-Button Action Layout:**
-    - `[ Confirm & Upload ]` (`confirm_lab_upload`): Approves the compressed document and submits to Samvidha.
-    - `[ Resend Another PDF ]` (`resend_lab_pdf`): Deletes existing PDF files, keeps the experiment metadata in SQLite, re-arms `pdf_status = 1`, and prompts the user to send a replacement PDF.
-    - `[ Cancel Complete Operation ]` (`cancel_complete_lab_operation`): Completely aborts the operation, deletes all local PDFs, wipes staged lab data (`tdatabase.delete_lab_upload_data`), and clears intake flags.
+  - **2-Row Action Button Layout:**
+    - Row 1: `[ Confirm ]` (`confirm_lab_upload`) | `[ Resend ]` (`resend_lab_pdf`): Approves the compressed document and submits to Samvidha, or keeps experiment metadata and requests replacement PDF.
+    - Row 2: `[ Cancel ]` (`cancel_complete_lab_operation`): Full-width cancel action that aborts the operation, deletes local PDFs, wipes staged lab data (`tdatabase.delete_lab_upload_data`), and clears intake flags.
 - **Security Vulnerability Remediation (Pillow):**
   - Upgraded `pillow` in [requirements.txt](file:///d:/IARE-BOT-V5.2/requirements.txt) from `pillow>=10.3.0` to `pillow>=12.3.0`.
   - Remediates Dependabot security vulnerabilities CVE-2026-42311, CVE-2026-25990, and CVE-2026-40192.
