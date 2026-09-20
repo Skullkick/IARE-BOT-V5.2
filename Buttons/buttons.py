@@ -27,11 +27,143 @@ USER_BUTTONS = InlineKeyboardMarkup(
     inline_keyboard=[
         [InlineKeyboardButton("Attendance", callback_data="attendance"),InlineKeyboardButton("Bunk", callback_data="bunk")],
         [InlineKeyboardButton("Biometric", callback_data="biometric"),InlineKeyboardButton("Logout", callback_data="logout")],
-        # [InlineKeyboardButton("Lab Upload",callback_data="lab_upload_start")],
         [InlineKeyboardButton("Labs Records",callback_data="lab_record_subject")],
         [InlineKeyboardButton("Student Info",callback_data="student_info")],
-        [InlineKeyboardButton("Saved Username", callback_data="saved_username")]
+        [InlineKeyboardButton("Saved Username", callback_data="saved_username"), InlineKeyboardButton("User Guide", callback_data="help_menu")]
+    ]
+)
 
+GUIDE_MAIN_TEXT = """IARE BOT — USER GUIDE
+
+Select a topic below to read detailed instructions on how to use the bot:
+
+1. Login & Accounts: Logging in, passwords with spaces, saving credentials.
+2. Attendance & Bunk: How attendance, safe misses, and biometric work.
+3. Lab Records: Uploading experiment PDFs and automatic compression.
+4. Settings: Customizing attendance threshold, biometric target, UI style.
+5. Account Tricks: Checking a friend's account without losing your login.
+"""
+
+GUIDE_LOGIN_TEXT = """GUIDE: LOGIN & ACCOUNTS
+
+Command Format:
+/login <ROLL_NUMBER> <PASSWORD>
+
+Example:
+/login 21951A0501 MyPassword123
+
+Passwords with Spaces:
+If your password contains spaces, wrap it in quotes:
+/login 21951A0501 "my secret password"
+
+Saving Credentials:
+After logging in, the bot asks:
+"If you want to save your credentials Click on 'Yes'."
+- If you click "Yes": Credentials are saved. Whenever your session expires, the bot will automatically re-log you in in the background when you press any menu button.
+- If you click "No": Credentials are not stored. When your session expires, you must log in again with /login.
+
+Logging Out:
+Send /logout or tap the "Logout" button on the main menu.
+"""
+
+GUIDE_ATTENDANCE_TEXT = """GUIDE: ATTENDANCE, BUNK & BIOMETRIC
+
+Attendance:
+- Displays subject-wise conducted vs attended classes.
+- Shows individual subject percentages and overall aggregate percentage.
+
+Bunk Calculator:
+- Compares current attendance against your target threshold (default 75%, adjustable in /settings).
+- If above threshold: Calculates the exact number of classes you can safely miss while remaining above target.
+- If below threshold: Calculates the number of consecutive upcoming classes you must attend to recover.
+
+Biometric Log:
+- First check-in and latest check-out timestamps for today.
+- Total elapsed campus hours and minimum hours completion status.
+
+PAT Attendance:
+- Dedicated attendance tracking for Placement and Training modules.
+"""
+
+GUIDE_LABS_TEXT = """GUIDE: LAB RECORDS & UPLOADS
+
+Uploading an Experiment PDF:
+1. Send or forward your experiment .pdf document in this chat.
+2. Enter the experiment title when prompted (or let the bot detect it automatically if Auto-Extract is enabled in /settings).
+3. Select your lab subject from the buttons.
+
+Automatic PDF Compression:
+- If your PDF file is larger than 1 MB, the bot automatically optimizes and compresses it before uploading to Samvidha.
+- No third-party apps or manual resizing needed.
+
+Managing Records:
+- Tap "Labs Records" in the main menu to view all submitted files or delete an old record to re-upload.
+"""
+
+GUIDE_SETTINGS_TEXT = """GUIDE: SETTINGS & PREFERENCES
+
+Send /settings to customize your experience:
+
+- Attendance Threshold: Set your target attendance percentage (65%, 70%, 75%, 80%, or 85%). The Bunk calculator updates immediately.
+- Biometric Threshold: Adjust your daily campus stay duration goal.
+- Title Extract: Choose between Automatic title detection from the PDF or Manual typing.
+- User Interface: Choose between Traditional (clean monospace) or Updated (modern card view).
+
+Submitting Reports:
+- If you encounter a problem or have a request, send:
+  /report <your issue or message>
+- Reports are recorded in Indian Standard Time (IST), and maintainers will reply directly to you in Telegram.
+"""
+
+GUIDE_TRICKS_TEXT = """GUIDE: TIPS & ACCOUNT TRICKS
+
+Checking a Friend's Account:
+If you have saved credentials on your device but want to temporarily check a friend's attendance:
+1. Tap the standard "Logout" button on the main menu (do NOT tap "Remove" or "Remove and Logout").
+2. Log in with your friend's credentials:
+   /login <FRIEND_ROLL> <FRIEND_PASSWORD>
+3. When prompted to save credentials, select "No".
+4. Check their attendance, marks, or records.
+5. When finished, tap "Logout" again.
+Because your original credentials were never removed, pressing any menu button (like Attendance) will automatically restore your own account in the background!
+
+Removing Saved Credentials:
+- Tap "Saved Username" on the main menu, select your roll number, and tap "Remove".
+"""
+
+GUIDE_ADMIN_TEXT = """GUIDE: ADMIN & MAINTAINER COMMANDS
+
+Admin / Maintainer Operations:
+/admin - Open admin dashboard
+/maintainer - Open maintainer dashboard
+/announce <text> - Broadcast announcement to active users
+/add_maintainer <chat_id> - Add maintainer (or forward user's message)
+/rshow - View pending student reports
+/reply <text> - Reply to a student report (quote-reply)
+/rclear - Clear processed reports
+/ban <username> - Ban a user
+/unban <username> - Unban a user
+/lusers - List active users
+/tusers - Total users count in last 24h
+/reset - Reset local session database
+"""
+
+def get_guide_keyboard(is_manager=False):
+    rows = [
+        [InlineKeyboardButton("1. Login & Accounts", callback_data="help_login")],
+        [InlineKeyboardButton("2. Attendance & Bunk", callback_data="help_attendance")],
+        [InlineKeyboardButton("3. Lab Records & Uploads", callback_data="help_labs")],
+        [InlineKeyboardButton("4. Settings & Preferences", callback_data="help_settings")],
+        [InlineKeyboardButton("5. Tips & Account Tricks", callback_data="help_tricks")]
+    ]
+    if is_manager:
+        rows.append([InlineKeyboardButton("Admin / Maintainer Commands", callback_data="help_admin")])
+    rows.append([InlineKeyboardButton("Close", callback_data="help_close")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+GUIDE_BACK_KEYBOARD = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton("Back to Guide Menu", callback_data="help_menu")]
     ]
 )
 
@@ -500,6 +632,28 @@ async def callback_function(bot,callback_query):
         except Exception as e:
             await bot.send_message(chat_id,f"Error saving credentils : {e}")
     elif callback_query.data == "no_save":
+        await callback_query.message.delete()
+
+    elif callback_query.data == "help_menu":
+        chat_id = callback_query.message.chat.id
+        from DATABASE import managers_handler
+        is_admin = chat_id in await managers_handler.fetch_admin_chat_ids()
+        is_maintainer = chat_id in await managers_handler.fetch_maintainer_chat_ids()
+        kb = get_guide_keyboard(is_admin or is_maintainer)
+        await callback_query.edit_message_text(GUIDE_MAIN_TEXT, reply_markup=kb)
+    elif callback_query.data == "help_login":
+        await callback_query.edit_message_text(GUIDE_LOGIN_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
+    elif callback_query.data == "help_attendance":
+        await callback_query.edit_message_text(GUIDE_ATTENDANCE_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
+    elif callback_query.data == "help_labs":
+        await callback_query.edit_message_text(GUIDE_LABS_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
+    elif callback_query.data == "help_settings":
+        await callback_query.edit_message_text(GUIDE_SETTINGS_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
+    elif callback_query.data == "help_tricks":
+        await callback_query.edit_message_text(GUIDE_TRICKS_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
+    elif callback_query.data == "help_admin":
+        await callback_query.edit_message_text(GUIDE_ADMIN_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
+    elif callback_query.data == "help_close":
         await callback_query.message.delete()
 
     elif callback_query.data == "user_back":

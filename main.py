@@ -78,9 +78,9 @@ async def _report(bot,message):
         await operations.report(bot, message)
     except Exception as e:
         logging.error("Error in 'report' command: %s", e)
-@bot.on_message(filters.command(commands=['help']))
+@bot.on_message(filters.command(commands=['help', 'guide']))
 async def _help(bot,message):
-    """Handle /help command to show available actions."""
+    """Handle /help and /guide commands to show interactive protected user guide."""
     try:
         await operations.help_command(bot, message)
     except Exception as e:
