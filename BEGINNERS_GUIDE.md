@@ -154,6 +154,7 @@ Once logged in, an interactive menu is displayed with the following options:
   - **Remove:** Permanently deletes your saved credentials from the bot database.
   - **Remove and Logout:** Permanently deletes your saved credentials and terminates your active session.
   - **Back:** Returns to the main menu.
+- **Tip for Checking a Friend's Account:** If you want to temporarily check a friend's records, do not click "Remove" or "Remove and Logout". Simply use the standard **Logout** button, log in using your friend's credentials, and click **"No"** when asked to save. When you log out of your friend's session, pressing any action button will automatically restore your own account!
 
 ### Logging Out
 - **Function:** Ends your active session.
@@ -214,5 +215,10 @@ A: Send `/settings`, select **Attendance Threshold**, and pick your preferred pe
 **Q: How do I delete my saved credentials from the bot?**  
 A: Tap **Saved Username** on the main menu, select your roll number, and choose **Remove** (or **Remove and Logout**). Your credentials will be removed immediately.
 
-**Q: Who maintains this bot?**  
-A: The bot is maintained by fellow students at IARE. For questions, technical assistance, or suggestions, send a message using `/report <your message>`.
+**Q: Can I check a friend's account without losing my saved login?**  
+A: Yes. Use this trick:
+1. Tap the standard **Logout** button on the main menu (do not select "Remove" or "Remove and Logout").
+2. Use `/login <FRIEND_ROLL> <FRIEND_PASSWORD>` to log into your friend's account.
+3. When prompted to save credentials, select **"No"**.
+4. Check your friend's attendance, marks, or records as needed.
+5. Once done, tap **Logout** again. Because your original credentials were never deleted, pressing any menu button (like Attendance or Bunk) will automatically restore your own account in the background!
