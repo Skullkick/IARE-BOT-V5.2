@@ -239,6 +239,12 @@ async def manager_callback_function(bot,callback_query):
     Returns:
     - None; operations are side-effectful (messages edited/sent; DB updated).
     """
+    # Immediate ack stops spinner and prevents callback timeout
+    try:
+        await callback_query.answer()
+    except Exception:
+        pass
+
     if callback_query.data == "manager_log_file":
         _message = callback_query.message
         chat_id = _message.chat.id

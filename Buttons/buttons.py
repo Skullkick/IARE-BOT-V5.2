@@ -19,7 +19,6 @@ Notes:
 from pyrogram.types import InlineKeyboardButton,InlineKeyboardMarkup
 from DATABASE import pgdatabase,tdatabase,user_settings
 from METHODS import operations,labs_handler,lab_operations
-import main
 import json,asyncio
 
 
@@ -311,6 +310,12 @@ async def callback_function(bot,callback_query):
     Returns:
     - None (side effects only: messages edited/sent/deleted, DB updates).
     """
+    # Immediate acknowledgment stops the loading spinner and avoids callback query timeouts
+    try:
+        await callback_query.answer()
+    except Exception:
+        pass
+
     if callback_query.data == "attendance":# If callback_query data is attendance
         message = callback_query.message
         chat_id = message.chat.id
