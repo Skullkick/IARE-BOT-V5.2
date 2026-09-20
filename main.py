@@ -122,7 +122,7 @@ async def delete_login_details_pgdatabase(bot,message):
 # @bot.on_message(filters.command(commands="deletepdf"))
 async def delete_pdf(bot,message):
     chat_id = message.chat.id
-    if await labs_handler.remove_pdf_file(chat_id) is True:
+    if await labs_handler.remove_pdf_file(bot, chat_id) is True:
         await bot.send_message(chat_id,"Deleted Successfully")
     else:
         await bot.send_message(chat_id,"Failed")
@@ -225,11 +225,9 @@ async def authorize_and_add_admin(bot,message):
         await manager_operations.add_admin_by_authorization(bot, message)
     except Exception as e:
         logging.error("Error in 'authorize' command: %s", e)
-@bot.on_message(filters.forwarded | filters.command(commands="add_maintainer"))
+@bot.on_message(filters.command(commands="add_maintainer"))
 async def add_maintainer(bot, message):
     try:
-        # Added this line to ensure that even forwarded files are accepted when sending PDFs to the bot for lab uploads.
-        await labs_handler.download_pdf(bot, message, pdf_compress_scrape=pdf_compressor.use_pdf_compress_scrape)
         # Trigger verification flow to add maintainer
         await manager_operations.verification_to_add_maintainer(bot, message)
     except Exception as e:
