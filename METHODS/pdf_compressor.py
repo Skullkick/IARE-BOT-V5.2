@@ -7,6 +7,7 @@ Eliminates heavy browser binaries, driver management, and privacy risks.
 """
 
 import os
+import asyncio
 import logging
 from METHODS import labs_handler
 from pypdf import PdfReader, PdfWriter
@@ -15,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 # External scrape compression disabled in favor of native in-memory compression
 use_pdf_compress_scrape = False
+
+# Global lock to serialize PDF compression requests so system CPU and RAM are not overwhelmed
+_PDF_COMPRESSION_LOCK = asyncio.Lock()
 
 def _native_compress_pdf(input_path: str, output_path: str, quality: int = 60, max_dimension: int = 1600) -> bool:
     """Perform native stream and object compression on a PDF using pypdf.
@@ -48,6 +52,9 @@ def _native_compress_pdf(input_path: str, output_path: str, quality: int = 60, m
 async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
     """Compress a PDF natively using pypdf in-memory compression.
 
+    Executes sequentially using a global lock and offloads CPU-bound
+    image resampling to a worker thread so the bot remains responsive.
+
     Args:
         bot: Pyrogram client instance.
         chat_id: User's chat identifier.
@@ -59,6 +66,7 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
     try:
         check_file = await labs_handler.check_recieved_pdf_file(bot, chat_id)
         pdf_folder = "pdfs"
+        os.makedirs(pdf_folder, exist_ok=True)
         pdf_file_folder = os.path.join(pdf_folder, f"C-{chat_id}.pdf")
         if check_file[0] is True and check_file[1] is False:
             input_path = os.path.abspath(pdf_file_folder)
@@ -71,18 +79,27 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
 
         output_path = os.path.join(pdf_folder, f"C-{chat_id}-comp.pdf")
 
-        # Native compression pass 1: standard compression
-        success = _native_compress_pdf(input_path, output_path, quality=60, max_dimension=1600)
-        if success:
-            # If still exceeding 1MB (1024KB), run adaptive pass 2 to guarantee under 1MB
-            if os.path.exists(output_path) and os.path.getsize(output_path) > 1024 * 1024:
-                logger.info("PDF still > 1MB after pass 1 (%d bytes); running adaptive pass 2", os.path.getsize(output_path))
-                _native_compress_pdf(input_path, output_path, quality=40, max_dimension=1200)
+        # Notify user if another compression is currently holding system resources
+        if _PDF_COMPRESSION_LOCK.locked():
+            try:
+                await bot.send_message(chat_id, "⏳ PDF compression queued. Waiting for server resources...")
+            except Exception:
+                pass
 
-            logger.info("PDF compressed successfully to: %s (%d bytes)", output_path, os.path.getsize(output_path))
-            await labs_handler.remove_pdf_file(bot, chat_id)
-            return True
-        return False
+        # Ensure only one PDF compression runs at a time to prevent resource exhaustion
+        async with _PDF_COMPRESSION_LOCK:
+            # Native compression pass 1: standard compression offloaded to worker thread
+            success = await asyncio.to_thread(_native_compress_pdf, input_path, output_path, 60, 1600)
+            if success:
+                # If still exceeding 1MB (1024KB), run adaptive pass 2 to guarantee under 1MB
+                if os.path.exists(output_path) and os.path.getsize(output_path) > 1024 * 1024:
+                    logger.info("PDF still > 1MB after pass 1 (%d bytes); running adaptive pass 2", os.path.getsize(output_path))
+                    await asyncio.to_thread(_native_compress_pdf, input_path, output_path, 40, 1200)
+
+                logger.info("PDF compressed successfully to: %s (%d bytes)", output_path, os.path.getsize(output_path))
+                await labs_handler.remove_pdf_file(bot, chat_id)
+                return True
+            return False
 
     except Exception as error:
         logger.error("Error during native PDF compression: %s", error)

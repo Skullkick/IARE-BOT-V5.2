@@ -92,3 +92,48 @@ def test_native_compress_pdf_with_image_under_1mb(tmp_path):
     # Must be significantly reduced and strictly under 1MB (1,048,576 bytes)
     assert compressed_size < original_size
     assert compressed_size < 1024 * 1024, f"Output PDF ({compressed_size} bytes) exceeds 1MB threshold!"
+
+@pytest.mark.asyncio
+async def test_compress_pdf_sequential_locking(mock_bot, monkeypatch):
+    """Verify that multiple concurrent PDF compression requests run strictly in sequence."""
+    import asyncio
+    from METHODS import labs_handler
+
+    active_compressions = 0
+    max_concurrent = 0
+    completed = []
+
+    async def mock_check(bot, chat_id):
+        return True, False
+
+    async def mock_remove(bot, chat_id):
+        return True
+
+    def mock_native_compress(in_p, out_p, quality=60, max_dimension=1600):
+        nonlocal active_compressions, max_concurrent
+        active_compressions += 1
+        if active_compressions > max_concurrent:
+            max_concurrent = active_compressions
+        import time
+        time.sleep(0.05)
+        # Write dummy output
+        with open(out_p, "wb") as f:
+            f.write(b"%PDF-dummy")
+        active_compressions -= 1
+        return True
+
+    monkeypatch.setattr(labs_handler, "check_recieved_pdf_file", mock_check)
+    monkeypatch.setattr(labs_handler, "remove_pdf_file", mock_remove)
+    monkeypatch.setattr(pdf_compressor, "_native_compress_pdf", mock_native_compress)
+
+    async def run_compress(user_id):
+        res = await pdf_compressor.compress_pdf(mock_bot, chat_id=user_id)
+        completed.append(user_id)
+        return res
+
+    results = await asyncio.gather(run_compress(101), run_compress(102), run_compress(103))
+
+    assert all(results)
+    assert len(completed) == 3
+    # Critical assertion: Concurrency must NEVER exceed 1 at any moment
+    assert max_concurrent == 1, f"Expected strictly sequential execution, but max concurrency was {max_concurrent}"
