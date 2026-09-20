@@ -60,6 +60,10 @@ def encrypt_password(plain_password: str) -> str:
         logger.error("Failed to encrypt password: %s", e)
         return plain_password
 
+def is_encrypted(token: str) -> bool:
+    """Return True if the provided string appears to be a Fernet encrypted token."""
+    return bool(token and token.startswith("gAAAAA") and len(token) > 50)
+
 def decrypt_password(cipher_or_plain: str) -> str:
     """Decrypt a Fernet token string back into the original plaintext password.
 
