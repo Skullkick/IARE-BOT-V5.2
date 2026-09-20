@@ -1,5 +1,6 @@
 import inspect
 import pytest
+from unittest.mock import MagicMock
 from METHODS import labs_handler, operations, lab_operations
 
 def test_labs_handler_remove_pdf_file_signature():
@@ -41,3 +42,39 @@ async def test_delete_pdf_invokes_remove_pdf_file_with_bot():
         mock_remove.return_value = True
         await main.delete_pdf(mock_bot, mock_msg)
         mock_remove.assert_awaited_once_with(mock_bot, 999888)
+
+@pytest.mark.asyncio
+async def test_add_maintainer_filter_is_command_only():
+    """Verify add_maintainer handler does not trigger on arbitrary forwarded messages."""
+    import main
+    import inspect
+    from pyrogram.handlers import MessageHandler
+
+    # Find the handler for add_maintainer in bot.dispatcher
+    found_handler = None
+    for group in main.bot.dispatcher.groups.values():
+        for handler in group:
+            if isinstance(handler, MessageHandler) and handler.callback == main.add_maintainer:
+                found_handler = handler
+                break
+
+    assert found_handler is not None
+    # Verify the filter is strictly for command "add_maintainer" and doesn't match raw forwarded messages
+    mock_forwarded_msg = MagicMock()
+    mock_forwarded_msg.forward_date = 1234567890
+    mock_forwarded_msg.text = "Just a forwarded meme text"
+    mock_forwarded_msg.command = None
+
+    # Filters in Pyrogram can be sync or async callables accepting (client, message)
+    if callable(found_handler.filters):
+        old_me = getattr(main.bot, "me", None)
+        main.bot.me = MagicMock(username="test_bot")
+        try:
+            res = found_handler.filters(main.bot, mock_forwarded_msg)
+            if inspect.isawaitable(res):
+                res = await res
+            assert bool(res) is False, "Filter should NOT match arbitrary forwarded messages"
+        finally:
+            main.bot.me = old_me
+
+
