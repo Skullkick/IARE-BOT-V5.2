@@ -1,6 +1,6 @@
 # IARE UNOFFICIAL BOT
 
-Telegram bot designed for students and administrators of the Institute of Aeronautical Engineering (IARE). It interfaces with the college's [Samvidha Portal](https://samvidha.iare.ac.in/index) to scrape, calculate, and format academic attendance, biometric punch logs, examination results, and laboratory record submissions.
+Telegram bot designed for students of the Institute of Aeronautical Engineering (IARE). It interfaces with the college's [Samvidha Portal](https://samvidha.iare.ac.in/index) to scrape, calculate, and format academic attendance, biometric punch logs, examination results, and laboratory record submissions.
 
 > **Looking for the Student Guide?** Refer to the **[Student User Guide](BEGINNERS_GUIDE.md)** for a step-by-step walkthrough of student commands, interactive buttons, settings, and troubleshooting.
 
@@ -244,4 +244,4 @@ IARE-BOT-V5.2/
 
 ## License & Disclaimer
 
-This is an **unofficial** utility developed for educational purposes to assist students and administrators of the Institute of Aeronautical Engineering (IARE). It is not officially affiliated with or endorsed by IARE.
+This is an **unofficial** utility developed for educational purposes to assist students of the Institute of Aeronautical Engineering (IARE). It is not officially affiliated with or endorsed by IARE.
