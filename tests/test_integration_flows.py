@@ -216,3 +216,90 @@ async def test_sync_databases_postgres_down_fail_safe(mock_bot, monkeypatch):
     # Should complete safely without crashing
     await operations.sync_databases(mock_bot)
 
+
+def test_parse_login_credentials_all_variants():
+    """Verify parse_login_credentials accurately extracts usernames and passwords with quotes/spaces."""
+    from METHODS.operations import parse_login_credentials
+
+    # Standard syntax
+    u, p = parse_login_credentials("/login 22951A0501 mypass")
+    assert u == "22951A0501"
+    assert p == "mypass"
+
+    # Double quotes with spaces
+    u, p = parse_login_credentials('/login 22951A0501 "my secret password"')
+    assert u == "22951A0501"
+    assert p == "my secret password"
+
+    # Single quotes with spaces
+    u, p = parse_login_credentials("/login 22951A0501 'my secret password'")
+    assert u == "22951A0501"
+    assert p == "my secret password"
+
+    # Quotes around username and password
+    u, p = parse_login_credentials('/login "22951A0501" "my secret password"')
+    assert u == "22951A0501"
+    assert p == "my secret password"
+
+    # Complex password with special characters and spaces
+    u, p = parse_login_credentials('/login 22951A0501 "P@ss\\w0rd ! #1"')
+    assert u == "22951A0501"
+    assert p == "P@ss\\w0rd ! #1"
+
+    # Unquoted multi-word password fallback
+    u, p = parse_login_credentials("/login 22951A0501 pass with spaces")
+    assert u == "22951A0501"
+    assert p == "pass with spaces"
+
+    # Unclosed quote fallback
+    u, p = parse_login_credentials('/login 22951A0501 "unclosed pass')
+    assert u == "22951A0501"
+    assert p == "unclosed pass"
+
+    # Incomplete arguments
+    u, p = parse_login_credentials("/login 22951A0501")
+    assert u == "22951A0501"
+    assert p is None
+
+    u, p = parse_login_credentials("/login")
+    assert u is None
+    assert p is None
+
+    u, p = parse_login_credentials("")
+    assert u is None
+    assert p is None
+
+
+async def test_login_with_quoted_password_containing_spaces(mock_bot, mock_message, monkeypatch):
+    """Verify operations.login passes unquoted password with spaces to perform_login."""
+    chat_id = mock_message.chat.id
+    await user_settings.create_user_settings_tables()
+    await tdatabase.create_all_tdatabase_tables()
+
+    mock_perform_login = AsyncMock(return_value={"cookies": {"session": "abc123xyz"}, "username": "22951A0599"})
+    monkeypatch.setattr(operations, "perform_login", mock_perform_login)
+    monkeypatch.setattr(pgdatabase, "check_chat_id_in_pgb", AsyncMock(return_value=True))
+
+    mock_message.text = '/login 22951A0599 "my secret password with spaces"'
+    await operations.login(mock_bot, mock_message)
+
+    # Verify perform_login was called with correctly unquoted password
+    mock_perform_login.assert_awaited_once_with("22951A0599", "my secret password with spaces")
+    assert mock_bot.send_message.called
+
+
+async def test_login_invalid_usage_displays_quoted_password_guidance(mock_bot, mock_message):
+    """Verify invalid /login invocation displays instructions including quoted password syntax."""
+    chat_id = mock_message.chat.id
+    await user_settings.create_user_settings_tables()
+    await tdatabase.create_all_tdatabase_tables()
+
+    mock_message.text = "/login"
+    await operations.login(mock_bot, mock_message)
+
+    mock_message.reply.assert_called_once()
+    reply_text = mock_message.reply.call_args[0][0]
+    assert "Wrap your password in quotes" in reply_text
+    assert '"my password with spaces"' in reply_text
+
+

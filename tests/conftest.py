@@ -59,4 +59,5 @@ def mock_message():
     msg.reply_text = AsyncMock()
     msg.edit_message_text = AsyncMock()
     msg.download = AsyncMock()
+    msg.delete = AsyncMock()
     return msg

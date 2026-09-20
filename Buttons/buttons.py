@@ -490,7 +490,7 @@ async def callback_function(bot,callback_query):
         # Splitting the username and password from the callback_query
         user_credentials = callback_query.data.split("-")
         username = user_credentials[1].lower()
-        password = user_credentials[2]
+        password = "-".join(user_credentials[2:]) if len(user_credentials) > 2 else ""
         try:
             # Save credentials in both Postgres (persistent) and SQLite (local cache)
             # WARNING: Plaintext handling via callback_data; ensure trust in UI path.

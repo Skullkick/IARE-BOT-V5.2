@@ -19,7 +19,7 @@ consistent pattern:
 from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
 from Buttons import buttons
 from bs4 import BeautifulSoup 
-import json,uuid,os,pyqrcode,random,re
+import json,uuid,os,pyqrcode,random,re,shlex
 from METHODS.portal_client import perform_async_login, async_fetch_page, async_logout_portal, invalidate_user_cache, get_soup, get_http_client
 from pytz import timezone
 from datetime import datetime
@@ -121,6 +121,65 @@ async def perform_login(username, password):
     return await perform_async_login(username, password)
 
 
+def parse_login_credentials(text: str):
+    """Parse /login command text into (username, password).
+
+    Supports:
+      - /login 22951A0501 password
+      - /login 22951A0501 "password with spaces"
+      - /login 22951A0501 'password with spaces'
+      - /login 22951A0501 password with spaces (unquoted fallback)
+    """
+    if not text:
+        return None, None
+
+    raw_text = text.strip()
+    if raw_text.startswith("/login"):
+        raw_text = raw_text[len("/login"):].strip()
+    elif raw_text.startswith("login"):
+        raw_text = raw_text[len("login"):].strip()
+
+    if not raw_text:
+        return None, None
+
+    # First attempt: shlex with posix=False to preserve backslashes literally while parsing quotes
+    try:
+        tokens = shlex.split(raw_text, posix=False)
+        cleaned_tokens = []
+        for tok in tokens:
+            tok = tok.strip()
+            if (tok.startswith('"') and tok.endswith('"')) or (tok.startswith("'") and tok.endswith("'")):
+                if len(tok) >= 2:
+                    tok = tok[1:-1]
+            cleaned_tokens.append(tok)
+        tokens = cleaned_tokens
+    except ValueError:
+        # Fallback to standard whitespace splitting if quotation marks are unbalanced
+        tokens = raw_text.split()
+
+    if not tokens:
+        return None, None
+
+    username = tokens[0].strip().strip('"\'')
+    if len(tokens) == 2:
+        password = tokens[1]
+    elif len(tokens) > 2:
+        password = " ".join(tokens[1:])
+    else:
+        password = None
+
+    if password:
+        if (password.startswith('"') and password.endswith('"')) or (password.startswith("'") and password.endswith("'")):
+            if len(password) >= 2:
+                password = password[1:-1]
+        elif password.startswith('"') and '"' not in password[1:]:
+            password = password[1:]
+        elif password.startswith("'") and "'" not in password[1:]:
+            password = password[1:]
+
+    return username, password
+
+
 async def login(bot,message):
     """Handle `/login <username> <password>` and persist session.
 
@@ -128,27 +187,18 @@ async def login(bot,message):
     session and username locally, and optionally offers to save credentials to
     Postgres. Finally shows the user buttons.
 
+    Supports passwords with spaces wrapped in double or single quotes:
+    e.g. `/login 22951A0000 "my password with spaces"`
+
     Args:
         bot: Pyrogram client.
         message: User message containing credentials.
     """
     chat_id = message.chat.id
-    command_args = message.text.split()[1:]
-    # banned_usernames = await tdatabase.get_all_banned_usernames()
-    if not command_args:
-        username = ""
-    else:
-        username = command_args[0] # username of the user
-    if await tdatabase.get_bool_banned_username(username) is True: # Checks whether the username is in banned users or not.
-        return # Returns Nothing
-    if await tdatabase.load_user_session(chat_id): # Tries to get the cookies from the database.If found, it displays that you are already logged in.
-        await message.reply("You are already logged in.")
-        await buttons.start_user_buttons(bot,message)
-        await message.delete()
-        return
+    username, password = parse_login_credentials(message.text)
 
-    if len(command_args) != 2:
-        invalid_command_message =f"""
+    if not username or not password:
+        invalid_command_message = f"""
 ```INVALID COMMAND USAGE
 ⫸ How To Login:
 
@@ -157,12 +207,23 @@ async def login(bot,message):
 ⫸ Example:
 
 /login 22951A0000 iare_unoffical_bot
+
+⫸ Note for passwords with spaces:
+Wrap your password in quotes:
+/login 22951A0000 "my password with spaces"
 ```
-        """
+"""
         await message.reply(invalid_command_message)
         return
 
-    password = command_args[1]
+    if await tdatabase.get_bool_banned_username(username) is True: # Checks whether the username is in banned users or not.
+        return # Returns Nothing
+    if await tdatabase.load_user_session(chat_id): # Tries to get the cookies from the database.If found, it displays that you are already logged in.
+        await message.reply("You are already logged in.")
+        await buttons.start_user_buttons(bot,message)
+        await message.delete()
+        return
+
     session_data = await perform_login(username, password)
     # Initializes settings for the user
     await user_settings.set_user_default_settings(chat_id)
