@@ -160,3 +160,51 @@ async def test_delete_subjects_and_weeks_data_lifecycle(mock_bot):
     await tdatabase.delete_subjects_and_weeks_data(chat_id)
     assert await tdatabase.fetch_required_lab_info(chat_id) is None
 
+async def test_sync_databases_end_to_end(mock_bot, monkeypatch):
+    """Verify sync_databases synchronizes all tables from PostgreSQL to local SQLite."""
+    from DATABASE import managers_handler
+    await user_settings.create_user_settings_tables()
+    await tdatabase.create_all_tdatabase_tables()
+    await managers_handler.create_required_bot_manager_tables()
+
+    # Mock all PostgreSQL responses with exact schema
+    monkeypatch.setattr(pgdatabase, "get_all_index_values", AsyncMock(return_value=[("attendance", '{"Course Name": 1}')]))
+    monkeypatch.setattr(pgdatabase, "get_bot_managers_data", AsyncMock(return_value=[
+        (77777, True, False, "SuperAdmin", "all", True, True, True, True, True, True, True, True, True, True)
+    ]))
+    monkeypatch.setattr(pgdatabase, "get_all_credentials", AsyncMock(return_value=[(77777, "21951A0590", "password_123")]))
+    monkeypatch.setattr(pgdatabase, "get_all_user_settings", AsyncMock(return_value=[(77777, 80.0, 75.0, False, True)]))
+    monkeypatch.setattr(pgdatabase, "get_all_banned_usernames", AsyncMock(return_value=[("21951A0599",)]))
+    monkeypatch.setattr(pgdatabase, "get_all_cgpa_trackers", AsyncMock(return_value=[]))
+    monkeypatch.setattr(pgdatabase, "get_all_cie_tracker_data", AsyncMock(return_value=[]))
+    monkeypatch.setattr(pgdatabase, "get_all_reports", AsyncMock(return_value=[]))
+
+    # Execute sync
+    await operations.sync_databases(mock_bot)
+
+    # Verify synced data in SQLite
+    creds = await tdatabase.fetch_credentials_from_database(77777)
+    assert creds == ("21951A0590", "password_123")
+    assert await tdatabase.get_bool_banned_username("21951A0599") is True
+    assert 77777 in await managers_handler.fetch_admin_chat_ids()
+
+async def test_sync_databases_postgres_down_fail_safe(mock_bot, monkeypatch):
+    """Verify sync_databases handles PostgreSQL outage gracefully without unhandled exceptions."""
+    from DATABASE import managers_handler
+    await user_settings.create_user_settings_tables()
+    await tdatabase.create_all_tdatabase_tables()
+    await managers_handler.create_required_bot_manager_tables()
+
+    # Simulate Postgres failure returning False or raising exception
+    monkeypatch.setattr(pgdatabase, "get_all_index_values", AsyncMock(side_effect=Exception("Connection refused")))
+    monkeypatch.setattr(pgdatabase, "get_bot_managers_data", AsyncMock(return_value=False))
+    monkeypatch.setattr(pgdatabase, "get_all_credentials", AsyncMock(return_value=False))
+    monkeypatch.setattr(pgdatabase, "get_all_user_settings", AsyncMock(return_value=False))
+    monkeypatch.setattr(pgdatabase, "get_all_banned_usernames", AsyncMock(side_effect=Exception("Timeout")))
+    monkeypatch.setattr(pgdatabase, "get_all_cgpa_trackers", AsyncMock(return_value=False))
+    monkeypatch.setattr(pgdatabase, "get_all_cie_tracker_data", AsyncMock(return_value=False))
+    monkeypatch.setattr(pgdatabase, "get_all_reports", AsyncMock(return_value=False))
+
+    # Should complete safely without crashing
+    await operations.sync_databases(mock_bot)
+
