@@ -251,7 +251,7 @@ async def set_default_attendance_indexes():
     }
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(all_attendance_indexes)))
+        cursor.execute("INSERT OR REPLACE INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(all_attendance_indexes)))
         conn.commit()
 async def set_default_biometric_indexes():
     """Insert default biometric indices into `index_values` if needed.
@@ -269,7 +269,7 @@ async def set_default_biometric_indexes():
     }
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(all_biometric_index)))
+        cursor.execute("INSERT OR REPLACE INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(all_biometric_index)))
         conn.commit()
 
 async def set_default_pat_attendance_indexes():
@@ -293,7 +293,7 @@ async def set_default_pat_attendance_indexes():
     }
     with sqlite3.connect(SETTINGS_DATABASE) as conn:
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(pat_attendance_indexes)))
+        cursor.execute("INSERT OR REPLACE INTO index_values (name,index_) VALUES (?,?)", (name,json.dumps(pat_attendance_indexes)))
         conn.commit()
 
 async def set_attendance_indexes(
