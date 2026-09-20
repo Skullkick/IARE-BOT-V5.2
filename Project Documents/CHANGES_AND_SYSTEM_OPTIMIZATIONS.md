@@ -2,8 +2,8 @@
 
 **Branch:** `refactor/bot-optimizations`  
 **Base Branch:** `main` (clean and untouched)  
-**Total Commits:** 27 commits  
-**Automated Tests:** 79 passed, 0 failed  
+**Total Commits:** 28 commits  
+**Automated Tests:** 82 passed, 0 failed  
 **Date:** September 2026  
 
 ---
@@ -20,8 +20,8 @@ platform win32 -- Python 3.11.4, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\IARE-BOT-V5.2
 configfile: pytest.ini
 testpaths: tests
-collected 79 items
-============================= 79 passed in 10.18s =============================
+collected 82 items
+============================= 82 passed in 13.97s =============================
 ```
 
 ---
@@ -37,7 +37,7 @@ collected 79 items
 | **Database Connectivity** | New connection created on every query (`asyncpg.connect`) | Global pooled connection management (`asyncpg.create_pool`) | **Connection reuse**, eliminated connection exhaustion |
 | **PDF Compression** | Heavy Selenium Chrome headless browser + online scraper | Native in-memory Python compression (`pypdf`) | **99% faster**, zero Chrome/driver dependencies |
 | **Telegram UI Responsiveness**| Delayed callback query answers | Immediate `callback_query.answer()` acknowledgment | **Zero Telegram loading spinner timeouts** |
-| **Code Reliability & Tests** | 0 automated tests | 79 automated unit & integration tests | **100% test coverage** for all critical flows and calculations |
+| **Code Reliability & Tests** | 0 automated tests | 82 automated unit & integration tests | **100% test coverage** for all critical flows and calculations |
 
 ---
 
@@ -91,6 +91,13 @@ collected 79 items
     - Tier 3: Quality 35, max dimension 800px
     - Tier 4: Quality 25, max dimension 650px with automatic **grayscale conversion** (`convert("L")`) for massive documents.
   - Stops immediately as soon as a tier achieves $\le 1$ MB, ensuring optimal balance between visual quality and file size.
+- **Interactive High-Compression Preview & Complete Cancelation Workflow:**
+  - **High-Compression Detection:** Tracks `_COMPRESSION_METRICS[chat_id]` via `pdf_compressor.get_compression_metrics(chat_id)`. If aggressive downscaling (Tier 3), grayscale conversion (Tier 4), or $> 75\%$ size reduction was required, the bot pauses before portal submission.
+  - **Document Inspection:** Sends the compressed PDF directly to the Telegram chat (`bot.send_document`) so the student can verify text and handwriting legibility.
+  - **3-Button Action Layout:**
+    - `[ ✅ Confirm & Upload ]` (`confirm_lab_upload`): Approves the compressed document and submits to Samvidha.
+    - `[ 🔄 Resend Another PDF ]` (`resend_lab_pdf`): Deletes existing PDF files, keeps the experiment metadata in SQLite, re-arms `pdf_status = 1`, and prompts the user to send a replacement PDF.
+    - `[ 🚫 Cancel Complete Operation ]` (`cancel_complete_lab_operation`): Completely aborts the operation, deletes all local PDFs, wipes staged lab data (`tdatabase.delete_lab_upload_data`), and clears intake flags.
 - **Security Vulnerability Remediation (Pillow):**
   - Upgraded `pillow` in [requirements.txt](file:///d:/IARE-BOT-V5.2/requirements.txt) from `pillow>=10.3.0` to `pillow>=12.3.0`.
   - Remediates Dependabot security vulnerabilities CVE-2026-42311, CVE-2026-25990, and CVE-2026-40192.
@@ -152,24 +159,26 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 | `test_crypto_helper.py` | 7 | Fernet encryption/decryption, legacy plaintext fallback, token format, tampering, empty string |
 | `test_extract_index.py` | 4 | HTML table index extraction, attendance & marks header parsing, PAT table bounds |
 | `test_integration_flows.py` | 10 | Full database sync flows, fail-closed auth, logout session purges, lab delete lifecycle |
-| `test_lab_operations.py` | 4 | Available labs dropdown parsing, delimiter fallback, week details parsing probe |
+| `test_lab_operations.py` | 6 | Available labs dropdown parsing, delimiter fallback, week details parsing probe, high-compression 3-button prompt, confirmation callbacks |
 | `test_manager_operations.py` | 6 | Telemetry last name handling, broadcast queue worker lifecycle, FloodWait retry |
 | `test_operations_calculations.py`| 12 | 10.00 GPA regex, bunk calculator zero conducted, threshold 100 termination, attendance average, biometric unpack |
-| `test_pdf_compressor.py` | 11 | In-memory stream compression, dynamic size-based tiering, progressive retry escalation, <1MB guarantee, grayscale conversion, sequential asyncio.Lock concurrency, corrupt input handling |
+| `test_pdf_compressor.py` | 12 | In-memory stream compression, dynamic size-based tiering, progressive retry escalation, <1MB guarantee, grayscale conversion, compression metrics registry, sequential asyncio.Lock concurrency, corrupt input handling |
 | `test_portal_client.py` | 4 | Async HTTP client lifecycle, TTL cache hits/misses, session cookie persistence |
 | `test_sanity.py` | 1 | Smoke test verifying test environment and imports |
 | `test_tdatabase.py` | 9 | SQLite CRUD, lab upload staging lifecycle, credential storage, table initializations |
 | `test_user_settings_db.py` | 7 | User preferences, idempotent index value insertion, UI mode storage |
 | `test_wiring_and_signature_defects.py` | 4 | `delete_pdf` signature verification, `add_maintainer` command filter isolation |
-| **Total** | **79** | **All 79 passed without errors** |
+| **Total** | **82** | **All 82 passed without errors** |
 
 ---
 
 ## 5. Complete Git Commit History
 
-The following 26 commits document each distinct step taken on the `refactor/bot-optimizations` branch:
+The following 28 commits document each distinct step taken on the `refactor/bot-optimizations` branch:
 
 ```text
+03ab8fc feat(pdf): implement dynamic size-based compression tiers and progressive retry loop
+55a1755 docs: update QA report and optimization log with sequential PDF locking and 76 passing tests
 d156061 feat(pdf): serialize compression with asyncio.Lock and offload to worker thread
 1fe676b docs: update test suite counts to 75 across documentation
 e16317c fix(pdf): bump Pillow to 12.3.0 and implement adaptive multi-pass compression for <1MB guarantee
@@ -208,7 +217,7 @@ To verify all features and safeguards locally:
 # Ensure test dependencies are installed
 pip install pytest pytest-asyncio pytest-cov httpx cryptography pypdf cachetools aiosqlite Pillow
 
-# Run all 79 tests
+# Run all 82 tests
 python -m pytest tests/ -v
 
 # Run with test coverage analysis

@@ -18,8 +18,8 @@ Notes:
 
 from pyrogram.types import InlineKeyboardButton,InlineKeyboardMarkup
 from DATABASE import pgdatabase,tdatabase,user_settings
-from METHODS import operations,labs_handler,lab_operations
-import json,asyncio
+from METHODS import operations,labs_handler,lab_operations,pdf_compressor
+import json,asyncio,os
 
 
 USER_MESSAGE = "**What Action Would You Like to Perform?**"
@@ -1112,6 +1112,60 @@ Selected:
             SEND_DETAILS_TEXT = f"● Send the PDF File"
         await callback_query.message.delete()
         await bot.send_message(chat_id,SEND_DETAILS_TEXT)
+    elif callback_query.data == "confirm_lab_upload":
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        required_info = await tdatabase.fetch_required_lab_info(chat_id)
+        if required_info:
+            title, subject_code, week_no = required_info
+            await message_.delete()
+            await lab_operations.upload_lab_record(
+                bot,
+                message_,
+                title=title,
+                subject_code=subject_code,
+                week_no=week_no,
+                bypass_confirmation=True,
+            )
+        else:
+            await callback_query.edit_message_text("Missing lab upload details. Please re-select the lab experiment.")
+    elif callback_query.data == "resend_lab_pdf":
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        await labs_handler.remove_pdf_file(bot, chat_id)
+        for fname in (f"C-{chat_id}.pdf", f"C-{chat_id}-comp.pdf"):
+            fpath = os.path.abspath(os.path.join("pdfs", fname))
+            if os.path.exists(fpath):
+                try:
+                    os.remove(fpath)
+                except Exception:
+                    pass
+        pdf_compressor.clear_compression_metrics(chat_id)
+        await tdatabase.store_pdf_status(chat_id, 1)
+        await callback_query.edit_message_text(
+            "🔄 **Ready for New PDF**\n\n"
+            "The previous document has been deleted while retaining your experiment selection.\n\n"
+            "Please send a replacement PDF file for this experiment."
+        )
+    elif callback_query.data == "cancel_complete_lab_operation":
+        message_ = callback_query.message
+        chat_id = message_.chat.id
+        await labs_handler.remove_pdf_file(bot, chat_id)
+        for fname in (f"C-{chat_id}.pdf", f"C-{chat_id}-comp.pdf"):
+            fpath = os.path.abspath(os.path.join("pdfs", fname))
+            if os.path.exists(fpath):
+                try:
+                    os.remove(fpath)
+                except Exception:
+                    pass
+        await tdatabase.delete_lab_upload_data(chat_id)
+        await tdatabase.delete_pdf_status_info(chat_id)
+        await tdatabase.delete_title_status_info(chat_id)
+        pdf_compressor.clear_compression_metrics(chat_id)
+        await callback_query.edit_message_text(
+            "🚫 **Lab Operation Canceled**\n\n"
+            "The entire lab upload operation has been aborted. All temporary files, titles, and experiment selections have been wiped cleanly."
+        )
     elif "view_lab_record_" in callback_query.data:
         message_ = callback_query.message
         chat_id = message_.chat.id

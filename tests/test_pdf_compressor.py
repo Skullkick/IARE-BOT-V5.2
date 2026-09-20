@@ -208,3 +208,38 @@ def test_native_compress_pdf_grayscale(tmp_path):
     assert res is True
     assert os.path.exists(str(out_pdf))
     assert os.path.getsize(str(out_pdf)) > 0
+
+@pytest.mark.asyncio
+async def test_compression_metrics_tracking(mock_bot, monkeypatch):
+    """Verify that get_compression_metrics records metrics and clear_compression_metrics purges them."""
+    from METHODS import labs_handler
+
+    async def mock_check(bot, chat_id):
+        return True, False
+
+    async def mock_remove(bot, chat_id):
+        return True
+
+    def mock_compress(in_p, out_p, *args, **kwargs):
+        with open(out_p, "wb") as f:
+            f.write(b"X" * (800 * 1024))
+        return True
+
+    monkeypatch.setattr(labs_handler, "check_recieved_pdf_file", mock_check)
+    monkeypatch.setattr(labs_handler, "remove_pdf_file", mock_remove)
+    monkeypatch.setattr(pdf_compressor, "_native_compress_pdf", mock_compress)
+
+    pdf_compressor.clear_compression_metrics(888)
+    res = await pdf_compressor.compress_pdf(mock_bot, chat_id=888)
+    assert res is True
+
+    metrics = pdf_compressor.get_compression_metrics(888)
+    assert metrics != {}
+    assert metrics["chat_id"] == 888
+    assert "tier_index" in metrics
+    assert "final_size" in metrics
+    assert "is_high_compression" in metrics
+
+    pdf_compressor.clear_compression_metrics(888)
+    assert pdf_compressor.get_compression_metrics(888) == {}
+

@@ -209,14 +209,14 @@ async def check_pdf_size(chat_id,allowed_size):
 async def check_pdf_size_above_1mb(chat_id):
         """This Function checks whether the pdf file is above 1 mb or not,
         If the file is above 1mb then it returns true and the file size ."""
-        print("started checking pdf size")
-        file_size= os.path.getsize(os.path.abspath(f"pdfs/C-{chat_id}.pdf"))
+        pdf_path = os.path.abspath(f"pdfs/C-{chat_id}.pdf")
+        if not os.path.exists(pdf_path):
+            return False
+        file_size = os.path.getsize(pdf_path)
         file_size_mb = round((file_size/(1024*1024)),3)
         if file_size_mb > 1:
-            print("check done")
             return True
         else:
-            print("Check done")
             return False
 
 

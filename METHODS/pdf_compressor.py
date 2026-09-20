@@ -20,6 +20,17 @@ use_pdf_compress_scrape = False
 # Global lock to serialize PDF compression requests so system CPU and RAM are not overwhelmed
 _PDF_COMPRESSION_LOCK = asyncio.Lock()
 
+# Metrics registry for last compression executed per chat_id
+_COMPRESSION_METRICS: dict[str, dict] = {}
+
+def get_compression_metrics(chat_id: int | str) -> dict:
+    """Retrieve compression metrics for the given chat_id."""
+    return _COMPRESSION_METRICS.get(str(chat_id), {})
+
+def clear_compression_metrics(chat_id: int | str) -> None:
+    """Clear compression metrics for the given chat_id."""
+    _COMPRESSION_METRICS.pop(str(chat_id), None)
+
 # Progressive compression tiers ordered from highest quality (lightest) to highest compression
 COMPRESSION_TIERS = [
     # Tier 0: High visual fidelity (for files <= 2.5 MB)
@@ -199,7 +210,19 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
 
             if produced_output and os.path.exists(output_path):
                 final_size = os.path.getsize(output_path)
-                logger.info("PDF compressed successfully to: %s (%d bytes)", output_path, final_size)
+                tier_used = COMPRESSION_TIERS[tier_idx]
+                is_high = tier_idx >= 3 or bool(tier_used.get("grayscale")) or (input_size > 0 and (1 - final_size / input_size) >= 0.75)
+                _COMPRESSION_METRICS[str(chat_id)] = {
+                    "chat_id": chat_id,
+                    "tier_index": tier_idx,
+                    "quality": tier_used["quality"],
+                    "max_dimension": tier_used["max_dimension"],
+                    "grayscale": tier_used["grayscale"],
+                    "initial_size": input_size,
+                    "final_size": final_size,
+                    "is_high_compression": is_high,
+                }
+                logger.info("PDF compressed successfully to: %s (%d bytes, is_high=%s)", output_path, final_size, is_high)
                 await labs_handler.remove_pdf_file(bot, chat_id)
                 return True
             return False

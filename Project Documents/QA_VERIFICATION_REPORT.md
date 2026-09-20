@@ -4,8 +4,8 @@
 **Role:** Autonomous Principal QA & Verification Engineer  
 **Date:** September 20, 2026  
 **Test Framework:** `pytest` (v9.1.1) with `pytest-asyncio` (v1.4.0) & `pytest-cov` (v7.1.0)  
-**Verification Baseline:** 79 tests executed across 12 test modules | **79 Passed, 0 Failed**  
-**Overall Monitored Statement Coverage:** 23% (4,152 statements analyzed; up to 82% in security/crypto modules)
+**Verification Baseline:** 82 tests executed across 12 test modules | **82 Passed, 0 Failed**  
+**Overall Monitored Statement Coverage:** 24% (4,152 statements analyzed; up to 82% in security/crypto modules)
 
 ---
 
@@ -282,7 +282,10 @@
   4. Implemented dynamic size-aware multi-tier compression with progressive retries:
      - Selects starting tier dynamically based on input size ($\le 2.5$MB: Tier 0; $2.5-6$MB: Tier 1; $6-12$MB: Tier 2; $> 12$MB: Tier 3).
      - If output exceeds 1,048,576 bytes (1 MB), dynamically retries through higher compression tiers (up to Tier 4: max dimension 650px, quality=25, grayscale conversion) until the file is strictly under 1 MB.
-- **Verification:** Verified by `tests/test_pdf_compressor.py::test_compress_pdf_sequential_locking`, `tests/test_pdf_compressor.py::test_select_initial_tier_index`, `tests/test_pdf_compressor.py::test_compress_pdf_dynamic_retry_under_1mb`, and `tests/test_pdf_compressor.py::test_native_compress_pdf_grayscale`.
+  5. Implemented interactive high-compression preview & 3-button confirmation workflow:
+     - When high compression (Tier 3/4 or grayscale) is applied, the bot halts before portal submission and sends a preview of the compressed PDF to the Telegram chat.
+     - Displays 3 action buttons: `[ ✅ Confirm & Upload ]` (submits document), `[ 🔄 Resend Another PDF ]` (retains experiment info and waits for replacement PDF), and `[ 🚫 Cancel Complete Operation ]` (purges all PDFs, wipes staged SQLite data via `tdatabase.delete_lab_upload_data`, and resets status).
+- **Verification:** Verified by `tests/test_pdf_compressor.py::test_compress_pdf_sequential_locking`, `tests/test_pdf_compressor.py::test_select_initial_tier_index`, `tests/test_pdf_compressor.py::test_compress_pdf_dynamic_retry_under_1mb`, `tests/test_pdf_compressor.py::test_native_compress_pdf_grayscale`, `tests/test_pdf_compressor.py::test_compression_metrics_tracking`, `tests/test_lab_operations.py::test_upload_lab_record_high_compression_prompt`, and `tests/test_lab_operations.py::test_lab_confirmation_callbacks`.
 
 ---
 

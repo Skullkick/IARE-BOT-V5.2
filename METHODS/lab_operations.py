@@ -10,6 +10,7 @@ the bot's event loop, and no business logic is changed by these docstrings.
 """
 
 from bs4 import BeautifulSoup
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from METHODS.portal_client import async_fetch_page, get_http_client
 from DATABASE import user_settings,tdatabase
 from METHODS import operations,labs_handler,pdf_compressor
@@ -485,7 +486,7 @@ async def upload_pdf(bot,message,sub_code,user_details,upload_details):
     return response.json()
 
 
-async def upload_lab_record(bot,message,title,subject_code,week_no):
+async def upload_lab_record(bot,message,title,subject_code,week_no,bypass_confirmation=False):
     """Orchestrate lab record upload: compress if needed, gather metadata, submit.
 
     Coordinates size checks and compression, constructs upload details, submits
@@ -496,7 +497,8 @@ async def upload_lab_record(bot,message,title,subject_code,week_no):
     chat_id = message.chat.id
     message_sent_when_started = await bot.send_message(chat_id,"Initiated retrieval of necessary data for uploading.")
     pdf_folder = "pdfs"
-    if await labs_handler.check_pdf_size_above_1mb(chat_id) is True:
+    check_present, check_compress = await labs_handler.check_recieved_pdf_file(bot, chat_id)
+    if not check_compress and await labs_handler.check_pdf_size_above_1mb(chat_id) is True:
         message_of_pdf_operation_start = await bot.edit_message_text(chat_id,message_sent_when_started.id,"PDF Above 1 MB Trying to Compress")
         if pdf_compressor.use_pdf_compress_scrape is True and await labs_handler.get_pdf_size(bot,chat_id) > 5:
             pdf_compression = await pdf_compressor.compress_pdf_scrape(bot,message)
@@ -517,6 +519,44 @@ async def upload_lab_record(bot,message,title,subject_code,week_no):
 ● PDF Size : {size}"""
                     await bot.send_message(chat_id,failed_message)
                     return
+
+                # If aggressive compression was applied and not yet confirmed by user, prompt with preview & buttons
+                if not bypass_confirmation:
+                    metrics = pdf_compressor.get_compression_metrics(chat_id)
+                    if metrics and metrics.get("is_high_compression"):
+                        compressed_file_path = os.path.abspath(f"pdfs/C-{chat_id}-comp.pdf")
+                        if os.path.exists(compressed_file_path):
+                            try:
+                                await bot.send_document(
+                                    chat_id,
+                                    document=compressed_file_path,
+                                    caption="📄 **Preview of Compressed Lab Record**"
+                                )
+                            except Exception:
+                                pass
+
+                        initial_mb = metrics.get("initial_size", 0) / (1024 * 1024)
+                        final_kb = metrics.get("final_size", 0) / 1024
+                        grayscale_note = "• Converted to grayscale to maximize compression.\n" if metrics.get("grayscale") else ""
+
+                        prompt_text = (
+                            f"⚠️ **High Compression Notice**\n\n"
+                            f"Your document required aggressive compression to meet Samvidha's 1MB limit:\n"
+                            f"• **Original Size:** {initial_mb:.2f} MB\n"
+                            f"• **Compressed Size:** {final_kb:.1f} KB\n"
+                            f"{grayscale_note}\n"
+                            f"Please inspect the document preview above.\n"
+                            f"How would you like to proceed?"
+                        )
+
+                        confirmation_buttons = InlineKeyboardMarkup([
+                            [InlineKeyboardButton("✅ Confirm & Upload", callback_data="confirm_lab_upload")],
+                            [InlineKeyboardButton("🔄 Resend Another PDF", callback_data="resend_lab_pdf")],
+                            [InlineKeyboardButton("🚫 Cancel Complete Operation", callback_data="cancel_complete_lab_operation")]
+                        ])
+
+                        await bot.send_message(chat_id, prompt_text, reply_markup=confirmation_buttons)
+                        return
     else:
         message_of_pdf_operation = message_sent_when_started
     extracted_user_details = await user_lab_data(bot,chat_id)
