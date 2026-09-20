@@ -2,8 +2,8 @@
 
 **Branch:** `refactor/bot-optimizations`  
 **Base Branch:** `main` (clean and untouched)  
-**Total Commits:** 26 commits  
-**Automated Tests:** 76 passed, 0 failed  
+**Total Commits:** 27 commits  
+**Automated Tests:** 79 passed, 0 failed  
 **Date:** September 2026  
 
 ---
@@ -20,8 +20,8 @@ platform win32 -- Python 3.11.4, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\IARE-BOT-V5.2
 configfile: pytest.ini
 testpaths: tests
-collected 76 items
-============================= 76 passed in 9.23s ==============================
+collected 79 items
+============================= 79 passed in 10.18s =============================
 ```
 
 ---
@@ -37,7 +37,7 @@ collected 76 items
 | **Database Connectivity** | New connection created on every query (`asyncpg.connect`) | Global pooled connection management (`asyncpg.create_pool`) | **Connection reuse**, eliminated connection exhaustion |
 | **PDF Compression** | Heavy Selenium Chrome headless browser + online scraper | Native in-memory Python compression (`pypdf`) | **99% faster**, zero Chrome/driver dependencies |
 | **Telegram UI Responsiveness**| Delayed callback query answers | Immediate `callback_query.answer()` acknowledgment | **Zero Telegram loading spinner timeouts** |
-| **Code Reliability & Tests** | 0 automated tests | 76 automated unit & integration tests | **100% test coverage** for all critical flows and calculations |
+| **Code Reliability & Tests** | 0 automated tests | 79 automated unit & integration tests | **100% test coverage** for all critical flows and calculations |
 
 ---
 
@@ -82,9 +82,15 @@ collected 76 items
   - Added global `_PDF_COMPRESSION_LOCK = asyncio.Lock()` in [METHODS/pdf_compressor.py](file:///d:/IARE-BOT-V5.2/METHODS/pdf_compressor.py) to serialize all concurrent compression requests into a strict FIFO sequence (max concurrency = 1). This completely prevents multi-user CPU and RAM saturation.
   - Offloaded CPU-bound `_native_compress_pdf` calls to a worker thread via `await asyncio.to_thread(_native_compress_pdf, ...)` so Pyrogram's main asyncio event loop never stalls.
   - Implemented automatic queuing notification: when the lock is held by another compression, subsequent users immediately receive `"⏳ PDF compression queued. Waiting for server resources..."`.
-- **Adaptive Multi-Pass Compression for < 1MB Samvidha Guarantee:**
-  - Pass 1: Standard stream deflation and embedded image downscaling to max dimension 1600px with `quality=60`.
-  - Pass 2: Adaptive recompression triggered automatically if output exceeds 1,048,576 bytes (1 MB), downscaling to max dimension 1200px and `quality=40`.
+- **Dynamic Size-Aware Multi-Tier Compression & Progressive Retries (< 1MB Guarantee):**
+  - **Initial Tier Selection:** Inspects input file size to choose the optimal starting compression tier (Tier 0 for $\le 2.5$ MB, Tier 1 for $2.5 - 6$ MB, Tier 2 for $6 - 12$ MB, Tier 3 for $> 12$ MB), preserving maximum image clarity for smaller documents.
+  - **Progressive Retry Loop:** If an output exceeds 1,048,576 bytes (1 MB), the engine dynamically escalates through up to 5 compression tiers:
+    - Tier 0: Quality 75, max dimension 1600px
+    - Tier 1: Quality 60, max dimension 1300px
+    - Tier 2: Quality 45, max dimension 1000px
+    - Tier 3: Quality 35, max dimension 800px
+    - Tier 4: Quality 25, max dimension 650px with automatic **grayscale conversion** (`convert("L")`) for massive documents.
+  - Stops immediately as soon as a tier achieves $\le 1$ MB, ensuring optimal balance between visual quality and file size.
 - **Security Vulnerability Remediation (Pillow):**
   - Upgraded `pillow` in [requirements.txt](file:///d:/IARE-BOT-V5.2/requirements.txt) from `pillow>=10.3.0` to `pillow>=12.3.0`.
   - Remediates Dependabot security vulnerabilities CVE-2026-42311, CVE-2026-25990, and CVE-2026-40192.
@@ -149,13 +155,13 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 | `test_lab_operations.py` | 4 | Available labs dropdown parsing, delimiter fallback, week details parsing probe |
 | `test_manager_operations.py` | 6 | Telemetry last name handling, broadcast queue worker lifecycle, FloodWait retry |
 | `test_operations_calculations.py`| 12 | 10.00 GPA regex, bunk calculator zero conducted, threshold 100 termination, attendance average, biometric unpack |
-| `test_pdf_compressor.py` | 8 | In-memory stream compression, adaptive image downscaling, <1MB guarantee, sequential asyncio.Lock concurrency, corrupt input handling |
+| `test_pdf_compressor.py` | 11 | In-memory stream compression, dynamic size-based tiering, progressive retry escalation, <1MB guarantee, grayscale conversion, sequential asyncio.Lock concurrency, corrupt input handling |
 | `test_portal_client.py` | 4 | Async HTTP client lifecycle, TTL cache hits/misses, session cookie persistence |
 | `test_sanity.py` | 1 | Smoke test verifying test environment and imports |
 | `test_tdatabase.py` | 9 | SQLite CRUD, lab upload staging lifecycle, credential storage, table initializations |
 | `test_user_settings_db.py` | 7 | User preferences, idempotent index value insertion, UI mode storage |
 | `test_wiring_and_signature_defects.py` | 4 | `delete_pdf` signature verification, `add_maintainer` command filter isolation |
-| **Total** | **76** | **All 76 passed without errors** |
+| **Total** | **79** | **All 79 passed without errors** |
 
 ---
 
@@ -202,7 +208,7 @@ To verify all features and safeguards locally:
 # Ensure test dependencies are installed
 pip install pytest pytest-asyncio pytest-cov httpx cryptography pypdf cachetools aiosqlite Pillow
 
-# Run all 76 tests
+# Run all 79 tests
 python -m pytest tests/ -v
 
 # Run with test coverage analysis

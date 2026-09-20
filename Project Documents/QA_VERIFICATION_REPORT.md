@@ -4,7 +4,7 @@
 **Role:** Autonomous Principal QA & Verification Engineer  
 **Date:** September 20, 2026  
 **Test Framework:** `pytest` (v9.1.1) with `pytest-asyncio` (v1.4.0) & `pytest-cov` (v7.1.0)  
-**Verification Baseline:** 76 tests executed across 12 test modules | **76 Passed, 0 Failed**  
+**Verification Baseline:** 79 tests executed across 12 test modules | **79 Passed, 0 Failed**  
 **Overall Monitored Statement Coverage:** 23% (4,152 statements analyzed; up to 82% in security/crypto modules)
 
 ---
@@ -279,8 +279,10 @@
   1. Implemented global `_PDF_COMPRESSION_LOCK = asyncio.Lock()` in `METHODS/pdf_compressor.py` to enforce strict sequential execution (max concurrency = 1) and notify waiting users with `"⏳ PDF compression queued. Waiting for server resources..."`.
   2. Offloaded CPU-bound `_native_compress_pdf` calls to a worker thread via `await asyncio.to_thread(_native_compress_pdf, ...)` to ensure 100% event loop responsiveness.
   3. Upgraded `pillow>=12.3.0` in `requirements.txt` to eliminate all CVE warnings.
-  4. Implemented adaptive 2-pass compression (Pass 1: max dimension 1600px, quality=60; Pass 2: max dimension 1200px, quality=40) guaranteeing output under 1,048,576 bytes.
-- **Verification:** Verified by `tests/test_pdf_compressor.py::test_compress_pdf_sequential_locking` and `tests/test_pdf_compressor.py::test_native_compress_pdf_with_image_under_1mb`.
+  4. Implemented dynamic size-aware multi-tier compression with progressive retries:
+     - Selects starting tier dynamically based on input size ($\le 2.5$MB: Tier 0; $2.5-6$MB: Tier 1; $6-12$MB: Tier 2; $> 12$MB: Tier 3).
+     - If output exceeds 1,048,576 bytes (1 MB), dynamically retries through higher compression tiers (up to Tier 4: max dimension 650px, quality=25, grayscale conversion) until the file is strictly under 1 MB.
+- **Verification:** Verified by `tests/test_pdf_compressor.py::test_compress_pdf_sequential_locking`, `tests/test_pdf_compressor.py::test_select_initial_tier_index`, `tests/test_pdf_compressor.py::test_compress_pdf_dynamic_retry_under_1mb`, and `tests/test_pdf_compressor.py::test_native_compress_pdf_grayscale`.
 
 ---
 

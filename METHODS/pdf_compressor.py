@@ -20,11 +20,60 @@ use_pdf_compress_scrape = False
 # Global lock to serialize PDF compression requests so system CPU and RAM are not overwhelmed
 _PDF_COMPRESSION_LOCK = asyncio.Lock()
 
-def _native_compress_pdf(input_path: str, output_path: str, quality: int = 60, max_dimension: int = 1600) -> bool:
+# Progressive compression tiers ordered from highest quality (lightest) to highest compression
+COMPRESSION_TIERS = [
+    # Tier 0: High visual fidelity (for files <= 2.5 MB)
+    {"quality": 75, "max_dimension": 1600, "grayscale": False},
+    # Tier 1: Balanced compression (for files 2.5 MB - 6 MB)
+    {"quality": 60, "max_dimension": 1300, "grayscale": False},
+    # Tier 2: Strong compression (for files 6 MB - 12 MB)
+    {"quality": 45, "max_dimension": 1000, "grayscale": False},
+    # Tier 3: Aggressive compression (for files > 12 MB)
+    {"quality": 35, "max_dimension": 800, "grayscale": False},
+    # Tier 4: Maximum emergency compression with grayscale (for massive scanned files)
+    {"quality": 25, "max_dimension": 650, "grayscale": True},
+]
+
+def select_initial_tier_index(file_size_bytes: int) -> int:
+    """Select the initial compression tier based on input PDF file size.
+
+    Args:
+        file_size_bytes: Size of the input PDF in bytes.
+
+    Returns:
+        int: Index of the starting tier in COMPRESSION_TIERS.
+    """
+    mb = file_size_bytes / (1024 * 1024)
+    if mb <= 2.5:
+        return 0
+    elif mb <= 6.0:
+        return 1
+    elif mb <= 12.0:
+        return 2
+    else:
+        return 3
+
+def _native_compress_pdf(
+    input_path: str,
+    output_path: str,
+    quality: int = 60,
+    max_dimension: int = 1600,
+    grayscale: bool = False,
+) -> bool:
     """Perform native stream and object compression on a PDF using pypdf.
 
     Preserves vector text while applying lossless content stream deflation,
     downscaling oversized camera photos, and recompressing embedded images.
+
+    Args:
+        input_path: Path to source PDF file.
+        output_path: Target path for the compressed PDF.
+        quality: JPEG recompression quality factor (1-100).
+        max_dimension: Maximum pixel width or height for embedded images.
+        grayscale: Whether to convert color images to grayscale for maximum compression.
+
+    Returns:
+        bool: True on success, False otherwise.
     """
     reader = PdfReader(input_path)
     writer = PdfWriter()
@@ -38,6 +87,11 @@ def _native_compress_pdf(input_path: str, output_path: str, quality: int = 60, m
         for img in writer_page.images:
             try:
                 pil_img = img.image
+                if grayscale and pil_img.mode != "L":
+                    pil_img = pil_img.convert("L")
+                elif not grayscale and pil_img.mode in ("RGBA", "P"):
+                    pil_img = pil_img.convert("RGB")
+
                 if max_dimension and max(pil_img.width, pil_img.height) > max_dimension:
                     pil_img.thumbnail((max_dimension, max_dimension))
                 img.replace(pil_img, quality=quality)
@@ -50,10 +104,11 @@ def _native_compress_pdf(input_path: str, output_path: str, quality: int = 60, m
     return True
 
 async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
-    """Compress a PDF natively using pypdf in-memory compression.
+    """Compress a PDF natively using dynamic multi-tier pypdf compression.
 
-    Executes sequentially using a global lock and offloads CPU-bound
-    image resampling to a worker thread so the bot remains responsive.
+    Executes sequentially using a global lock, selects initial compression
+    parameters based on the input PDF size, and dynamically retries with
+    progressively higher compression if the output exceeds 1 MB.
 
     Args:
         bot: Pyrogram client instance.
@@ -88,15 +143,63 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
 
         # Ensure only one PDF compression runs at a time to prevent resource exhaustion
         async with _PDF_COMPRESSION_LOCK:
-            # Native compression pass 1: standard compression offloaded to worker thread
-            success = await asyncio.to_thread(_native_compress_pdf, input_path, output_path, 60, 1600)
-            if success:
-                # If still exceeding 1MB (1024KB), run adaptive pass 2 to guarantee under 1MB
-                if os.path.exists(output_path) and os.path.getsize(output_path) > 1024 * 1024:
-                    logger.info("PDF still > 1MB after pass 1 (%d bytes); running adaptive pass 2", os.path.getsize(output_path))
-                    await asyncio.to_thread(_native_compress_pdf, input_path, output_path, 40, 1200)
+            input_size = os.path.getsize(input_path) if os.path.exists(input_path) else 0
+            start_tier_idx = select_initial_tier_index(input_size)
+            logger.info(
+                "Starting dynamic PDF compression for chat_id %s (size: %d bytes, initial tier: %d)",
+                chat_id,
+                input_size,
+                start_tier_idx + 1,
+            )
 
-                logger.info("PDF compressed successfully to: %s (%d bytes)", output_path, os.path.getsize(output_path))
+            produced_output = False
+
+            # Dynamic progressive retry loop: escalate compression until under 1MB (1,048,576 bytes)
+            for tier_idx in range(start_tier_idx, len(COMPRESSION_TIERS)):
+                tier = COMPRESSION_TIERS[tier_idx]
+                logger.info(
+                    "Executing compression tier %d/%d (quality=%d, max_dim=%s, grayscale=%s)",
+                    tier_idx + 1,
+                    len(COMPRESSION_TIERS),
+                    tier["quality"],
+                    tier["max_dimension"],
+                    tier["grayscale"],
+                )
+
+                pass_ok = await asyncio.to_thread(
+                    _native_compress_pdf,
+                    input_path,
+                    output_path,
+                    quality=tier["quality"],
+                    max_dimension=tier["max_dimension"],
+                    grayscale=tier["grayscale"],
+                )
+
+                if not pass_ok or not os.path.exists(output_path):
+                    continue
+
+                produced_output = True
+                current_size = os.path.getsize(output_path)
+
+                if current_size <= 1024 * 1024:
+                    logger.info(
+                        "PDF successfully compressed under 1MB at tier %d: %d bytes (%.2f KB)",
+                        tier_idx + 1,
+                        current_size,
+                        current_size / 1024,
+                    )
+                    break
+                else:
+                    logger.info(
+                        "PDF size %d bytes (%.2f KB) still exceeds 1MB threshold after tier %d. Retrying with higher compression...",
+                        current_size,
+                        current_size / 1024,
+                        tier_idx + 1,
+                    )
+
+            if produced_output and os.path.exists(output_path):
+                final_size = os.path.getsize(output_path)
+                logger.info("PDF compressed successfully to: %s (%d bytes)", output_path, final_size)
                 await labs_handler.remove_pdf_file(bot, chat_id)
                 return True
             return False

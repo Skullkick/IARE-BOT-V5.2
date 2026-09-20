@@ -109,7 +109,7 @@ async def test_compress_pdf_sequential_locking(mock_bot, monkeypatch):
     async def mock_remove(bot, chat_id):
         return True
 
-    def mock_native_compress(in_p, out_p, quality=60, max_dimension=1600):
+    def mock_native_compress(in_p, out_p, *args, **kwargs):
         nonlocal active_compressions, max_concurrent
         active_compressions += 1
         if active_compressions > max_concurrent:
@@ -137,3 +137,74 @@ async def test_compress_pdf_sequential_locking(mock_bot, monkeypatch):
     assert len(completed) == 3
     # Critical assertion: Concurrency must NEVER exceed 1 at any moment
     assert max_concurrent == 1, f"Expected strictly sequential execution, but max concurrency was {max_concurrent}"
+
+def test_select_initial_tier_index():
+    """Verify initial tier selection logic based on file size boundaries."""
+    # <= 2.5 MB -> Tier 0
+    assert pdf_compressor.select_initial_tier_index(int(1.5 * 1024 * 1024)) == 0
+    assert pdf_compressor.select_initial_tier_index(int(2.5 * 1024 * 1024)) == 0
+    # 2.5 MB - 6 MB -> Tier 1
+    assert pdf_compressor.select_initial_tier_index(int(4.0 * 1024 * 1024)) == 1
+    assert pdf_compressor.select_initial_tier_index(int(6.0 * 1024 * 1024)) == 1
+    # 6 MB - 12 MB -> Tier 2
+    assert pdf_compressor.select_initial_tier_index(int(8.0 * 1024 * 1024)) == 2
+    assert pdf_compressor.select_initial_tier_index(int(12.0 * 1024 * 1024)) == 2
+    # > 12 MB -> Tier 3
+    assert pdf_compressor.select_initial_tier_index(int(15.0 * 1024 * 1024)) == 3
+
+@pytest.mark.asyncio
+async def test_compress_pdf_dynamic_retry_under_1mb(mock_bot, monkeypatch, tmp_path):
+    """Verify that compress_pdf dynamically retries with higher compression when pass 1 exceeds 1MB."""
+    from METHODS import labs_handler
+
+    attempted_tiers = []
+
+    async def mock_check(bot, chat_id):
+        return True, False
+
+    async def mock_remove(bot, chat_id):
+        return True
+
+    def mock_escalating_compress(in_p, out_p, quality=60, max_dimension=1600, grayscale=False):
+        attempted_tiers.append({"quality": quality, "max_dimension": max_dimension, "grayscale": grayscale})
+        # If first attempt, write a file that exceeds 1MB (e.g. 1.2 MB)
+        # If second attempt, write a file under 1MB (e.g. 500 KB)
+        with open(out_p, "wb") as f:
+            if len(attempted_tiers) == 1:
+                f.write(b"X" * (1200 * 1024))  # 1.2 MB (exceeds 1MB)
+            else:
+                f.write(b"X" * (500 * 1024))   # 500 KB (under 1MB)
+        return True
+
+    monkeypatch.setattr(labs_handler, "check_recieved_pdf_file", mock_check)
+    monkeypatch.setattr(labs_handler, "remove_pdf_file", mock_remove)
+    monkeypatch.setattr(pdf_compressor, "_native_compress_pdf", mock_escalating_compress)
+
+    res = await pdf_compressor.compress_pdf(mock_bot, chat_id=999)
+
+    assert res is True
+    # Verify that it retried: exactly 2 attempts were executed
+    assert len(attempted_tiers) == 2
+    # Verify that attempt 2 used stronger compression (lower quality) than attempt 1
+    assert attempted_tiers[1]["quality"] < attempted_tiers[0]["quality"]
+
+def test_native_compress_pdf_grayscale(tmp_path):
+    """Verify that _native_compress_pdf with grayscale=True produces a readable, compact PDF."""
+    from PIL import Image
+
+    img = Image.new("RGB", (600, 600), color=(200, 50, 50))
+    in_pdf = tmp_path / "color_input.pdf"
+    img.save(str(in_pdf), format="PDF")
+
+    out_pdf = tmp_path / "grayscale_output.pdf"
+    res = pdf_compressor._native_compress_pdf(
+        str(in_pdf),
+        str(out_pdf),
+        quality=30,
+        max_dimension=500,
+        grayscale=True,
+    )
+
+    assert res is True
+    assert os.path.exists(str(out_pdf))
+    assert os.path.getsize(str(out_pdf)) > 0
