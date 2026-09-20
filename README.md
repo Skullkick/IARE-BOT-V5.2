@@ -2,6 +2,8 @@
 
 Telegram Bot which scrapes the data from the [SAMVIDHA](https://samvidha.iare.ac.in/index) and Sends the calculated Attendance, Biometric etc.
 
+> 📘 **New to IARE Bot?** Check out the structured **[Beginner's Guide](BEGINNERS_GUIDE.md)** for a complete step-by-step walkthrough of student commands, interactive buttons, settings, admin operations, and troubleshooting!
+
 ## Environment Variables
 
 - `API_ID` - Get this from [my.telegram.org](https://my.telegram.org/auth).
