@@ -242,6 +242,7 @@ DIRECTIVES:
 1. **Credential Isolation:** Passwords and encrypted session tokens are NEVER returned in tool responses.
 2. **Network Decoupling:** `send_reply` uses direct HTTP `POST https://api.telegram.org/bot<TOKEN>/sendMessage`. It does not touch or block the Pyrogram client session.
 3. **Database Consistency:** Dual-write to SQLite and Postgres ensures synchronization across local test benches and cloud deployments.
+4. **Password Protection:** When `MCP_PASSWORD` is configured, HTTP/SSE transport strictly rejects unauthenticated connections with `401 Unauthorized`.
 
 ---
 
@@ -253,6 +254,7 @@ When running the main Telegram bot (`python main.py`), the MCP server can either
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
 | `ENABLE_MCP_SERVER` | `false` | When set to `true`, `main.py` automatically spawns `iare_mcp_server.py` as an isolated subprocess. |
+| `MCP_PASSWORD` | `""` | Secret password required to access the MCP server (enforced via `Authorization`, `X-MCP-Password`, or `?password=`). |
 | `MCP_TRANSPORT` | `stdio` | Transport protocol: `"stdio"` (for local agent pipes) or `"sse"` (for network/remote agents). |
 | `MCP_HOST` | `0.0.0.0` | Host interface to bind when running SSE transport. |
 | `MCP_PORT` | `8000` | Port to listen on when running SSE transport (`/sse` endpoint). |

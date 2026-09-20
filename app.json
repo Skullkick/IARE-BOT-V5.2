@@ -50,6 +50,16 @@
         "description": "Postgres Port value",
         "value": "5432",
         "required": false
+      },
+      "ENABLE_MCP_SERVER": {
+        "description": "Set to 'true' to automatically launch the IARE-BOT MCP server with main.py",
+        "value": "false",
+        "required": false
+      },
+      "MCP_PASSWORD": {
+        "description": "Secret password protecting MCP server endpoints against unauthorized access",
+        "value": "",
+        "required": false
       }
     },
     "buildpacks": [

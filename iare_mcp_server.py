@@ -28,6 +28,8 @@ load_dotenv()
 
 import httpx
 import psutil
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 try:
     from mcp.server.mcpserver import MCPServer
@@ -523,16 +525,72 @@ async def broadcast_announcement(
     }
 
 
+class MCPAuthMiddleware(BaseHTTPMiddleware):
+    """
+    HTTP middleware enforcing password authentication for remote MCP clients.
+    Supports:
+    - Authorization: Bearer <password>
+    - X-MCP-Password: <password>
+    - X-API-Key: <password>
+    - Query parameter: ?password=<password> or ?token=<password>
+    """
+    def __init__(self, app, password: str):
+        super().__init__(app)
+        self.expected_password = password
+
+    async def dispatch(self, request, call_next):
+        # Allow preflight CORS
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
+        auth_header = request.headers.get("authorization", "")
+        bearer = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+        custom_header = request.headers.get("x-mcp-password") or request.headers.get("x-api-key")
+        query_token = request.query_params.get("password") or request.query_params.get("token")
+
+        provided_token = bearer or custom_header or query_token
+        if not provided_token or provided_token != self.expected_password:
+            client_ip = request.client.host if request.client else "unknown"
+            logger.warning("Unauthorized MCP request rejected from %s for %s", client_ip, request.url.path)
+            return Response("Unauthorized: Invalid or missing MCP password", status_code=401)
+
+        return await call_next(request)
+
+
+def get_sse_app_with_auth(host: str = "0.0.0.0", password: Optional[str] = None):
+    """Return the Starlette SSE application with optional password protection middleware."""
+    app = mcp.sse_app(host=host)
+    if password:
+        logger.info("Enabling MCP password protection middleware.")
+        app.add_middleware(MCPAuthMiddleware, password=password)
+    else:
+        logger.info("MCP password protection is disabled (MCP_PASSWORD is not set).")
+    return app
+
+
 def main():
     """Main entrypoint when launched as a standalone MCP server."""
     transport = os.environ.get("MCP_TRANSPORT", "stdio").strip().lower()
+    password = os.environ.get("MCP_PASSWORD", "").strip() or None
+
     if transport == "sse":
+        import uvicorn
+        import anyio
         host = os.environ.get("MCP_HOST", "0.0.0.0").strip()
         port = int(os.environ.get("MCP_PORT", "8000"))
-        logger.info("Starting IARE-BOT MCP Server over SSE transport on %s:%d...", host, port)
-        mcp.run(transport="sse", host=host, port=port)
+        logger.info("Starting IARE-BOT MCP Server over SSE on %s:%d (Protected: %s)...", 
+                    host, port, bool(password))
+        app = get_sse_app_with_auth(host=host, password=password)
+        config = uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level=mcp.settings.log_level.lower()
+        )
+        server = uvicorn.Server(config)
+        anyio.run(server.serve)
     else:
-        logger.info("Starting IARE-BOT MCP Server over stdio transport...")
+        logger.info("Starting IARE-BOT MCP Server over stdio transport (Protected: %s)...", bool(password))
         mcp.run(transport="stdio")
 
 

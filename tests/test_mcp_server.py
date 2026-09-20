@@ -492,3 +492,64 @@ async def test_start_mcp_server_toggle(monkeypatch):
     # Cleanup shutdown test
     main.stop_mcp_server()
     assert main._MCP_PROCESS is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Password Protection & Authentication Tests
+# ---------------------------------------------------------------------------
+
+def test_mcp_auth_middleware_rejected_when_password_required():
+    """Verify requests to SSE app without or with wrong password return 401 Unauthorized."""
+    from starlette.testclient import TestClient
+
+    app = iare_mcp_server.get_sse_app_with_auth(password="vault_secret_999")
+    client = TestClient(app)
+
+    # 1. No credentials
+    r1 = client.get("/sse")
+    assert r1.status_code == 401
+    assert "Unauthorized" in r1.text
+
+    # 2. Wrong query parameter
+    r2 = client.get("/sse?password=wrong_pass")
+    assert r2.status_code == 401
+
+    # 3. Wrong Bearer header
+    r3 = client.get("/sse", headers={"Authorization": "Bearer wrong_token"})
+    assert r3.status_code == 401
+
+    # 4. Wrong X-MCP-Password header
+    r4 = client.get("/sse", headers={"X-MCP-Password": "wrong_token"})
+    assert r4.status_code == 401
+
+
+def test_mcp_auth_middleware_accepted_when_password_valid():
+    """Verify requests with valid password pass the authentication middleware."""
+    from starlette.testclient import TestClient
+
+    app = iare_mcp_server.get_sse_app_with_auth(password="vault_secret_999")
+    client = TestClient(app)
+
+    # 1. Valid via Bearer token (post to messages router)
+    r1 = client.post("/messages?session_id=s1", headers={"Authorization": "Bearer vault_secret_999"}, json={"test": 1})
+    assert r1.status_code != 401  # Passes auth middleware
+
+    # 2. Valid via X-MCP-Password header
+    r2 = client.post("/messages?session_id=s1", headers={"X-MCP-Password": "vault_secret_999"}, json={"test": 1})
+    assert r2.status_code != 401
+
+    # 3. Valid via query string ?password=
+    r3 = client.post("/messages?session_id=s1&password=vault_secret_999", json={"test": 1})
+    assert r3.status_code != 401
+
+
+def test_mcp_auth_middleware_disabled_when_no_password():
+    """Verify open access when MCP_PASSWORD is not set."""
+    from starlette.testclient import TestClient
+
+    app = iare_mcp_server.get_sse_app_with_auth(password=None)
+    client = TestClient(app)
+
+    # Without any password, request reaches the handler and does not return 401
+    r = client.post("/messages?session_id=s1", json={"test": 1})
+    assert r.status_code != 401

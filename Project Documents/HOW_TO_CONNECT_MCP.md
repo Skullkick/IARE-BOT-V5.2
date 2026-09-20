@@ -160,9 +160,10 @@ if __name__ == "__main__":
 
 If you want `python main.py` to automatically launch the MCP server in the background so remote agents can connect over the network/internet:
 
-1. In your `.env` (or environment variables), enable the MCP server and configure SSE transport:
+1. In your `.env` (or environment variables), enable the MCP server, set your password, and configure SSE transport:
    ```env
    ENABLE_MCP_SERVER=true
+   MCP_PASSWORD=your_super_secret_password
    MCP_TRANSPORT=sse
    MCP_HOST=0.0.0.0
    MCP_PORT=8000
@@ -172,17 +173,29 @@ If you want `python main.py` to automatically launch the MCP server in the backg
    ```bash
    python main.py
    ```
-   `main.py` will automatically start `iare_mcp_server.py` as an isolated background subprocess on port `8000`!
+   `main.py` will automatically start `iare_mcp_server.py` protected by your password on port `8000`!
 
-3. Now, **any remote agent** (e.g. running on another server, VPS, or cloud) can connect over HTTP/SSE:
-   - **SSE Endpoint URL:** `http://YOUR_SERVER_IP:8000/sse`
+3. Now, connect your remote agent securely:
 
-   In Hermes Agent `~/.hermes/config.yaml` on the remote machine:
+   **Method 1: Query Parameter (Simplest):**
    ```yaml
+   # In ~/.hermes/config.yaml on the remote machine
+   mcp_servers:
+     iare_bot:
+       url: "http://YOUR_SERVER_IP:8000/sse?password=your_super_secret_password"
+   ```
+
+   **Method 2: Authorization Header:**
+   ```yaml
+   # In ~/.hermes/config.yaml on the remote machine
    mcp_servers:
      iare_bot:
        url: "http://YOUR_SERVER_IP:8000/sse"
+       headers:
+         Authorization: "Bearer your_super_secret_password"
    ```
+
+*(Any request without the correct password is automatically blocked with `401 Unauthorized`).*
 
 ---
 
