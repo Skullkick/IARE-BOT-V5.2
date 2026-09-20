@@ -66,3 +66,29 @@ async def test_compress_pdf_already_compressed(mock_bot, monkeypatch):
     success = await pdf_compressor.compress_pdf(mock_bot, chat_id=123)
     assert success is True
     mock_bot.send_message.assert_called_once_with(123, "PDF file is already compressed.")
+
+def test_native_compress_pdf_with_image_under_1mb(tmp_path):
+    """Verify that a PDF containing a high-resolution image is compressed and remains under 1MB."""
+    import io
+    from PIL import Image
+
+    # Create a 2000x2000 image and save as PDF
+    img = Image.new("RGB", (2000, 2000), color=(120, 160, 220))
+    for x in range(0, 2000, 40):
+        for y in range(0, 2000, 40):
+            img.putpixel((x, y), (255, 50, 50))
+
+    in_pdf = tmp_path / "large_image.pdf"
+    img.save(str(in_pdf), format="PDF", quality=100)
+    original_size = os.path.getsize(str(in_pdf))
+
+    out_pdf = tmp_path / "compressed_image.pdf"
+    res = pdf_compressor._native_compress_pdf(str(in_pdf), str(out_pdf))
+
+    assert res is True
+    assert os.path.exists(str(out_pdf))
+    compressed_size = os.path.getsize(str(out_pdf))
+
+    # Must be significantly reduced and strictly under 1MB (1,048,576 bytes)
+    assert compressed_size < original_size
+    assert compressed_size < 1024 * 1024, f"Output PDF ({compressed_size} bytes) exceeds 1MB threshold!"

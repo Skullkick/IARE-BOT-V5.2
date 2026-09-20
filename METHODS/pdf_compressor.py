@@ -16,24 +16,29 @@ logger = logging.getLogger(__name__)
 # External scrape compression disabled in favor of native in-memory compression
 use_pdf_compress_scrape = False
 
-def _native_compress_pdf(input_path: str, output_path: str) -> bool:
+def _native_compress_pdf(input_path: str, output_path: str, quality: int = 60, max_dimension: int = 1600) -> bool:
     """Perform native stream and object compression on a PDF using pypdf.
 
-    Preserves vector text while applying lossless content stream deflation
-    and compressing embedded images.
+    Preserves vector text while applying lossless content stream deflation,
+    downscaling oversized camera photos, and recompressing embedded images.
     """
     reader = PdfReader(input_path)
     writer = PdfWriter()
 
     for page in reader.pages:
-        page.compress_content_streams()
-        # Compress embedded images if present
-        for img in page.images:
+        writer.add_page(page)
+
+    for writer_page in writer.pages:
+        writer_page.compress_content_streams()
+        # Compress and downscale embedded images if present
+        for img in writer_page.images:
             try:
-                img.replace(img.image, quality=60)
+                pil_img = img.image
+                if max_dimension and max(pil_img.width, pil_img.height) > max_dimension:
+                    pil_img.thumbnail((max_dimension, max_dimension))
+                img.replace(pil_img, quality=quality)
             except Exception:
                 pass
-        writer.add_page(page)
 
     writer.compress_identical_objects()
     with open(output_path, "wb") as f:
@@ -66,10 +71,15 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
 
         output_path = os.path.join(pdf_folder, f"C-{chat_id}-comp.pdf")
 
-        # Native compression
-        success = _native_compress_pdf(input_path, output_path)
+        # Native compression pass 1: standard compression
+        success = _native_compress_pdf(input_path, output_path, quality=60, max_dimension=1600)
         if success:
-            logger.info("PDF compressed successfully to: %s", output_path)
+            # If still exceeding 1MB (1024KB), run adaptive pass 2 to guarantee under 1MB
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 1024 * 1024:
+                logger.info("PDF still > 1MB after pass 1 (%d bytes); running adaptive pass 2", os.path.getsize(output_path))
+                _native_compress_pdf(input_path, output_path, quality=40, max_dimension=1200)
+
+            logger.info("PDF compressed successfully to: %s (%d bytes)", output_path, os.path.getsize(output_path))
             await labs_handler.remove_pdf_file(bot, chat_id)
             return True
         return False
