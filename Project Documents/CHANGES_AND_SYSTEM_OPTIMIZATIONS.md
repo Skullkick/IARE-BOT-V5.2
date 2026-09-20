@@ -2,8 +2,8 @@
 
 **Branch:** `refactor/bot-optimizations`  
 **Base Branch:** `main` (clean and untouched)  
-**Total Commits:** 22 commits  
-**Automated Tests:** 74 passed, 0 failed  
+**Total Commits:** 23 commits  
+**Automated Tests:** 75 passed, 0 failed  
 **Date:** September 2026  
 
 ---
@@ -20,8 +20,8 @@ platform win32 -- Python 3.11.4, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\IARE-BOT-V5.2
 configfile: pytest.ini
 testpaths: tests
-collected 74 items
-============================= 74 passed in 9.76s ==============================
+collected 75 items
+============================= 75 passed in 9.85s ==============================
 ```
 
 ---
@@ -139,13 +139,13 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 | `test_lab_operations.py` | 4 | Available labs dropdown parsing, delimiter fallback, week details parsing probe |
 | `test_manager_operations.py` | 6 | Telemetry last name handling, broadcast queue worker lifecycle, FloodWait retry |
 | `test_operations_calculations.py`| 12 | 10.00 GPA regex, bunk calculator zero conducted, threshold 100 termination, attendance average, biometric unpack |
-| `test_pdf_compressor.py` | 6 | In-memory stream compression, page retention, corrupt input handling, invalid files |
+| `test_pdf_compressor.py` | 7 | In-memory stream compression, adaptive image downscaling, corrupt input handling |
 | `test_portal_client.py` | 4 | Async HTTP client lifecycle, TTL cache hits/misses, session cookie persistence |
 | `test_sanity.py` | 1 | Smoke test verifying test environment and imports |
 | `test_tdatabase.py` | 9 | SQLite CRUD, lab upload staging lifecycle, credential storage, table initializations |
 | `test_user_settings_db.py` | 7 | User preferences, idempotent index value insertion, UI mode storage |
 | `test_wiring_and_signature_defects.py` | 4 | `delete_pdf` signature verification, `add_maintainer` command filter isolation |
-| **Total** | **74** | **All 74 passed without errors** |
+| **Total** | **75** | **All 75 passed without errors** |
 
 ---
 

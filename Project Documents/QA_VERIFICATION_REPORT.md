@@ -67,7 +67,7 @@
 | Suite Name | Target Area | Tests Executed | Passed | Failed |
 |---|---|---|---|---|
 | `test_crypto_helper.py` | Credential encryption, decryption, corruption fallback, unicode | 7 | 7 | 0 |
-| `test_pdf_compressor.py` | In-memory PDF compression, corrupt files, zero-byte handling | 6 | 6 | 0 |
+| `test_pdf_compressor.py` | In-memory PDF compression, adaptive image downscaling, corrupt files, zero-byte | 7 | 7 | 0 |
 | `test_portal_client.py` | TTL caching, targeted user invalidation, parser fallbacks | 4 | 4 | 0 |
 | `test_user_settings_db.py` | SQLite user settings, threshold clamping, idempotency defects | 7 | 7 | 0 |
 | `test_tdatabase.py` | Sessions, credentials encryption at rest, reports, lab info storage | 9 | 9 | 0 |
@@ -78,7 +78,7 @@
 | `test_wiring_and_signature_defects.py` | Main and lab operations call-site argument mismatches, filter restriction | 4 | 4 | 0 |
 | `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, lab sync, database sync | 10 | 10 | 0 |
 | `test_sanity.py` | Harness operational verification | 1 | 1 | 0 |
-| **TOTAL** | **Comprehensive Full System Verification** | **74** | **74** | **0** |
+| **TOTAL** | **Comprehensive Full System Verification** | **75** | **75** | **0** |
 
 ### Statement Coverage by Module
 | Module | Total Statements | Missed Statements | Coverage (%) |
