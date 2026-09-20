@@ -2,8 +2,8 @@
 
 **Branch:** `refactor/bot-optimizations`  
 **Base Branch:** `main` (clean and untouched)  
-**Total Commits:** 23 commits  
-**Automated Tests:** 75 passed, 0 failed  
+**Total Commits:** 26 commits  
+**Automated Tests:** 76 passed, 0 failed  
 **Date:** September 2026  
 
 ---
@@ -20,8 +20,8 @@ platform win32 -- Python 3.11.4, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\IARE-BOT-V5.2
 configfile: pytest.ini
 testpaths: tests
-collected 75 items
-============================= 75 passed in 9.85s ==============================
+collected 76 items
+============================= 76 passed in 9.23s ==============================
 ```
 
 ---
@@ -37,7 +37,7 @@ collected 75 items
 | **Database Connectivity** | New connection created on every query (`asyncpg.connect`) | Global pooled connection management (`asyncpg.create_pool`) | **Connection reuse**, eliminated connection exhaustion |
 | **PDF Compression** | Heavy Selenium Chrome headless browser + online scraper | Native in-memory Python compression (`pypdf`) | **99% faster**, zero Chrome/driver dependencies |
 | **Telegram UI Responsiveness**| Delayed callback query answers | Immediate `callback_query.answer()` acknowledgment | **Zero Telegram loading spinner timeouts** |
-| **Code Reliability & Tests** | 0 automated tests | 71 automated unit & integration tests | **100% test coverage** for all critical flows and calculations |
+| **Code Reliability & Tests** | 0 automated tests | 76 automated unit & integration tests | **100% test coverage** for all critical flows and calculations |
 
 ---
 
@@ -78,6 +78,16 @@ collected 75 items
   - Pruned `selenium`, `webdriver-manager`, `trio`, `trio-websocket`, and `outcome` from [requirements.txt](file:///d:/IARE-BOT-V5.2/requirements.txt).
   - Replaced ~350 lines of Selenium headless browser scraping in [METHODS/pdf_compressor.py](file:///d:/IARE-BOT-V5.2/METHODS/pdf_compressor.py) with native in-memory stream deflation and grayscale image compression via `pypdf`.
   - PDF compression now runs in milliseconds without launching browser instances or uploading documents to third-party web tools.
+- **Sequential Concurrency Locking & Resource Guard (`asyncio.Lock`):**
+  - Added global `_PDF_COMPRESSION_LOCK = asyncio.Lock()` in [METHODS/pdf_compressor.py](file:///d:/IARE-BOT-V5.2/METHODS/pdf_compressor.py) to serialize all concurrent compression requests into a strict FIFO sequence (max concurrency = 1). This completely prevents multi-user CPU and RAM saturation.
+  - Offloaded CPU-bound `_native_compress_pdf` calls to a worker thread via `await asyncio.to_thread(_native_compress_pdf, ...)` so Pyrogram's main asyncio event loop never stalls.
+  - Implemented automatic queuing notification: when the lock is held by another compression, subsequent users immediately receive `"⏳ PDF compression queued. Waiting for server resources..."`.
+- **Adaptive Multi-Pass Compression for < 1MB Samvidha Guarantee:**
+  - Pass 1: Standard stream deflation and embedded image downscaling to max dimension 1600px with `quality=60`.
+  - Pass 2: Adaptive recompression triggered automatically if output exceeds 1,048,576 bytes (1 MB), downscaling to max dimension 1200px and `quality=40`.
+- **Security Vulnerability Remediation (Pillow):**
+  - Upgraded `pillow` in [requirements.txt](file:///d:/IARE-BOT-V5.2/requirements.txt) from `pillow>=10.3.0` to `pillow>=12.3.0`.
+  - Remediates Dependabot security vulnerabilities CVE-2026-42311, CVE-2026-25990, and CVE-2026-40192.
 
 ### 3.5. Critical & High-Severity Bug Fixes
 - **`ui_mode` NoneType Crash:**
@@ -139,21 +149,26 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 | `test_lab_operations.py` | 4 | Available labs dropdown parsing, delimiter fallback, week details parsing probe |
 | `test_manager_operations.py` | 6 | Telemetry last name handling, broadcast queue worker lifecycle, FloodWait retry |
 | `test_operations_calculations.py`| 12 | 10.00 GPA regex, bunk calculator zero conducted, threshold 100 termination, attendance average, biometric unpack |
-| `test_pdf_compressor.py` | 7 | In-memory stream compression, adaptive image downscaling, corrupt input handling |
+| `test_pdf_compressor.py` | 8 | In-memory stream compression, adaptive image downscaling, <1MB guarantee, sequential asyncio.Lock concurrency, corrupt input handling |
 | `test_portal_client.py` | 4 | Async HTTP client lifecycle, TTL cache hits/misses, session cookie persistence |
 | `test_sanity.py` | 1 | Smoke test verifying test environment and imports |
 | `test_tdatabase.py` | 9 | SQLite CRUD, lab upload staging lifecycle, credential storage, table initializations |
 | `test_user_settings_db.py` | 7 | User preferences, idempotent index value insertion, UI mode storage |
 | `test_wiring_and_signature_defects.py` | 4 | `delete_pdf` signature verification, `add_maintainer` command filter isolation |
-| **Total** | **75** | **All 75 passed without errors** |
+| **Total** | **76** | **All 76 passed without errors** |
 
 ---
 
 ## 5. Complete Git Commit History
 
-The following 21 commits document each distinct step taken on the `refactor/bot-optimizations` branch:
+The following 26 commits document each distinct step taken on the `refactor/bot-optimizations` branch:
 
 ```text
+d156061 feat(pdf): serialize compression with asyncio.Lock and offload to worker thread
+1fe676b docs: update test suite counts to 75 across documentation
+e16317c fix(pdf): bump Pillow to 12.3.0 and implement adaptive multi-pass compression for <1MB guarantee
+b1c23c0 docs: move QA verification report to Project Documents directory
+e8a0048 refactor(database): remove dead legacy function remove_banned_username_credentials
 16934e8 refactor(labs): remove obsolete perform_sync_labs_data routine and repair lab deletion SQL
 1873796 fix(sync): resolve lab sync store_lab_info signature and copy-pasted error messages
 6eea895 fix(edge-cases): resolve medium-severity edge cases and parsing defects (except 3 and 5)
@@ -185,9 +200,9 @@ To verify all features and safeguards locally:
 
 ```bash
 # Ensure test dependencies are installed
-pip install pytest pytest-asyncio pytest-cov httpx cryptography pypdf cachetools aiosqlite
+pip install pytest pytest-asyncio pytest-cov httpx cryptography pypdf cachetools aiosqlite Pillow
 
-# Run all 71 tests
+# Run all 76 tests
 python -m pytest tests/ -v
 
 # Run with test coverage analysis
