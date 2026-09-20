@@ -22,6 +22,7 @@ Tables managed here (created on demand):
 - cgpa_tracker / cie_tracker: Tracker state for CGPA and CIE.
 """
 import asyncpg,os,json
+from METHODS.crypto_helper import encrypt_password, decrypt_password
 
 #Database Credentials
 USER_CRED = os.environ.get("POSTGRES_USER_ID")
@@ -110,7 +111,7 @@ async def create_user_credentials_table():
             CREATE TABLE IF NOT EXISTS user_credentials (
                 chat_id BIGINT PRIMARY KEY,
                 username  VARCHAR(25),
-                password VARCHAR(30),
+                password TEXT,
                 pat_student  BOOLEAN DEFAULT FALSE,
                 attendance_threshold INTEGER DEFAULT 75,
                 biometric_threshold INTEGER DEFAULT 75,
@@ -121,6 +122,11 @@ async def create_user_credentials_table():
             )
 
             """)
+        # Ensure existing Postgres deployments migrate password column to TEXT for Fernet tokens
+        try:
+            await connection.execute("ALTER TABLE user_credentials ALTER COLUMN password TYPE TEXT;")
+        except Exception:
+            pass
         
     except Exception as e:
         print(f"error while creating the user_credentials table {e}")
@@ -938,10 +944,10 @@ async def save_credentials_to_databse(chat_id, username, password):
     """Insert a new credentials row into ``user_credentials``."""
     connection = await connect_pg_database() 
     try:
-         # Await the coroutine
+        encrypted_pw = encrypt_password(password)
         await connection.execute(
             "INSERT INTO user_credentials (chat_id, username, password) VALUES ($1, $2, $3)",
-            chat_id, username, password
+            chat_id, username, encrypted_pw
         )
         return True
     except Exception as e:
@@ -965,7 +971,7 @@ async def retrieve_credentials_from_database(chat_id):
             chat_id
         )
         if result:
-            return result['username'], result['password']
+            return result['username'], decrypt_password(result['password'])
         else:
             return None, None
     except Exception as e:

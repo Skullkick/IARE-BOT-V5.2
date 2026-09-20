@@ -24,6 +24,7 @@ Notes
 
 import sqlite3, json
 import os
+from METHODS.crypto_helper import encrypt_password, decrypt_password
 DATABASE_FILE = "user_sessions.db"
 
 TOTAL_USERS_DATABASE_FILE = "total_users.db"
@@ -565,6 +566,7 @@ async def store_credentials_in_database(chat_id, username, password):
     :param username: Username to store.
     :param password: Password to store.
     """
+    encrypted_password = encrypt_password(password)
     with sqlite3.connect(CREDENTIALS_DATABASE) as conn:
         cursor = conn.cursor()
         # Check if the chat_id already exists
@@ -573,11 +575,11 @@ async def store_credentials_in_database(chat_id, username, password):
         if existing_row:
             # If chat_id exists, update the row
             cursor.execute('UPDATE credentials SET username = ?, password = ? WHERE chat_id = ?',
-                           (username, password, chat_id))
+                           (username, encrypted_password, chat_id))
         else:
             # If chat_id does not exist, insert a new row
             cursor.execute("INSERT INTO credentials (chat_id, username, password) VALUES (?, ?, ?)",
-                           (chat_id, username, password))
+                           (chat_id, username, encrypted_password))
         conn.commit()
 
 async def fetch_row_count_credentials_database():
@@ -601,7 +603,7 @@ async def fetch_credentials_from_database(chat_id):
         credentials = cursor.fetchone()
         if credentials is None:
             return None,None
-        return credentials
+        return credentials[0], decrypt_password(credentials[1])
 
 async def fetch_username_from_credentials(chat_id):
     """
