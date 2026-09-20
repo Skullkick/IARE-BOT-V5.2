@@ -33,7 +33,7 @@ USER_BUTTONS = InlineKeyboardMarkup(
     ]
 )
 
-GUIDE_MAIN_TEXT = """IARE BOT — USER GUIDE
+GUIDE_MAIN_TEXT = """IARE UNOFFICIAL BOT — USER GUIDE
 
 Select a topic below to read detailed instructions on how to use the bot:
 

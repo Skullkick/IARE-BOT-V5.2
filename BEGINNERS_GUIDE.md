@@ -1,6 +1,6 @@
-# IARE Bot — Student User Guide
+# IARE UNOFFICIAL Bot — Student User Guide
 
-This guide outlines the features and commands available to students using the IARE Telegram Bot. It provides step-by-step instructions for checking attendance, planning classes, viewing biometric logs, managing lab records, and tracking academic progress directly via Telegram.
+This guide outlines the features and commands available to students using the IARE Unofficial Telegram Bot. It provides step-by-step instructions for checking attendance, planning classes, viewing biometric logs, managing lab records, and tracking academic progress directly via Telegram.
 
 ---
 
@@ -28,7 +28,7 @@ This guide outlines the features and commands available to students using the IA
 
 ## Overview
 
-The IARE Bot integrates directly with the Samvidha student portal, allowing you to access key academic information quickly without having to log in through a web browser each time.
+The IARE Unofficial Bot integrates directly with the Samvidha student portal, allowing you to access key academic information quickly without having to log in through a web browser each time.
 
 Key capabilities:
 - Real-time subject-wise and aggregate attendance.
