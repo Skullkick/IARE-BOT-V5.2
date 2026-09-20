@@ -21,34 +21,118 @@ Tables managed here (created on demand):
     (attendance, biometric, PAT). Stored as rows keyed by ``name``.
 - cgpa_tracker / cie_tracker: Tracker state for CGPA and CIE.
 """
-import asyncpg,os,json
+import asyncpg,os,json,logging
+from contextlib import asynccontextmanager
+from typing import Optional
 from METHODS.crypto_helper import encrypt_password, decrypt_password
 
+logger = logging.getLogger(__name__)
+
 #Database Credentials
+DATABASE_URL = os.environ.get("DATABASE_URL")
 USER_CRED = os.environ.get("POSTGRES_USER_ID")
 PASSWORD_CRED = os.environ.get("POSTGRES_PASSWORD")
 DATABASE_CRED = os.environ.get("POSTGRES_DATABASE")
 HOST_CRED = os.environ.get("POSTGRES_HOST")
 PORT_CRED = os.environ.get("POSTGRES_PORT")
 
+_pg_pool: Optional[asyncpg.Pool] = None
+
+def _get_pg_dsn() -> Optional[str]:
+    """Resolve PostgreSQL DSN from DATABASE_URL or individual credentials."""
+    url = os.environ.get("DATABASE_URL")
+    if url:
+        # Heroku/Render use postgres:// which asyncpg requires to be postgresql://
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
+    return None
+
+async def init_pg_pool(min_size: int = 2, max_size: int = 15) -> Optional[asyncpg.Pool]:
+    """Initialize the global PostgreSQL connection pool."""
+    global _pg_pool
+    if _pg_pool is not None and not _pg_pool._closed:
+        return _pg_pool
+
+    dsn = _get_pg_dsn()
+    try:
+        if dsn:
+            _pg_pool = await asyncpg.create_pool(dsn=dsn, min_size=min_size, max_size=max_size)
+        elif USER_CRED and PASSWORD_CRED and DATABASE_CRED and HOST_CRED:
+            _pg_pool = await asyncpg.create_pool(
+                user=USER_CRED,
+                password=PASSWORD_CRED,
+                database=DATABASE_CRED,
+                host=HOST_CRED,
+                port=PORT_CRED,
+                min_size=min_size,
+                max_size=max_size
+            )
+        else:
+            logger.warning("PostgreSQL credentials not configured. Connection pool not initialized.")
+            return None
+        logger.info("PostgreSQL connection pool initialized successfully.")
+        return _pg_pool
+    except Exception as e:
+        logger.error("Failed to initialize PostgreSQL pool: %s", e)
+        return None
+
+async def close_pg_pool():
+    """Gracefully terminate the connection pool on bot shutdown."""
+    global _pg_pool
+    if _pg_pool and not _pg_pool._closed:
+        await _pg_pool.close()
+        _pg_pool = None
+        logger.info("PostgreSQL connection pool closed.")
+
+class _PooledConnectionProxy:
+    """Wrapper that delegates all operations to an acquired asyncpg connection
+    and releases it back to the pool upon calling .close()."""
+    def __init__(self, pool: asyncpg.Pool, conn: asyncpg.Connection):
+        self._pool = pool
+        self._conn = conn
+        self._released = False
+
+    async def close(self):
+        if not self._released:
+            self._released = True
+            await self._pool.release(self._conn)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
 
 async def connect_pg_database():
-    """Create and return a connection to the PostgreSQL database.
+    """Acquire and return a pooled connection to PostgreSQL.
 
-    Uses credentials from environment variables. Callers are responsible
-    for closing the returned connection.
-
-    :return: An ``asyncpg.Connection`` instance.
+    Returns a pooled connection proxy whose .close() method releases
+    the connection back to the pool rather than closing the socket.
+    Falls back to a one-off connection if pooling is unavailable.
     """
-    # connecting to the PSQL database
-    connection = await asyncpg.connect(
+    global _pg_pool
+    if _pg_pool is None or _pg_pool._closed:
+        await init_pg_pool()
+
+    if _pg_pool and not _pg_pool._closed:
+        raw_conn = await _pg_pool.acquire()
+        return _PooledConnectionProxy(_pg_pool, raw_conn)
+
+    # Fallback to direct connection if pooling is unavailable
+    dsn = _get_pg_dsn()
+    if dsn:
+        return await asyncpg.connect(dsn=dsn)
+    return await asyncpg.connect(
         user=USER_CRED,
         password=PASSWORD_CRED,
         database=DATABASE_CRED,
         host=HOST_CRED,
         port=PORT_CRED
     )
-    return connection
 
 # async def create_user_credentials_table():  
 #     """This function is used to create a table in postgres database if it dosent exist"""
