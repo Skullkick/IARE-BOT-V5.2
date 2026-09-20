@@ -132,6 +132,8 @@ async def test_get_pending_reports():
     assert reports[0]["username"] == "student1"
     assert reports[0]["chat_id"] == 12345
     assert reports[0]["reply_status"] == 0
+    assert reports[0]["submitted_date"] is not None
+    assert len(reports[0]["submitted_date"]) >= 10
 
 
 @pytest.mark.asyncio
@@ -213,11 +215,13 @@ async def test_send_reply_success_with_telegram_mock(monkeypatch):
     assert res["status"] == "resolved"
     assert res["sent_to_chat_id"] == user_chat_id
 
-    # Verify report in SQLite is marked as replied by AI Assistant
+    # Verify report in SQLite is marked as replied by AI Assistant with IST replied_date
     db_report = await tdatabase.load_reports(report_id)
     assert db_report[6] == 1  # reply_status
     assert db_report[4] == resolution  # replied_message
     assert db_report[5] == "AI Assistant"  # replied_maintainer
+    assert db_report[8] is not None  # replied_date
+    assert len(db_report[8]) >= 10
 
     # Verify Telegram API calls: 1 to student, 1 to admin (88888), 1 to maintainer (99999)
     target_chats = [msg["payload"]["chat_id"] for msg in dispatched_messages]

@@ -78,6 +78,10 @@ async def test_tdatabase_reports_workflow():
     
     pending = await tdatabase.load_allreports()
     assert any(r[0] == unique_id for r in pending)
+    # Check that submitted_date is automatically populated in IST
+    row_pending = await tdatabase.load_reports(unique_id)
+    assert row_pending[7] is not None
+    assert len(row_pending[7]) >= 10  # e.g. "YYYY-MM-DD HH:MM:SS"
 
     # Update with reply
     await tdatabase.store_reports(unique_id, None, None, None, "Fixed, please retry", "Maintainer_Bob", 1)
@@ -87,6 +91,31 @@ async def test_tdatabase_reports_workflow():
 
     replied = await tdatabase.load_all_replied_reports()
     assert any(r[0] == unique_id for r in replied)
+    row_replied = await tdatabase.load_reports(unique_id)
+    assert row_replied[8] is not None
+    assert len(row_replied[8]) >= 10  # e.g. "YYYY-MM-DD HH:MM:SS"
+
+
+async def test_reports_indian_timezone_explicit_and_default():
+    """Verify submitted_date and replied_date accept explicit IST timestamps and format properly."""
+    from datetime import datetime
+    from pytz import timezone
+
+    await tdatabase.create_all_tdatabase_tables()
+    custom_ist_submit = "2026-09-21 14:30:00"
+    custom_ist_reply = "2026-09-21 15:45:00"
+
+    # Store with explicit submitted_date
+    await tdatabase.store_reports("rep-ist-01", "student_ist", "Marks missing", 99123, None, None, 0, submitted_date=custom_ist_submit)
+    row = await tdatabase.load_reports("rep-ist-01")
+    assert row[7] == custom_ist_submit
+    assert row[8] is None
+
+    # Reply with explicit replied_date
+    await tdatabase.store_reports("rep-ist-01", None, None, None, "Updated in portal", "Admin_Rao", 1, replied_date=custom_ist_reply)
+    row_updated = await tdatabase.load_reports("rep-ist-01")
+    assert row_updated[7] == custom_ist_submit
+    assert row_updated[8] == custom_ist_reply
 
 async def test_tdatabase_total_users_unique_constraint():
     """Verify total_users handles duplicate usernames gracefully."""

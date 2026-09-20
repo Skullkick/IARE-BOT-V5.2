@@ -95,7 +95,7 @@ To connect Claude Desktop for maintainer triage, add to `claude_desktop_config.j
 ---
 
 ### 2. `get_pending_reports`
-- **Description:** Fetches unhandled student reports from `reports.db`.
+- **Description:** Fetches unhandled student reports from `reports.db` with Indian Standard Time (IST) submission timestamps.
 - **Parameters:**
   - `limit` (integer, optional, default: `10`): Maximum number of reports to retrieve.
 - **Returns:**
@@ -106,7 +106,8 @@ To connect Claude Desktop for maintainer triage, add to `claude_desktop_config.j
       "username": "21951A0501",
       "report_text": "Attendance is showing 0% after login",
       "chat_id": 987654321,
-      "reply_status": 0
+      "reply_status": 0,
+      "submitted_date": "2026-09-21 00:04:45"
     }
   ]
   ```
@@ -114,7 +115,7 @@ To connect Claude Desktop for maintainer triage, add to `claude_desktop_config.j
 ---
 
 ### 3. `send_reply`
-- **Description:** Non-conversational, one-shot ticket resolution action. Sends the verified resolution to the student via the Telegram Bot HTTP API, marks the ticket resolved in SQLite and PostgreSQL, and notifies maintainers.
+- **Description:** Non-conversational, one-shot ticket resolution action. Sends the verified resolution to the student via the Telegram Bot HTTP API, marks the ticket resolved in SQLite and PostgreSQL with an Indian Standard Time (IST) `replied_date` timestamp, and notifies maintainers.
 - **Parameters:**
   - `report_id` (string, required): The unique ticket identifier.
   - `resolution_text` (string, required): Factual explanation or troubleshooting guidance.
@@ -134,7 +135,8 @@ To connect Claude Desktop for maintainer triage, add to `claude_desktop_config.j
     "success": true,
     "report_id": "rep_9a7b2c",
     "status": "resolved",
-    "sent_to_chat_id": 987654321
+    "sent_to_chat_id": 987654321,
+    "replied_date": "2026-09-21 00:08:15"
   }
   ```
 

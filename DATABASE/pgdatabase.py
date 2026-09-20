@@ -233,6 +233,8 @@ async def create_reports_table():
     - replied_message TEXT
     - replied_maintainer TEXT
     - reply_status BOOLEAN (False = pending, True = replied)
+    - submitted_date TEXT
+    - replied_date TEXT
     """
     connection = await connect_pg_database()
     try:  
@@ -244,9 +246,16 @@ async def create_reports_table():
             chat_id BIGINT,
             replied_message TEXT,
             replied_maintainer TEXT,
-            reply_status BOOLEAN
+            reply_status BOOLEAN,
+            submitted_date TEXT,
+            replied_date TEXT
         )
     """)
+        try:
+            await connection.execute("ALTER TABLE pending_reports ADD COLUMN IF NOT EXISTS submitted_date TEXT")
+            await connection.execute("ALTER TABLE pending_reports ADD COLUMN IF NOT EXISTS replied_date TEXT")
+        except Exception:
+            pass
         return True
     except Exception as e:
         print(f"error creating report table : {e}")
@@ -789,10 +798,11 @@ async def update_access_data_pgdatabase(maintainer_chat_id,access_data,announcem
     finally:
         await connection.close()
 
-async def store_reports(unique_id: str, user_id: str, message: str, chat_id: str, 
-                        replied_message: str, replied_maintainer: str, reply_status: str) -> bool:
+async def store_reports(unique_id: str, user_id: str = None, message: str = None, chat_id: str = None, 
+                        replied_message: str = None, replied_maintainer: str = None, reply_status: str = None,
+                        submitted_date: str = None, replied_date: str = None) -> bool:
     """
-    This function is used to store the reports sent by the user.
+    This function is used to store the reports sent by the user with Indian timezone timestamps.
 
     :param unique_id: Unique id which is generated for the specific report
     :param user_id: User ID of the user
@@ -801,7 +811,13 @@ async def store_reports(unique_id: str, user_id: str, message: str, chat_id: str
     :param replied_message: Replied message
     :param replied_maintainer: Replied maintainer
     :param reply_status: Reply status
+    :param submitted_date: Submission timestamp in Indian timezone (Asia/Kolkata)
+    :param replied_date: Reply timestamp in Indian timezone (Asia/Kolkata)
     """
+    from pytz import timezone
+    from datetime import datetime
+    now_ist = datetime.now(timezone("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
+
     connection = await connect_pg_database()
     try:
         existing_report = await connection.fetchrow("SELECT * FROM pending_reports WHERE unique_id = $1", unique_id)
@@ -819,11 +835,24 @@ async def store_reports(unique_id: str, user_id: str, message: str, chat_id: str
                 await connection.execute("UPDATE pending_reports SET replied_maintainer = $1 WHERE unique_id = $2", replied_maintainer, unique_id)
             if reply_status is not None:
                 await connection.execute("UPDATE pending_reports SET reply_status = $1 WHERE unique_id = $2", reply_status, unique_id)
+            if submitted_date is not None:
+                await connection.execute("UPDATE pending_reports SET submitted_date = $1 WHERE unique_id = $2", submitted_date, unique_id)
+            if reply_status in (1, True, "1", "true", "True"):
+                effective_reply_date = replied_date or now_ist
+                await connection.execute("UPDATE pending_reports SET replied_date = $1 WHERE unique_id = $2", effective_reply_date, unique_id)
+            elif replied_date is not None:
+                await connection.execute("UPDATE pending_reports SET replied_date = $1 WHERE unique_id = $2", replied_date, unique_id)
         else:
+            effective_submitted_date = submitted_date or now_ist
             # Insert new report if it doesn't exist
             await connection.execute(
-                "INSERT INTO pending_reports (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status
+                """INSERT INTO pending_reports (
+                    unique_id, user_id, message, chat_id, 
+                    replied_message, replied_maintainer, reply_status,
+                    submitted_date, replied_date
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+                unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status,
+                effective_submitted_date, replied_date
             )
         return True
 

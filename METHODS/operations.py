@@ -1443,10 +1443,12 @@ It seems that attendance records are not updating correctly after submitting.
     username = getuname[2]
 
     user_unique_id = await generate_unique_id()
+    indian_time = await get_indian_time()
+    formatted_date = indian_time.strftime("%Y-%m-%d %H:%M:%S")
 
-    await tdatabase.store_reports(user_unique_id,username,user_report,chat_id,None,None,0)
-    await pgdatabase.store_reports(user_unique_id,username,user_report,chat_id,None,None,False)
-    forwarded_message = f"New User Report from @{username} (ID: {user_unique_id}):\n\n{user_report}"
+    await tdatabase.store_reports(user_unique_id,username,user_report,chat_id,None,None,0,submitted_date=formatted_date)
+    await pgdatabase.store_reports(user_unique_id,username,user_report,chat_id,None,None,False,submitted_date=formatted_date)
+    forwarded_message = f"New User Report from @{username} (ID: {user_unique_id})\nDate (IST): {formatted_date}\n\n{user_report}"
     all_admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     all_maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     if all_admin_chat_ids+all_maintainer_chat_ids:
@@ -1506,8 +1508,11 @@ async def reply_to_user(bot,message):
         developer_chat_id = message.chat.id
         await bot.send_message(chat_id=developer_chat_id, text="Message sent successfully.")
 
-        await tdatabase.store_reports(report_id,None,None,None,reply_message,maintainer_name,1)
-        await pgdatabase.store_reports(report_id,None,None,None,reply_message,maintainer_name,True)
+        indian_time = await get_indian_time()
+        formatted_date = indian_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        await tdatabase.store_reports(report_id,None,None,None,reply_message,maintainer_name,1,replied_date=formatted_date)
+        await pgdatabase.store_reports(report_id,None,None,None,reply_message,maintainer_name,True,replied_date=formatted_date)
     except Exception as e:
         error_message = f"An error occurred while sending the message to the user: {e}"
         await bot.send_message(chat_id=developer_chat_id, text=error_message)
@@ -1530,8 +1535,13 @@ async def show_reports(bot,message):
         await bot.send_message(chat_id,text="There are no pending reports.")
         return
     for report in reports:
-        unique_id, user_id, message, report_chat_id = report
-        report_message = f"User report from @{user_id} (ID: {unique_id}):\n\n{message}"
+        unique_id = report[0]
+        user_id = report[1]
+        message_text = report[2]
+        report_chat_id = report[3]
+        submitted_date = report[4] if len(report) > 4 and report[4] else None
+        date_header = f"\nSubmitted (IST): {submitted_date}" if submitted_date else ""
+        report_message = f"User report from @{user_id} (ID: {unique_id}):{date_header}\n\n{message_text}"
         await bot.send_message(chat_id, text=report_message)
 
 async def show_replied_reports(bot,message):
@@ -1552,9 +1562,24 @@ async def show_replied_reports(bot,message):
         await bot.send_message(chat_id,text="There are no Replied reports.")
         return
     for report in reports:
-        unique_id, user_id, message, report_chat_id,replied_message,replied_maintainer,reply_status = report
-        replied_message = replied_message.split("This is a reply from the bot developer.")[0]
-        report_message = f"User report from @{user_id} (ID: {unique_id}):\n\n{message}\n\nReplied By : {replied_maintainer}\n\nReplied Message : {replied_message}"
+        unique_id = report[0]
+        user_id = report[1]
+        message_text = report[2]
+        report_chat_id = report[3]
+        replied_message = report[4]
+        replied_maintainer = report[5]
+        reply_status = report[6]
+        submitted_date = report[7] if len(report) > 7 and report[7] else None
+        replied_date = report[8] if len(report) > 8 and report[8] else None
+
+        clean_replied_msg = replied_message.split("This is a reply from the bot developer.")[0].strip() if replied_message else ""
+        dates_info = ""
+        if submitted_date:
+            dates_info += f"\nSubmitted (IST): {submitted_date}"
+        if replied_date:
+            dates_info += f"\nReplied (IST): {replied_date}"
+
+        report_message = f"User report from @{user_id} (ID: {unique_id}):{dates_info}\n\n{message_text}\n\nReplied By : {replied_maintainer}\n\nReplied Message : {clean_replied_msg}"
         await bot.send_message(chat_id, text=report_message)
 
 async def list_users(bot,chat_id):
@@ -1685,8 +1710,16 @@ async def perform_sync_reports(bot):
             return
         if reports is not None:
             for row in reports:
-                unique_id,user_id,message,chat_id,replied_message,replied_maintainer,reply_status = row
-                await tdatabase.store_reports(unique_id,user_id,message,chat_id,replied_message,replied_maintainer,reply_status)
+                unique_id = row[0]
+                user_id = row[1]
+                message = row[2]
+                chat_id = row[3]
+                replied_message = row[4]
+                replied_maintainer = row[5]
+                reply_status = row[6]
+                submitted_date = row[7] if len(row) > 7 else None
+                replied_date = row[8] if len(row) > 8 else None
+                await tdatabase.store_reports(unique_id,user_id,message,chat_id,replied_message,replied_maintainer,reply_status,submitted_date,replied_date)
         else:
             print("There is no data present in the report's database to sync with the local database.")
     except Exception as e:

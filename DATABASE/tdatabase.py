@@ -105,6 +105,8 @@ async def create_reports_table():
     - replied_message: TEXT — Maintainer reply text (if any)
     - replied_maintainer: TEXT — Who replied
     - reply_status: BOOLEAN — 0 = pending, 1 = replied
+    - submitted_date: TEXT — Submission timestamp in Indian timezone (Asia/Kolkata)
+    - replied_date: TEXT — Reply timestamp in Indian timezone (Asia/Kolkata)
     """
     with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
@@ -116,9 +118,18 @@ async def create_reports_table():
                        chat_id INTEGER,
                        replied_message TEXT,
                        replied_maintainer TEXT,
-                       reply_status BOOLEAN
+                       reply_status BOOLEAN,
+                       submitted_date TEXT,
+                       replied_date TEXT
             )
         """)
+        # Auto-migration for existing databases
+        cursor.execute("PRAGMA table_info(pending_reports)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "submitted_date" not in columns:
+            cursor.execute("ALTER TABLE pending_reports ADD COLUMN submitted_date TEXT")
+        if "replied_date" not in columns:
+            cursor.execute("ALTER TABLE pending_reports ADD COLUMN replied_date TEXT")
         conn.commit()
 
 async def create_lab_upload_table():
@@ -787,13 +798,15 @@ async def fetch_row_count_reports_database():
         total_count = cursor.fetchone()[0]
     return total_count
 
-async def store_reports(unique_id, user_id, message, chat_id, 
-                        replied_message, replied_maintainer, reply_status):
+async def store_reports(unique_id, user_id=None, message=None, chat_id=None, 
+                        replied_message=None, replied_maintainer=None, reply_status=None,
+                        submitted_date=None, replied_date=None):
     """Insert or update a user report in ``reports.db``.
 
     If a report with the same ``unique_id`` already exists, only the
     non-None fields provided will be updated. Otherwise, a new record is
-    inserted.
+    inserted. Automatically captures current Indian timezone (IST) for
+    submitted_date on insert, and replied_date on reply resolution.
 
     :param unique_id: Stable report/thread identifier.
     :param user_id: Sender identifier (optional).
@@ -802,8 +815,14 @@ async def store_reports(unique_id, user_id, message, chat_id,
     :param replied_message: Maintainer reply text (optional).
     :param replied_maintainer: Who replied (optional).
     :param reply_status: 0 for pending, 1 for replied.
+    :param submitted_date: Timestamp in Indian timezone (Asia/Kolkata).
+    :param replied_date: Timestamp in Indian timezone (Asia/Kolkata).
     """
     try:
+        from pytz import timezone
+        from datetime import datetime
+        now_ist = datetime.now(timezone("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
+
         with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
             c = conn.cursor()
             
@@ -825,10 +844,23 @@ async def store_reports(unique_id, user_id, message, chat_id,
                     c.execute("UPDATE pending_reports SET replied_maintainer = ? WHERE unique_id = ?", (replied_maintainer, unique_id))
                 if reply_status is not None:
                     c.execute("UPDATE pending_reports SET reply_status = ? WHERE unique_id = ?", (reply_status, unique_id))
+                if submitted_date is not None:
+                    c.execute("UPDATE pending_reports SET submitted_date = ? WHERE unique_id = ?", (submitted_date, unique_id))
+                if reply_status in (1, True, "1"):
+                    effective_reply_date = replied_date or now_ist
+                    c.execute("UPDATE pending_reports SET replied_date = ? WHERE unique_id = ?", (effective_reply_date, unique_id))
+                elif replied_date is not None:
+                    c.execute("UPDATE pending_reports SET replied_date = ? WHERE unique_id = ?", (replied_date, unique_id))
             else:
                 # Insert new report if it doesn't exist
-                c.execute("INSERT INTO pending_reports (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status))
+                effective_submitted_date = submitted_date or now_ist
+                c.execute("""
+                    INSERT INTO pending_reports (
+                        unique_id, user_id, message, chat_id, 
+                        replied_message, replied_maintainer, reply_status,
+                        submitted_date, replied_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status, effective_submitted_date, replied_date))
             
             conn.commit()
     except Exception as e:
@@ -849,11 +881,11 @@ async def load_reports(unique_id):
 async def load_allreports():
     """Return all pending reports (``reply_status = 0``).
 
-    :return: List of tuples (unique_id, user_id, message, chat_id).
+    :return: List of tuples (unique_id, user_id, message, chat_id, submitted_date).
     """
     with sqlite3.connect(REPORTS_DATABASE_FILE) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT unique_id, user_id, message, chat_id FROM pending_reports WHERE reply_status = 0")
+        cursor.execute("SELECT unique_id, user_id, message, chat_id, submitted_date FROM pending_reports WHERE reply_status = 0")
         all_messages = cursor.fetchall()
         return all_messages
 

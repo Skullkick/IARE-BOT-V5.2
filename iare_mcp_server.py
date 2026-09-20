@@ -21,6 +21,8 @@ import time
 import asyncio
 import sqlite3
 import logging
+from datetime import datetime
+from pytz import timezone
 from typing import Optional, List, Dict, Any
 
 from dotenv import load_dotenv
@@ -97,13 +99,14 @@ async def get_pending_reports(limit: int = 10) -> List[Dict[str, Any]]:
     raw_reports = await tdatabase.load_allreports()
     results = []
     for r in (raw_reports or [])[:limit]:
-        # pending_reports format: (unique_id, user_id, message, chat_id, replied_message, replied_maintainer, reply_status)
+        # pending_reports format: (unique_id, user_id, message, chat_id, submitted_date)
         results.append({
             "report_id": str(r[0]),
             "username": str(r[1]) if r[1] else "Unknown",
             "report_text": str(r[2]) if r[2] else "",
             "chat_id": int(r[3]) if r[3] else 0,
-            "reply_status": int(r[6]) if len(r) > 6 and r[6] is not None else 0
+            "reply_status": int(r[6]) if len(r) > 6 and r[6] is not None else 0,
+            "submitted_date": str(r[4]) if len(r) > 4 and r[4] else None
         })
     return results
 
@@ -146,13 +149,15 @@ async def send_reply(report_id: str, resolution_text: str) -> Dict[str, Any]:
         f"*(Note: Your ticket is logged with bot developers if further help is needed.)*"
     )
 
+    now_ist = datetime.now(timezone("Asia/Kolkata")).strftime("%Y-%m-%d %H:%M:%S")
+
     bot_token = os.environ.get("BOT_TOKEN")
     if not bot_token:
         # In testing or staging where BOT_TOKEN may not be provided, return simulation
         logger.warning("BOT_TOKEN environment variable not set. Simulating message dispatch.")
-        await tdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", 1)
+        await tdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", 1, replied_date=now_ist)
         try:
-            await pgdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", True)
+            await pgdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", True, replied_date=now_ist)
         except Exception:
             pass
         return {
@@ -160,7 +165,8 @@ async def send_reply(report_id: str, resolution_text: str) -> Dict[str, Any]:
             "report_id": report_id,
             "status": "resolved",
             "simulated": True,
-            "sent_to_chat_id": user_chat_id
+            "sent_to_chat_id": user_chat_id,
+            "replied_date": now_ist
         }
 
     telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -189,10 +195,10 @@ async def send_reply(report_id: str, resolution_text: str) -> Dict[str, Any]:
                 "reason": f"Failed to reach Telegram API: {str(exc)}"
             }
 
-        # 4. Mark report resolved in SQLite and Postgres
-        await tdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", 1)
+        # 4. Mark report resolved in SQLite and Postgres with IST replied_date
+        await tdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", 1, replied_date=now_ist)
         try:
-            await pgdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", True)
+            await pgdatabase.store_reports(report_id, None, None, None, clean_resolution, "AI Assistant", True, replied_date=now_ist)
         except Exception as pg_err:
             logger.warning(f"Postgres update skipped or failed: {pg_err}")
 
