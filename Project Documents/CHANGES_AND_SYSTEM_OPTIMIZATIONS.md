@@ -3,7 +3,7 @@
 **Branch:** `refactor/bot-optimizations`  
 **Base Branch:** `main` (clean and untouched)  
 **Total Commits:** 21 commits  
-**Automated Tests:** 71 passed, 0 failed  
+**Automated Tests:** 73 passed, 0 failed  
 **Date:** September 2026  
 
 ---
@@ -20,8 +20,8 @@ platform win32 -- Python 3.11.4, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\IARE-BOT-V5.2
 configfile: pytest.ini
 testpaths: tests
-collected 71 items
-============================= 71 passed in 10.99s =============================
+collected 73 items
+============================= 73 passed in 10.58s =============================
 ```
 
 ---
@@ -131,7 +131,7 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 |---|---|---|
 | `test_crypto_helper.py` | 7 | Fernet encryption/decryption, legacy plaintext fallback, token format, tampering, empty string |
 | `test_extract_index.py` | 4 | HTML table index extraction, attendance & marks header parsing, PAT table bounds |
-| `test_integration_flows.py` | 7 | Full database sync flows, fail-closed authentication on error, lab delete alias lifecycle |
+| `test_integration_flows.py` | 9 | Full database sync flows, fail-closed authentication on error, lab delete alias lifecycle |
 | `test_lab_operations.py` | 4 | Available labs dropdown parsing, delimiter fallback, week details parsing probe |
 | `test_manager_operations.py` | 6 | Telemetry last name handling, broadcast queue worker lifecycle, FloodWait retry |
 | `test_operations_calculations.py`| 12 | 10.00 GPA regex, bunk calculator zero conducted, threshold 100 termination, attendance average, biometric unpack |
@@ -141,7 +141,7 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 | `test_tdatabase.py` | 9 | SQLite CRUD, lab upload staging lifecycle, credential storage, table initializations |
 | `test_user_settings_db.py` | 7 | User preferences, idempotent index value insertion, UI mode storage |
 | `test_wiring_and_signature_defects.py` | 4 | `delete_pdf` signature verification, `add_maintainer` command filter isolation |
-| **Total** | **71** | **All 71 passed without errors** |
+| **Total** | **73** | **All 73 passed without errors** |
 
 ---
 

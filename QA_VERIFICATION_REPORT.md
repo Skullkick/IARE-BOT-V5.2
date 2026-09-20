@@ -76,9 +76,9 @@
 | `test_manager_operations.py` | Suffix ban expansions, empty broadcast guard, user name parsing, queue FloodWait | 6 | 6 | 0 |
 | `test_lab_operations.py` | Lab select parsing, week extraction, duplicate entries, marks | 4 | 4 | 0 |
 | `test_wiring_and_signature_defects.py` | Main and lab operations call-site argument mismatches, filter restriction | 4 | 4 | 0 |
-| `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, lab sync | 7 | 7 | 0 |
+| `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, lab sync, database sync | 9 | 9 | 0 |
 | `test_sanity.py` | Harness operational verification | 1 | 1 | 0 |
-| **TOTAL** | **Comprehensive Full System Verification** | **71** | **71** | **0** |
+| **TOTAL** | **Comprehensive Full System Verification** | **73** | **73** | **0** |
 
 ### Statement Coverage by Module
 | Module | Total Statements | Missed Statements | Coverage (%) |
