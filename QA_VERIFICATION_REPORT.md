@@ -274,8 +274,10 @@
    - **Location:** [main.py:287-301](file:///d:/IARE-BOT-V5.2/main.py#L287-L301)
    - **Details:** 14 lines of code running CGPA/CIE polling loops are commented out due to server load concerns. Associated helper methods in `manager_operations.py` are unreachable.
 2. **Broken Legacy Function `remove_banned_username_credentials`:**
-   - **Location:** [DATABASE/pgdatabase.py:1229-1245](file:///d:/IARE-BOT-V5.2/DATABASE/pgdatabase.py#L1229-L1245)
-   - **Details:** Marked with docstring *"THIS FUNCTION DIDN'T PERFORM WELL UNDER MULTIPLE TESTCASES RECOMMENDED NOT TO USE THIS FUNCTION"*. Contains malformed SQL: `DELETE FROM banned_users WHERE LOWER($1) LIKE LOWER(username|| '%')`. Should be deprecated and removed.
+   - **Status:** **RESOLVED & PRUNED**
+   - **Location:** [DATABASE/pgdatabase.py](file:///d:/IARE-BOT-V5.2/DATABASE/pgdatabase.py)
+   - **Details:** Marked with docstring *"THIS FUNCTION DIDN'T PERFORM WELL UNDER MULTIPLE TESTCASES RECOMMENDED NOT TO USE THIS FUNCTION"*. Contained malformed and inverted SQL (`DELETE FROM banned_users WHERE LOWER($1) LIKE LOWER(username|| '%')`).
+   - **Fix Applied:** Safely removed the unused function from `pgdatabase.py`. All unban workflows continue using the standard `remove_banned_username(username)` routine.
 3. **Bare `except:` Blocks Suppressing System Signals:**
    - **Status:** **RESOLVED & VERIFIED**
    - **Location:** [DATABASE/user_settings.py:161](file:///d:/IARE-BOT-V5.2/DATABASE/user_settings.py#L161) (`delete_user_settings`), [METHODS/labs_handler.py:335](file:///d:/IARE-BOT-V5.2/METHODS/labs_handler.py#L335) (`check_recieved_pdf_file`).

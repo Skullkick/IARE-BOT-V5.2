@@ -1192,24 +1192,6 @@ async def remove_saved_credentials_silent(chat_id):
     finally:
         await connection.close()
 
-async def remove_banned_username_credentials(username):
-    """
-    THIS FUNCTION DIDN'T PERFORM WELL UNDER MULTIPLE TESTCASES
-    RECOMMENDED NOT TO USE THIS FUNCTION.
-    
-    This function is used to remove the credentials if the username matches with the given username
-    :username: Username of the banned user.
-    """
-    connection = await connect_pg_database()
-    try:
-        await connection.execute('DELETE FROM banned_users WHERE LOWER($1) LIKE LOWER(username|| \'%\')',f'{username}')
-        return True
-    except Exception as e:
-        print(f"error in removing banned user : {e}")
-        return False
-    finally:
-        await connection.close()
-
 async def remove_banned_username(username):
     """
     This Function is used to remove the banned username,
