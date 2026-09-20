@@ -332,8 +332,8 @@ async def check_recieved_pdf_file(bot,chat_id):
     # Checks if the directory is present or not
     try:
         all_pdf_files = os.listdir(pdf_folder)
-    except:
-        return False,None
+    except Exception:
+        return False, None
     try:
         # Checks if the Normal pdf is present in the directory and returns
         # indicating it as uncompressed file

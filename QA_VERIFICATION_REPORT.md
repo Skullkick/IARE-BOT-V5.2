@@ -76,9 +76,9 @@
 | `test_manager_operations.py` | Suffix ban expansions, empty broadcast guard, user name parsing, queue FloodWait | 6 | 6 | 0 |
 | `test_lab_operations.py` | Lab select parsing, week extraction, duplicate entries, marks | 4 | 4 | 0 |
 | `test_wiring_and_signature_defects.py` | Main and lab operations call-site argument mismatches, filter restriction | 4 | 4 | 0 |
-| `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, lab sync, database sync | 9 | 9 | 0 |
+| `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, lab sync, database sync | 10 | 10 | 0 |
 | `test_sanity.py` | Harness operational verification | 1 | 1 | 0 |
-| **TOTAL** | **Comprehensive Full System Verification** | **73** | **73** | **0** |
+| **TOTAL** | **Comprehensive Full System Verification** | **74** | **74** | **0** |
 
 ### Statement Coverage by Module
 | Module | Total Statements | Missed Statements | Coverage (%) |
@@ -277,8 +277,10 @@
    - **Location:** [DATABASE/pgdatabase.py:1229-1245](file:///d:/IARE-BOT-V5.2/DATABASE/pgdatabase.py#L1229-L1245)
    - **Details:** Marked with docstring *"THIS FUNCTION DIDN'T PERFORM WELL UNDER MULTIPLE TESTCASES RECOMMENDED NOT TO USE THIS FUNCTION"*. Contains malformed SQL: `DELETE FROM banned_users WHERE LOWER($1) LIKE LOWER(username|| '%')`. Should be deprecated and removed.
 3. **Bare `except:` Blocks Suppressing System Signals:**
+   - **Status:** **RESOLVED & VERIFIED**
    - **Location:** [DATABASE/user_settings.py:161](file:///d:/IARE-BOT-V5.2/DATABASE/user_settings.py#L161) (`delete_user_settings`), [METHODS/labs_handler.py:335](file:///d:/IARE-BOT-V5.2/METHODS/labs_handler.py#L335) (`check_recieved_pdf_file`).
    - **Details:** Uses bare `except:` without specifying `Exception`, intercepting `KeyboardInterrupt`, `asyncio.CancelledError`, and `SystemExit`.
+   - **Fix Applied:** Replaced bare `except:` with `except Exception:` across both locations to allow process signals and task cancellations to propagate cleanly.
 4. **Silent Exception Swallowing in Callback Acknowledgments:**
    - **Location:** [Buttons/buttons.py:314-317](file:///d:/IARE-BOT-V5.2/Buttons/buttons.py#L314-L317), [Buttons/manager_buttons.py:243-246](file:///d:/IARE-BOT-V5.2/Buttons/manager_buttons.py#L243-L246).
    - **Details:** `try: await callback_query.answer() except Exception: pass` silently ignores expired query tokens, masking underlying network latency or callback timeouts.

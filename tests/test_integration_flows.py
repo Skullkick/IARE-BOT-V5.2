@@ -57,30 +57,38 @@ async def test_integration_logout_clears_session_and_cache(mock_bot, mock_messag
     assert (chat_id, "attendance") not in portal_client._PORTAL_CACHE
     mock_message.reply.assert_called_with("Logout successful.")
 
-async def test_integration_logout_missing_headers_leaves_stale_session_defect(mock_bot, mock_message):
-    """DEFECT PROBE: When session payload lacks 'headers', logout refuses to purge the session.
-    
-    In operations.py:230:
-        if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
-            ...
-            return
-    If a session only contains 'username' and 'cookies' (e.g. from an external login or API token),
-    logout treats the user as unauthenticated and returns without deleting the session, leaving stale credentials!
-    """
+async def test_integration_logout_missing_headers_clears_session(mock_bot, mock_message):
+    """Verify that when session payload lacks 'headers', logout purges the session successfully."""
     chat_id = mock_message.chat.id
     username = "21951A0512"
 
     await user_settings.create_user_settings_tables()
     await user_settings.set_user_default_settings(chat_id)
     await tdatabase.create_all_tdatabase_tables()
-    # Missing 'headers' key
+    # Missing 'headers' key - only contains username and cookies
     await tdatabase.store_user_session(chat_id, json.dumps({"username": username, "cookies": {}}), username)
 
     await operations.logout(mock_bot, mock_message)
 
-    # Session was NOT deleted despite user calling logout!
-    stale_session = await tdatabase.load_user_session(chat_id)
-    assert stale_session is not None, "Defect confirmed: stale session was not purged"
+    # Session is now properly deleted
+    session = await tdatabase.load_user_session(chat_id)
+    assert session is None
+    mock_message.reply.assert_called_with("Logout successful.")
+
+async def test_integration_logout_user_and_remove_purges_stale_session(mock_bot, mock_message):
+    """Verify logout_user_and_remove always purges session row even when cookies are missing."""
+    chat_id = mock_message.chat.id
+    username = "21951A0513"
+
+    await user_settings.create_user_settings_tables()
+    await tdatabase.create_all_tdatabase_tables()
+    # Malformed session without cookies
+    await tdatabase.store_user_session(chat_id, json.dumps({"username": username}), username)
+
+    await operations.logout_user_and_remove(mock_bot, mock_message)
+
+    assert await tdatabase.load_user_session(chat_id) is None
+    mock_bot.send_message.assert_called_with(chat_id, text="You are already logged out.")
 
 
 async def test_integration_attendance_chunking_for_telegram_limit(mock_bot, mock_message, monkeypatch):

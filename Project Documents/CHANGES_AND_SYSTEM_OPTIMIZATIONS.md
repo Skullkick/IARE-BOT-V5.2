@@ -2,8 +2,8 @@
 
 **Branch:** `refactor/bot-optimizations`  
 **Base Branch:** `main` (clean and untouched)  
-**Total Commits:** 21 commits  
-**Automated Tests:** 73 passed, 0 failed  
+**Total Commits:** 22 commits  
+**Automated Tests:** 74 passed, 0 failed  
 **Date:** September 2026  
 
 ---
@@ -20,8 +20,8 @@ platform win32 -- Python 3.11.4, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\IARE-BOT-V5.2
 configfile: pytest.ini
 testpaths: tests
-collected 73 items
-============================= 73 passed in 10.58s =============================
+collected 74 items
+============================= 74 passed in 9.76s ==============================
 ```
 
 ---
@@ -108,13 +108,17 @@ collected 73 items
   - In [METHODS/operations.py:376, 899](file:///d:/IARE-BOT-V5.2/METHODS/operations.py#L376), only courses with `int(conducted) > 0` are factored into the average calculation, preventing skew from 0-conducted courses.
 - **PAT Table Index Guard:**
   - In [CONFIGURE/extract_index.py:137-140](file:///d:/IARE-BOT-V5.2/CONFIGURE/extract_index.py#L137-L140), added `if len(tables_list) < 3:` bounds check to alert and return cleanly on unexpected table layouts.
+- **Logout Stale Session Cleanup on Missing Headers:**
+  - In [METHODS/operations.py:236-286](file:///d:/IARE-BOT-V5.2/METHODS/operations.py), removed outdated `'headers'` dictionary requirement in session validation (`if not session_data or 'cookies' not in session_data:`). Ensured `tdatabase.delete_user_session(chat_id)` is always called upon logout, eliminating stale session rows in SQLite.
 
-### 3.7. Codebase Pruning & Dead Code Removal
+### 3.7. Codebase Pruning & Reliability Hygiene
 - **Removed Obsolete `perform_sync_labs_data`:**
   - Lab records and subjects are dynamically scraped live from Samvidha per semester and are not persistent in PostgreSQL. The Postgres columns `lab_subjects_data` and `lab_weeks_data` were always `NULL`.
   - Removed `perform_sync_labs_data` from [METHODS/operations.py](file:///d:/IARE-BOT-V5.2/METHODS/operations.py) and eliminated its call from `sync_databases`.
   - Removed `get_all_lab_subjects_and_weeks_data` from [DATABASE/pgdatabase.py](file:///d:/IARE-BOT-V5.2/DATABASE/pgdatabase.py).
   - Repaired invalid PostgreSQL syntax `DELETE col1, col2 FROM user_credentials` in `delete_labs_data_for_user` and `delete_labs_data_for_all` to valid `UPDATE user_credentials SET col1 = NULL, col2 = NULL`.
+- **Replaced Bare `except:` Clauses with `except Exception:`:**
+  - In [DATABASE/user_settings.py:161](file:///d:/IARE-BOT-V5.2/DATABASE/user_settings.py#L161) (`delete_user_settings`) and [METHODS/labs_handler.py:335](file:///d:/IARE-BOT-V5.2/METHODS/labs_handler.py#L335) (`check_recieved_pdf_file`), replaced bare `except:` with `except Exception:` to prevent swallowing critical process signals (`KeyboardInterrupt`, `SystemExit`, `asyncio.CancelledError`).
 
 ### 3.8. Telegram Interaction & Responsiveness
 - **Immediate Callback Acknowledgments:**
@@ -131,7 +135,7 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 |---|---|---|
 | `test_crypto_helper.py` | 7 | Fernet encryption/decryption, legacy plaintext fallback, token format, tampering, empty string |
 | `test_extract_index.py` | 4 | HTML table index extraction, attendance & marks header parsing, PAT table bounds |
-| `test_integration_flows.py` | 9 | Full database sync flows, fail-closed authentication on error, lab delete alias lifecycle |
+| `test_integration_flows.py` | 10 | Full database sync flows, fail-closed auth, logout session purges, lab delete lifecycle |
 | `test_lab_operations.py` | 4 | Available labs dropdown parsing, delimiter fallback, week details parsing probe |
 | `test_manager_operations.py` | 6 | Telemetry last name handling, broadcast queue worker lifecycle, FloodWait retry |
 | `test_operations_calculations.py`| 12 | 10.00 GPA regex, bunk calculator zero conducted, threshold 100 termination, attendance average, biometric unpack |
@@ -141,7 +145,7 @@ A modular test suite has been built under [`tests/`](file:///d:/IARE-BOT-V5.2/te
 | `test_tdatabase.py` | 9 | SQLite CRUD, lab upload staging lifecycle, credential storage, table initializations |
 | `test_user_settings_db.py` | 7 | User preferences, idempotent index value insertion, UI mode storage |
 | `test_wiring_and_signature_defects.py` | 4 | `delete_pdf` signature verification, `add_maintainer` command filter isolation |
-| **Total** | **73** | **All 73 passed without errors** |
+| **Total** | **74** | **All 74 passed without errors** |
 
 ---
 

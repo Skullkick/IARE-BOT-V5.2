@@ -236,14 +236,14 @@ async def logout(bot,message):
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
         ui_mode = (0,)
-    if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
+    if not session_data or 'cookies' not in session_data:
+        await tdatabase.delete_user_session(chat_id)
         if ui_mode[0] == 0:
             await bot.send_message(chat_id,text=login_message_updated_ui)
         elif ui_mode[0] == 1:
             await bot.send_message(chat_id,text=login_message_traditional_ui)
         return
 
-    session_data = await tdatabase.load_user_session(chat_id)
     cookies = session_data.get('cookies', {})
     await async_logout_portal(cookies)
     invalidate_user_cache(chat_id)
@@ -255,7 +255,8 @@ async def logout_user_and_remove(bot,message):
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
 
-    if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
+    if not session_data or 'cookies' not in session_data:
+        await tdatabase.delete_user_session(chat_id)
         await bot.send_message(chat_id,text="You are already logged out.")
         return
 
@@ -269,20 +270,18 @@ async def logout_user_and_remove(bot,message):
 async def logout_user_if_logged_out(bot,chat_id):
     """Clean local session if remote indicates user is logged out."""
     session_data = await tdatabase.load_user_session(chat_id)
-    if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
-        return
-
     await tdatabase.delete_user_session(chat_id)
+    if not session_data or 'cookies' not in session_data:
+        return
 
     await bot.send_message(chat_id, text="Your session has been logged out due to inactivity.")
 
 async def silent_logout_user_if_logged_out(bot,chat_id):
     """Silently clear local session when remote logout is detected."""
     session_data = await tdatabase.load_user_session(chat_id)
-    if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
-        return
-
     await tdatabase.delete_user_session(chat_id)
+    if not session_data or 'cookies' not in session_data:
+        return
 
 async def attendance(bot,message):
     """Fetch and display per-subject attendance with overall average.

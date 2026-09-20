@@ -158,7 +158,7 @@ async def delete_user_settings(chat_id):
             cursor.execute("DELETE FROM user_settings WHERE chat_id = ?",(chat_id,))
             conn.commit()
             return True
-        except:
+        except Exception:
             return False
 
 async def clear_user_settings_table():
