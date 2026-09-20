@@ -1925,38 +1925,6 @@ async def perform_sync_cie_tracker(bot):
         if not admin_chat_ids and not maintainer_chat_ids:
             print(f"Error storing cie_tracker data to local database : {e}")
 
-async def perform_sync_labs_data(bot):
-    """Sync labs metadata (subjects/weeks) from Postgres to local storage."""
-    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
-    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
-    try:
-        labs_data = await pgdatabase.get_all_lab_subjects_and_weeks_data()
-        if labs_data is False:
-            if admin_chat_ids:
-                for chat_id in admin_chat_ids:
-                    await bot.send_message(chat_id,"Error retrieving data from labs_data database")
-            if maintainer_chat_ids:
-                for chat_id in maintainer_chat_ids:
-                    await bot.send_message(chat_id,"Error retrieving data from labs_data database")
-            if not admin_chat_ids and not maintainer_chat_ids:
-                print("Error retrieving data from labs_data database")
-            return
-        if labs_data is not None:
-            for row in labs_data:
-                chat_id,subject,weeks = row
-                await tdatabase.store_lab_info(chat_id, title=None, subject_code=subject, week_index=weeks, get_title=False)
-        else:
-            print("There is no data present in the labs_data database to sync with the local database.")
-    except Exception as e :
-        if admin_chat_ids:
-            for chat_id in admin_chat_ids:
-                await bot.send_message(chat_id,f"Error storing labs_data to local database : {e}")
-        if maintainer_chat_ids:
-            for chat_id in maintainer_chat_ids:
-                await bot.send_message(chat_id,f"Error storing labs_data to local database : {e}")
-        if not admin_chat_ids and not maintainer_chat_ids:
-            print(f"Error storing labs_data to local database : {e}")
-
 async def sync_databases(bot):
     """
     Run a one-way sync from Postgres into local SQLite for all categories.
@@ -1968,7 +1936,6 @@ async def sync_databases(bot):
     await perform_sync_bot_manager_data(bot)
     await perform_sync_credentials(bot)
     await perform_sync_user_settings(bot)
-    await perform_sync_labs_data(bot)
     await perform_sync_banned_users(bot)
     await perform_sync_cgpa_tracker(bot)
     await perform_sync_cie_tracker(bot)

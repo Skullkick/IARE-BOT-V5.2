@@ -554,6 +554,10 @@ async def delete_lab_upload_data(chat_id):
         cursor.execute("DELETE FROM lab_upload_info WHERE chat_id=?",(chat_id,))
         conn.commit()
 
+async def delete_subjects_and_weeks_data(chat_id):
+    """Delete lab upload selections for the given chat id (called by settings button)."""
+    await delete_lab_upload_data(chat_id)
+
 async def delete_labs_subjects_weeks_all_users():
     """
     Clear the entire ``lab_upload_info`` table for all users/chats.

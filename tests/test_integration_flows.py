@@ -149,24 +149,14 @@ async def test_integration_banned_user_fail_closed_when_pg_fails(mock_bot, mock_
     assert res is False
     assert await tdatabase.fetch_credentials_from_database(chat_id) == (None, None)
 
-async def test_perform_sync_labs_data_success(mock_bot, monkeypatch):
-    """Verify perform_sync_labs_data parses postgres rows and persists them to SQLite without TypeError."""
-    from DATABASE import managers_handler
+async def test_delete_subjects_and_weeks_data_lifecycle(mock_bot):
+    """Verify delete_subjects_and_weeks_data cleans up user upload info without AttributeError."""
+    chat_id = 60001
     await tdatabase.create_all_tdatabase_tables()
-    await managers_handler.create_required_bot_manager_tables()
-    
-    mock_pg_data = [
-        (50001, "A5501", "Week 1, Week 2"),
-        (50002, "A5502", "Week 1"),
-    ]
-    monkeypatch.setattr(pgdatabase, "get_all_lab_subjects_and_weeks_data", AsyncMock(return_value=mock_pg_data))
+    await tdatabase.store_lab_info(chat_id, title="Exp 1", subject_code="CS501", week_index=1, get_title=True)
+    assert await tdatabase.fetch_required_lab_info(chat_id) is not None
 
-    await operations.perform_sync_labs_data(mock_bot)
-
-    info1 = await tdatabase.fetch_required_lab_info(50001)
-    info2 = await tdatabase.fetch_required_lab_info(50002)
-    assert info1 is not None
-    assert info1[1] == "A5501"
-    assert info2 is not None
-    assert info2[1] == "A5502"
+    # Call the alias used by Buttons/buttons.py:970
+    await tdatabase.delete_subjects_and_weeks_data(chat_id)
+    assert await tdatabase.fetch_required_lab_info(chat_id) is None
 
