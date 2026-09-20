@@ -27,9 +27,10 @@ async def fetch_available_labs(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id) 
+        ui_mode = (0,)
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
-        auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
+        auto_login_status = await operations.auto_login_by_database(bot,message,chat_id)
         chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
         if auto_login_status is False and chat_id_in_local_database is False:
             # Login message if no user found in database based on chat_id
@@ -166,9 +167,10 @@ async def fetch_submitted_lab_records(bot,chat_id,user_details,sub_code):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id) 
+        ui_mode = (0,)
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
-        auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
+        auto_login_status = await operations.auto_login_by_database(bot,message,chat_id)
         chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
         if auto_login_status is False and chat_id_in_local_database is False:
             # Login message if no user found in database based on chat_id
@@ -244,9 +246,10 @@ async def delete_lab_record(bot,chat_id,sub_code, user_details, week_number):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id) 
+        ui_mode = (0,)
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
-        auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
+        auto_login_status = await operations.auto_login_by_database(bot,message,chat_id)
         chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
         if auto_login_status is False and chat_id_in_local_database is False:
             # Login message if no user found in database based on chat_id
@@ -278,6 +281,7 @@ async def user_lab_data(bot,chat_id):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id) 
+        ui_mode = (0,) 
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
         auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
@@ -369,9 +373,10 @@ async def fetch_experiment_names_html(bot,chat_id,user_details, sub_code)->str:
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id) 
+        ui_mode = (0,)
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
-        auto_login_status = await operations.auto_login_by_database(bot,"message",chat_id)
+        auto_login_status = await operations.auto_login_by_database(bot,message,chat_id)
         chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)#check Chat id in the database
         if auto_login_status is False and chat_id_in_local_database is False:
             # Login message if no user found in database based on chat_id
@@ -458,6 +463,7 @@ async def upload_pdf(bot,message,sub_code,user_details,upload_details):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id) 
+        ui_mode = (0,) 
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
         auto_login_status = await operations.auto_login_by_database(bot,message,chat_id)

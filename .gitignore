@@ -13,3 +13,5 @@ pdfs/
 __pycache__/
 *.pyc
 .venv/
+.coverage
+.pytest_cache/

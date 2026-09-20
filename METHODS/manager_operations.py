@@ -385,6 +385,7 @@ async def get_cgpa(bot,chat_id):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database_silent(bot,chat_id)
@@ -427,6 +428,7 @@ async def total_cie_marks(bot,chat_id):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database_silent(bot,chat_id)
@@ -506,6 +508,7 @@ async def gpa(bot,chat_id):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database_silent(bot,chat_id)
@@ -565,6 +568,7 @@ async def cie_marks(bot,chat_id):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database_silent(bot,"",chat_id)

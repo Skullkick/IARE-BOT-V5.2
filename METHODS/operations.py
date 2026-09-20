@@ -72,6 +72,7 @@ async def get_random_greeting(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # List of greetings based on the time of day
     morning_greetings = ["Good morning!", "Hello, early bird!", "Rise and shine!", "Morning!"]
     afternoon_greetings = ["Good afternoon!", "Hello there!", "Afternoon vibes!", "Hey!"]
@@ -201,12 +202,19 @@ async def auto_login_by_database(bot,message,chat_id):
     if username != None:
         username = username[:10]
         if await tdatabase.get_bool_banned_username(username) is True: # Checks whether the username is in banned users or not.
-            # await tdatabase.delete_banned_username_credentials_data(username)
             banned_username_chat_ids = await tdatabase.get_chat_ids_of_the_banned_username(username)
-            for chat_id in banned_username_chat_ids:
-                if await tdatabase.delete_user_credentials(chat_id) is True:
-                    if await pgdatabase.remove_saved_credentials_silent(chat_id) is True:
-                        return False
+            for cid in banned_username_chat_ids:
+                await tdatabase.delete_user_credentials(cid)
+                try:
+                    await pgdatabase.remove_saved_credentials_silent(cid)
+                except Exception:
+                    pass
+            await tdatabase.delete_user_credentials(chat_id)
+            try:
+                await pgdatabase.remove_saved_credentials_silent(chat_id)
+            except Exception:
+                pass
+            return False
         session_data = await perform_login(username, password)
         if session_data:
             await tdatabase.store_user_session(chat_id, json.dumps(session_data), username)  # Implement store_user_session function
@@ -227,6 +235,7 @@ async def logout(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     if not session_data or 'cookies' not in session_data or 'headers' not in session_data:
         if ui_mode[0] == 0:
             await bot.send_message(chat_id,text=login_message_updated_ui)
@@ -290,7 +299,8 @@ async def attendance(bot,message):
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
-        await user_settings.set_user_default_settings(chat_id) 
+        await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,) 
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
         auto_login_status = await auto_login_by_database(bot,message,chat_id)
@@ -404,6 +414,7 @@ async def biometric(bot, message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
         auto_login_status = await auto_login_by_database(bot,message,chat_id)
@@ -613,22 +624,34 @@ async def biometric_leaves(chat_id,present_days,total_days):
     Returns:
         tuple[int,bool]: (count, is_leave_available)
     """
+    if total_days <= 0:
+        return 0, True
+
     biometric_threshold = await user_settings.fetch_biometric_threshold(chat_id)
-    biometric_percentage = present_days / total_days * 100
-    if biometric_percentage > biometric_threshold[0]:
+    if biometric_threshold is None:
+        await user_settings.set_user_default_settings(chat_id)
+        biometric_threshold = (75,)
+
+    thresh = float(biometric_threshold[0])
+    biometric_percentage = (present_days / total_days) * 100
+    if biometric_percentage > thresh:
         no_of_leaves = 0
-        while (present_days / (total_days + no_of_leaves)) * 100 >= biometric_threshold[0]:
+        while (present_days / (total_days + no_of_leaves)) * 100 >= thresh:
             no_of_leaves += 1
+            if no_of_leaves >= 365:
+                break
         no_of_leaves -= 1  # Subtract 1 to account for the last iteration
-        return no_of_leaves, True
-    elif biometric_percentage < biometric_threshold[0]:
+        return max(0, no_of_leaves), True
+    elif biometric_percentage < thresh:
         days_need_attend = 0
-        while (present_days + days_need_attend) / (total_days + days_need_attend) * 100 < biometric_threshold[0]:
+        target_threshold = min(thresh, 99.0)
+        while ((present_days + days_need_attend) / (total_days + days_need_attend)) * 100 < target_threshold:
             days_need_attend += 1
+            if days_need_attend >= 365:
+                break
         return days_need_attend, False
-    elif biometric_percentage == biometric_threshold[0]:
-        no_of_leaves = 0
-        return no_of_leaves,True
+    else:
+        return 0, True
 
 async def bunk(bot,message):
     """Advise how many classes can be bunked or must be attended.
@@ -642,6 +665,7 @@ async def bunk(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     if not session_data:
         auto_login_status = await auto_login_by_database(bot,message,chat_id)
@@ -711,20 +735,32 @@ async def bunk(bot,message):
                 conducted_classes = int(row[conducted_classes_index])
                 attended_classes = int(row[attended_classes_index])
                 
+                if conducted_classes <= 0:
+                    if ui_mode[0] == 0:
+                        bunk_cards.append(f"```{course_name}\n● Attendance : {attendance_percentage}%\n● Status     : No Classes Conducted Yet\n```")
+                    else:
+                        bunk_cards.append(f"**{course_name}**\n● Attendance: {attendance_percentage}% | No Classes Conducted Yet\n")
+                    continue
+
                 if attendance_present >= threshold_val:
                     classes_bunked = 0
                     while (attended_classes / (conducted_classes + classes_bunked)) * 100 >= threshold_val:
                         classes_bunked += 1
+                        if classes_bunked >= 365:
+                            break
                     classes_bunked -= 1
+                    classes_bunked = max(0, classes_bunked)
                     if ui_mode[0] == 0:
                         bunk_cards.append(f"```{course_name}\n● Attendance : {attendance_percentage}%\n● Can Bunk   : {classes_bunked} classes\n```")
                     else:
                         bunk_cards.append(f"**{course_name}**\n● Attendance: {attendance_percentage}% | Can bunk: {classes_bunked} classes\n")
                 else:
                     classes_needattend = 0
-                    if conducted_classes > 0:
-                        while ((attended_classes + classes_needattend) / (conducted_classes + classes_needattend)) * 100 < threshold_val:
-                            classes_needattend += 1
+                    target_threshold = min(float(threshold_val), 99.0)
+                    while ((attended_classes + classes_needattend) / (conducted_classes + classes_needattend)) * 100 < target_threshold:
+                        classes_needattend += 1
+                        if classes_needattend >= 365:
+                            break
                     if ui_mode[0] == 0:
                         bunk_cards.append(f"```{course_name}\n● Attendance : {attendance_percentage}% (Below {threshold_val}%)\n● Need Attend: {classes_needattend} classes to recover\n● Status     : No Bunk Allowed\n```")
                     else:
@@ -794,6 +830,7 @@ async def pat_attendance(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
@@ -892,6 +929,7 @@ async def gpa(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
@@ -976,6 +1014,7 @@ async def get_certificates(bot,message,profile_pic : bool,aadhar_card : bool,dob
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
@@ -1030,6 +1069,7 @@ async def profile_details(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
@@ -1114,6 +1154,7 @@ async def payment_details(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database(bot,message,chat_id)
@@ -1205,6 +1246,7 @@ async def get_sem_count(bot,chat_id):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database(bot,"",chat_id)
@@ -1250,6 +1292,7 @@ async def cie_marks(bot,message,sem_no):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id) Use this if you want to check in cloud database
     if not session_data:
         auto_login_by_database_status = await auto_login_by_database(bot,"",chat_id)
@@ -1367,6 +1410,7 @@ async def report(bot,message):
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:
         await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
     session_data = await tdatabase.load_user_session(chat_id)
     if not session_data:
         auto_login_status = await auto_login_by_database(bot,message,chat_id)
