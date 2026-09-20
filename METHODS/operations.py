@@ -19,8 +19,8 @@ consistent pattern:
 from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
 from Buttons import buttons
 from bs4 import BeautifulSoup 
-import requests,json,uuid,os,pyqrcode,random,re
-from METHODS.portal_client import perform_async_login, async_fetch_page, async_logout_portal, invalidate_user_cache, get_soup
+import json,uuid,os,pyqrcode,random,re
+from METHODS.portal_client import perform_async_login, async_fetch_page, async_logout_portal, invalidate_user_cache, get_soup, get_http_client
 from pytz import timezone
 from datetime import datetime
 import io,shutil
@@ -763,7 +763,7 @@ async def check_pat_student(bot,message):
     """Return True if PAT attendance page is accessible for the student."""
     chat_id = message.chat.id
     session_data = await tdatabase.load_user_session(chat_id)
-    chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
+    # chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
     if not session_data:
         auto_login_status = await auto_login_by_database(bot,message,chat_id)
         chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
@@ -772,12 +772,8 @@ async def check_pat_student(bot,message):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     pat_attendance_url = "https://samvidha.iare.ac.in/home?action=Attendance_std"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-
-        pat_attendance_response = s.get(pat_attendance_url)
-    data = BeautifulSoup(pat_attendance_response.text, 'html.parser')
+    pat_html = await async_fetch_page(pat_attendance_url, session_data.get('cookies') if session_data else None)
+    data = BeautifulSoup(pat_html, 'html.parser')
     td_tags = re.findall(r'<td\s*[^>]*>.*?</td>', str(data), flags=re.DOTALL)
 
     # Count the number of <td> tags found
@@ -1005,11 +1001,9 @@ async def get_certificates(bot,message,profile_pic : bool,aadhar_card : bool,dob
         img_url = img_url + f"{username}/DOCS/{username}_SSC.jpg"
     elif inter_memo is True:
         img_url = img_url + f"{username}//DOCS/{username}_MARKSMEMO.jpg"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
     try:
-        response = requests.get(img_url)
+        client = get_http_client()
+        response = await client.get(img_url)
         response.raise_for_status()
         # Create an in-memory file-like object
         image_bytes = io.BytesIO(response.content)
@@ -1019,7 +1013,7 @@ async def get_certificates(bot,message,profile_pic : bool,aadhar_card : bool,dob
         await bot.send_photo(message.chat.id, photo=image_bytes)
         # Ensure the BytesIO object is closed
         image_bytes.close()
-    except requests.RequestException as e:
+    except Exception as e:
         if ui_mode[0] == 0:
             await message.reply_text("""```Failed to fetch image
 Document not available```""")
@@ -1048,19 +1042,16 @@ async def profile_details(bot,message):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     profile_url = "https://samvidha.iare.ac.in/home?action=profile"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        profile_response = s.get(profile_url)
+    profile_html = await async_fetch_page(profile_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in profile_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in profile_html:
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             await profile_details(bot,message)
         else:
             await logout_user_if_logged_out(bot,chat_id)
         return
-    soup = BeautifulSoup(profile_response.text,'html.parser')
+    soup = BeautifulSoup(profile_html,'html.parser')
     data = {}
     for dt in soup.find_all('dt'):
         key = dt.get_text(strip=True)
@@ -1135,12 +1126,9 @@ async def payment_details(bot,message):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     profile_url = "https://samvidha.iare.ac.in/home?action=fee_payment"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        payment_details_response = s.get(profile_url)
+    payment_html = await async_fetch_page(profile_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in payment_details_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in payment_html:
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             await payment_details(bot,message)
@@ -1148,7 +1136,7 @@ async def payment_details(bot,message):
             await logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        soup = BeautifulSoup(payment_details_response.text,'html.parser')
+        soup = BeautifulSoup(payment_html,'html.parser')
         rows = soup.table.thead.find_all('tr')
         fee_row = rows[1].find_all('td')
         rollno = fee_row[1].text[12:-1]
@@ -1229,12 +1217,9 @@ async def get_sem_count(bot,chat_id):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     cie_marks_url = "https://samvidha.iare.ac.in/home?action=cie_marks_ug"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        cie_marks_response = s.get(cie_marks_url)
+    cie_marks_html = await async_fetch_page(cie_marks_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_html:
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             return await get_sem_count(bot,chat_id)
@@ -1242,7 +1227,7 @@ async def get_sem_count(bot,chat_id):
             await logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        soup = BeautifulSoup(cie_marks_response.text, 'html.parser')
+        soup = BeautifulSoup(cie_marks_html, 'html.parser')
         # Find all tables and reverse the list to get the semesters in ascending order i.e semester 1 to 8 
         tables = soup.find_all('table')
         # Count the number of semesters available
@@ -1277,12 +1262,9 @@ async def cie_marks(bot,message,sem_no):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     cie_marks_url = "https://samvidha.iare.ac.in/home?action=cie_marks_ug"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        cie_marks_response = s.get(cie_marks_url)
+    cie_marks_html = await async_fetch_page(cie_marks_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_html:
         if chat_id_in_local_database:
             await silent_logout_user_if_logged_out(bot,chat_id)
             await cie_marks(bot,chat_id,sem_no)
@@ -1290,7 +1272,7 @@ async def cie_marks(bot,message,sem_no):
             await logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        soup = BeautifulSoup(cie_marks_response.text, 'html.parser')
+        soup = BeautifulSoup(cie_marks_html, 'html.parser')
         # Find all tables and reverse the list to get the semesters in ascending order i.e semester 1 to 8 
         tables = soup.find_all('table')
         reversed_tables = tables[::-1] 

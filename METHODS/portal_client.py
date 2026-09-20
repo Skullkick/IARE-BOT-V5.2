@@ -33,6 +33,22 @@ DEFAULT_HEADERS = {
 
 DEFAULT_TIMEOUT = httpx.Timeout(15.0, connect=8.0)
 
+_SHARED_CLIENT: Optional[httpx.AsyncClient] = None
+
+def get_http_client() -> httpx.AsyncClient:
+    """Return a shared singleton httpx.AsyncClient instance."""
+    global _SHARED_CLIENT
+    if _SHARED_CLIENT is None or _SHARED_CLIENT.is_closed:
+        _SHARED_CLIENT = httpx.AsyncClient(timeout=DEFAULT_TIMEOUT, follow_redirects=True)
+    return _SHARED_CLIENT
+
+async def close_http_client():
+    """Close the shared httpx.AsyncClient if open."""
+    global _SHARED_CLIENT
+    if _SHARED_CLIENT is not None and not _SHARED_CLIENT.is_closed:
+        await _SHARED_CLIENT.aclose()
+        _SHARED_CLIENT = None
+
 # In-memory TTL cache: max 2000 entries, cached for 3 minutes (180s)
 # Prevents duplicate requests when users toggle between Attendance and Bunk
 _PORTAL_CACHE: TTLCache = TTLCache(maxsize=2000, ttl=180)
