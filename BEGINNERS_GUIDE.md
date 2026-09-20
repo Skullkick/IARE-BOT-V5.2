@@ -18,7 +18,7 @@ This guide outlines the features and commands available to students using the IA
    - [PAT Attendance](#pat-attendance)
    - [Lab Records](#lab-records)
    - [Student Info](#student-info)
-   - [Saved Credentials & Auto-Login](#saved-credentials--auto-login)
+   - [Saved Username](#saved-username)
    - [Logging Out](#logging-out)
 4. [User Settings](#user-settings)
 5. [Help and Issue Reporting](#help-and-issue-reporting)
@@ -64,7 +64,13 @@ To access your student records, authenticate using your college roll number and 
 /login 21951A0501 MyPassword123
 ```
 
-Upon successful authentication, the bot will display the interactive main menu.
+Upon successful authentication, the bot will ask:
+> *"If you want to save your credentials Click on 'Yes'."*
+
+- **If you click "Yes":** Your credentials will be saved. Whenever your session expires, the bot will **automatically re-log you in in the background** when you press any button (such as Attendance, Bunk, or Biometric) without requiring any manual action.
+- **If you click "No" (or skip):** Your credentials will not be stored. Once your temporary session expires, you must log in again using `/login <ROLL_NUMBER> <PASSWORD>`.
+
+The bot then displays the interactive main menu.
 
 ### Passwords with Spaces
 
@@ -142,11 +148,12 @@ Once logged in, an interactive menu is displayed with the following options:
   - **CIE Marks:** Continuous Internal Evaluation (mid-term examination) scores for current courses.
   - **Fee Payments:** Fee payment receipts, transaction references, and remaining balances.
 
-### Saved Credentials & Auto-Login
-- **Function:** Allows seamless one-tap reconnection without having to re-enter your credentials each time your session expires.
-- **Actions:**
-  - **Auto-Login:** Immediately refreshes your authenticated session.
-  - **Remove:** Permanently clears your saved credentials from the system.
+### Saved Username
+- **Function:** Displays the saved roll number associated with your chat.
+- **Controls:**
+  - **Remove:** Permanently deletes your saved credentials from the bot database.
+  - **Remove and Logout:** Permanently deletes your saved credentials and terminates your active session.
+  - **Back:** Returns to the main menu.
 
 ### Logging Out
 - **Function:** Ends your active session.
@@ -191,7 +198,9 @@ If you encounter an issue (e.g., incorrect attendance figures, upload errors) or
 ## Frequently Asked Questions
 
 **Q: Do I need to log in every day?**  
-A: No. Once authenticated, your login details remain saved. If your session expires, open the menu, select **Saved Username**, and choose **Auto-Login** to reconnect instantly.
+A: It depends on whether you saved your credentials:
+- **If you clicked "Yes" to save your credentials:** No. Whenever your session expires, the bot will automatically re-log you in in the background as soon as you press any button (Attendance, Bunk, Biometric, etc.). You do not need to click anything to re-login.
+- **If you clicked "No" (or did not save credentials):** Yes. Your login details were not stored, so you must log in again using `/login <ROLL_NUMBER> <PASSWORD>` whenever your session expires.
 
 **Q: Why did my login attempt fail?**  
 A: Common causes include:
@@ -202,8 +211,8 @@ A: Common causes include:
 **Q: How do I change my target bunk percentage?**  
 A: Send `/settings`, select **Attendance Threshold**, and pick your preferred percentage. The Bunk Calculator will immediately update its calculations based on this selection.
 
-**Q: How do I delete my credentials from the bot?**  
-A: Tap **Saved Username** on the main menu, then select **Remove**. Your credentials will be removed immediately.
+**Q: How do I delete my saved credentials from the bot?**  
+A: Tap **Saved Username** on the main menu, select your roll number, and choose **Remove** (or **Remove and Logout**). Your credentials will be removed immediately.
 
 **Q: Who maintains this bot?**  
 A: The bot is maintained by fellow students at IARE. For questions, technical assistance, or suggestions, send a message using `/report <your message>`.
