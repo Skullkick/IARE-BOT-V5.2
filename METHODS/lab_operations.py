@@ -413,7 +413,7 @@ async def get_experiment_title(experiment_names_html, week_no):
                 experiment_title = cells[2].get_text().strip() 
 
         return experiment_title
-    except:
+    except Exception:
         return None
 
 async def get_upload_details(week_no, exp_title, file_name, file_path):

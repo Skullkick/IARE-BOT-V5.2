@@ -1274,7 +1274,7 @@ async def get_sem_count(bot,chat_id):
         # Count the number of semesters available
         semester_count = len(tables) - 1
         return semester_count
-    except:
+    except Exception:
         return None
 
 async def cie_marks(bot,message,sem_no):
