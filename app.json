@@ -17,25 +17,39 @@
         "description": "Your bot token, as a string.",
         "value": ""
       },
-      "POSTGRES_USER_ID": {
-        "description": "Add your Postgres User Id.",
+      "ENCRYPTION_KEY": {
+        "description": "Secret key for Fernet credential encryption. Generate via: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'",
         "value": ""
+      },
+      "DATABASE_URL": {
+        "description": "Standard Postgres database connection URI (optional, auto-supplied by Heroku Postgres).",
+        "value": "",
+        "required": false
+      },
+      "POSTGRES_USER_ID": {
+        "description": "Postgres User ID (used if DATABASE_URL is not set).",
+        "value": "",
+        "required": false
       },
       "POSTGRES_PASSWORD": {
-        "description":"Add your Postgres Password.",
-        "value": ""
+        "description": "Postgres Password.",
+        "value": "",
+        "required": false
       },
       "POSTGRES_DATABASE": {
-        "description": "Add your database value.",
-        "value": ""
+        "description": "Postgres database name.",
+        "value": "",
+        "required": false
       },
       "POSTGRES_HOST": {
-        "description": "Add your host value.",
-        "value": ""
+        "description": "Postgres host.",
+        "value": "",
+        "required": false
       },
       "POSTGRES_PORT": {
-        "description": "Add Postgres Port value",
-        "value": ""
+        "description": "Postgres Port value",
+        "value": "5432",
+        "required": false
       }
     },
     "buildpacks": [

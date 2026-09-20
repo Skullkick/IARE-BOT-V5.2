@@ -275,13 +275,14 @@ async def main(bot):
     between them on startup.
     """
     try:
+        await pgdatabase.init_pg_pool()
         await tdatabase.create_all_tdatabase_tables()
         await pgdatabase.create_all_pgdatabase_tables()
         await user_settings.create_user_settings_tables()
         await managers_handler.create_required_bot_manager_tables()
         await operations.sync_databases(bot)
     except Exception as e:
-        logging.error("Error in 'main' function: %s", e)
+        logging.error("Error in 'main' function: %s", e, exc_info=True)
 
     # NOTE: The following code is for CGPA and CIE tracking for maintainers and admins only.
     # This feature is still under development.
