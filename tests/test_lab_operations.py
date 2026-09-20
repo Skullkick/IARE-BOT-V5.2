@@ -137,9 +137,11 @@ async def test_upload_lab_record_high_compression_prompt(mock_bot, mock_message,
     assert "High Compression Notice" in last_call[0][1]
     reply_markup = last_call[1]["reply_markup"]
     callbacks = [btn.callback_data for row in reply_markup.inline_keyboard for btn in row]
+    button_texts = [btn.text for row in reply_markup.inline_keyboard for btn in row]
     assert "confirm_lab_upload" in callbacks
     assert "resend_lab_pdf" in callbacks
     assert "cancel_complete_lab_operation" in callbacks
+    assert button_texts == ["Confirm & Upload", "Resend Another PDF", "Cancel Complete Operation"]
 
 async def test_lab_confirmation_callbacks(mock_bot, monkeypatch):
     """Verify confirm_lab_upload, resend_lab_pdf, and cancel_complete_lab_operation callbacks."""

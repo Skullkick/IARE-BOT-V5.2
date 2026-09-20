@@ -284,7 +284,7 @@
      - If output exceeds 1,048,576 bytes (1 MB), dynamically retries through higher compression tiers (up to Tier 4: max dimension 650px, quality=25, grayscale conversion) until the file is strictly under 1 MB.
   5. Implemented interactive high-compression preview & 3-button confirmation workflow:
      - When high compression (Tier 3/4 or grayscale) is applied, the bot halts before portal submission and sends a preview of the compressed PDF to the Telegram chat.
-     - Displays 3 action buttons: `[ ✅ Confirm & Upload ]` (submits document), `[ 🔄 Resend Another PDF ]` (retains experiment info and waits for replacement PDF), and `[ 🚫 Cancel Complete Operation ]` (purges all PDFs, wipes staged SQLite data via `tdatabase.delete_lab_upload_data`, and resets status).
+     - Displays 3 action buttons: `[ Confirm & Upload ]` (submits document), `[ Resend Another PDF ]` (retains experiment info and waits for replacement PDF), and `[ Cancel Complete Operation ]` (purges all PDFs, wipes staged SQLite data via `tdatabase.delete_lab_upload_data`, and resets status).
 - **Verification:** Verified by `tests/test_pdf_compressor.py::test_compress_pdf_sequential_locking`, `tests/test_pdf_compressor.py::test_select_initial_tier_index`, `tests/test_pdf_compressor.py::test_compress_pdf_dynamic_retry_under_1mb`, `tests/test_pdf_compressor.py::test_native_compress_pdf_grayscale`, `tests/test_pdf_compressor.py::test_compression_metrics_tracking`, `tests/test_lab_operations.py::test_upload_lab_record_high_compression_prompt`, and `tests/test_lab_operations.py::test_lab_confirmation_callbacks`.
 
 ---
