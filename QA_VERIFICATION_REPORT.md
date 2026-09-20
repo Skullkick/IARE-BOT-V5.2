@@ -72,13 +72,13 @@
 | `test_user_settings_db.py` | SQLite user settings, threshold clamping, idempotency defects | 7 | 7 | 0 |
 | `test_tdatabase.py` | Sessions, credentials encryption at rest, reports, concurrency | 8 | 8 | 0 |
 | `test_extract_index.py` | HTML table column mapping, missing header errors, missing thead | 4 | 4 | 0 |
-| `test_operations_calculations.py` | Biometrics 6h gap, leaves math, bunk limits, GPA regex defects | 9 | 9 | 0 |
+| `test_operations_calculations.py` | Biometrics 6h gap, leaves math, bunk limits, GPA regex defects | 11 | 11 | 0 |
 | `test_manager_operations.py` | Suffix ban expansions, empty broadcast guard, user name parsing | 5 | 5 | 0 |
 | `test_lab_operations.py` | Lab select parsing, week extraction, duplicate entries, marks | 4 | 4 | 0 |
-| `test_wiring_and_signature_defects.py` | Main and lab operations call-site argument mismatches | 2 | 2 | 0 |
-| `test_integration_flows.py` | End-to-end autologin, banned purging, logout, message chunking | 5 | 5 | 0 |
+| `test_wiring_and_signature_defects.py` | Main and lab operations call-site argument mismatches, filter restriction | 4 | 4 | 0 |
+| `test_integration_flows.py` | End-to-end autologin, banned purging, fail-closed auth, logout, chunking | 6 | 6 | 0 |
 | `test_sanity.py` | Harness operational verification | 1 | 1 | 0 |
-| **TOTAL** | **Comprehensive Full System Verification** | **62** | **62** | **0** |
+| **TOTAL** | **Comprehensive Full System Verification** | **67** | **67** | **0** |
 
 ### Statement Coverage by Module
 | Module | Total Statements | Missed Statements | Coverage (%) |
