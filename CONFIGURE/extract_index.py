@@ -18,9 +18,10 @@ Behavior
 Note: Only docstrings have been added here; function logic is unchanged.
 """
 from bs4 import BeautifulSoup
-import re,requests
+import re
 from DATABASE import tdatabase
 from METHODS import operations
+from METHODS.portal_client import async_fetch_page
 
 async def get_attendance_indexes(bot,message):
     """Compute column indices for the Attendance table headers.
@@ -55,13 +56,9 @@ async def get_attendance_indexes(bot,message):
         # Access the attendance page and retrieve the content
         attendance_url = 'https://samvidha.iare.ac.in/home?action=stud_att_STD'
         
-        with requests.Session() as s:
-            cookies = session_data['cookies']
-            s.cookies.update(cookies)
-
-            attendance_response = s.get(attendance_url)
-        data = BeautifulSoup(attendance_response.text, 'html.parser')
-        if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_response.text:
+        attendance_html = await async_fetch_page(attendance_url, session_data.get('cookies') if session_data else None)
+        data = BeautifulSoup(attendance_html, 'html.parser')
+        if '<title>Samvidha - Campus Management Portal - IARE</title>' in attendance_html:
                 if chat_id_in_local_database:
                     await operations.silent_logout_user_if_logged_out(bot,chat_id)
                     await get_attendance_indexes(bot,message)
@@ -128,12 +125,9 @@ async def get_pat_indexes(bot,message):
     # Access the attendance page and retrieve the content
     attendance_url = "https://samvidha.iare.ac.in/home?action=Attendance_std"
     
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        pat_attendance_response = s.get(attendance_url)
-    data = BeautifulSoup(pat_attendance_response.text, 'html.parser')
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in pat_attendance_response.text:
+    pat_attendance_html = await async_fetch_page(attendance_url, session_data.get('cookies') if session_data else None)
+    data = BeautifulSoup(pat_attendance_html, 'html.parser')
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in pat_attendance_html:
         if chat_id_in_local_database:
             await operations.silent_logout_user_if_logged_out(bot,chat_id)
             await get_pat_indexes(bot,message)
@@ -198,13 +192,9 @@ async def get_biometric_indexes(bot,message):
         # Access the attendance page and retrieve the content
         attendance_url = 'https://samvidha.iare.ac.in/home?action=std_bio'
         
-        with requests.Session() as s:
-            cookies = session_data['cookies']
-            s.cookies.update(cookies)
-
-            biometric_response = s.get(attendance_url)
-        data = BeautifulSoup(biometric_response.text, 'html.parser')
-        if '<title>Samvidha - Campus Management Portal - IARE</title>' in biometric_response.text:
+        biometric_html = await async_fetch_page(attendance_url, session_data.get('cookies') if session_data else None)
+        data = BeautifulSoup(biometric_html, 'html.parser')
+        if '<title>Samvidha - Campus Management Portal - IARE</title>' in biometric_html:
                 if chat_id_in_local_database:
                     await operations.silent_logout_user_if_logged_out(bot, chat_id)
                     await get_biometric_indexes(bot, message)

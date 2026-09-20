@@ -15,7 +15,8 @@ by these docstrings.
 
 from DATABASE import tdatabase,pgdatabase,managers_handler,user_settings
 from Buttons import buttons,manager_buttons
-import re,requests,json,psutil
+import re,json,psutil
+from METHODS.portal_client import async_fetch_page, async_logout_portal
 from METHODS import operations
 from bs4 import BeautifulSoup
 import sqlite3,os
@@ -398,12 +399,9 @@ async def get_cgpa(bot,chat_id):
     if not session_data:
         return
     gpa_url = "https://samvidha.iare.ac.in/home?action=credit_register"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        gpa_response = s.get(gpa_url)
+    gpa_html = await async_fetch_page(gpa_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_html:
         if chat_id_in_local_database:
             await operations.silent_logout_user_if_logged_out(bot,chat_id)
             await get_cgpa(bot,chat_id)
@@ -411,7 +409,7 @@ async def get_cgpa(bot,chat_id):
             await operations.logout_user_if_logged_out(bot,chat_id)
         return
     pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
-    cgpa_values = re.findall(pattern,gpa_response.text)
+    cgpa_values = re.findall(pattern, gpa_html)
     # sgpa_values = [float(x) for x in sgpa_values]
     if len(cgpa_values) == 0:
         return "0.00"
@@ -443,12 +441,9 @@ async def total_cie_marks(bot,chat_id):
     if not session_data:
         return
     cie_marks_url = "https://samvidha.iare.ac.in/home?action=cie_marks_ug"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        cie_response = s.get(cie_marks_url)
+    cie_html = await async_fetch_page(cie_marks_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in cie_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in cie_html:
         if chat_id_in_local_database:
             await operations.silent_logout_user_if_logged_out(bot,chat_id)
             return await total_cie_marks(bot,chat_id)
@@ -456,7 +451,7 @@ async def total_cie_marks(bot,chat_id):
             await operations.logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        soup = BeautifulSoup(cie_response.text, 'html.parser')
+        soup = BeautifulSoup(cie_html, 'html.parser')
         # Find all tables 
         tables = soup.find_all('table')
         # Select the latest semester table 
@@ -523,12 +518,9 @@ async def gpa(bot,chat_id):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     gpa_url = "https://samvidha.iare.ac.in/home?action=credit_register"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        gpa_response = s.get(gpa_url)
+    gpa_html = await async_fetch_page(gpa_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in gpa_html:
         if chat_id_in_local_database:
             await operations.silent_logout_user_if_logged_out(bot,chat_id)
             await gpa(bot,chat_id)
@@ -538,9 +530,9 @@ async def gpa(bot,chat_id):
     try:
         sgpa_pattern = r'Semester Grade Point Average \(SGPA\) : (\d(?:\.\d\d)?)'
         cgpa_pattern = r'Cumulative Grade Point Average \(CGPA\) : (\d(?:\.\d\d)?)'
-        sgpa_values = re.findall(sgpa_pattern,gpa_response.text)
+        sgpa_values = re.findall(sgpa_pattern, gpa_html)
         sgpa_values = [float(x) for x in sgpa_values]
-        cgpa_values = re.findall(cgpa_pattern,gpa_response.text)
+        cgpa_values = re.findall(cgpa_pattern, gpa_html)
         if len(cgpa_values) == 0:
             cgpa = 0.00
         else:
@@ -585,12 +577,9 @@ async def cie_marks(bot,chat_id):
             return
     session_data = await tdatabase.load_user_session(chat_id)
     cie_marks_url = "https://samvidha.iare.ac.in/home?action=cie_marks_ug"
-    with requests.Session() as s:
-        cookies = session_data['cookies']
-        s.cookies.update(cookies)
-        cie_marks_response = s.get(cie_marks_url)
+    cie_marks_html = await async_fetch_page(cie_marks_url, session_data.get('cookies') if session_data else None)
     chat_id_in_local_database = await tdatabase.check_chat_id_in_database(chat_id)
-    if 	'<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_response.text:
+    if '<title>Samvidha - Campus Management Portal - IARE</title>' in cie_marks_html:
         if chat_id_in_local_database:
             await silent_logout(bot,chat_id)
             await cie_marks(bot,chat_id)
@@ -598,7 +587,7 @@ async def cie_marks(bot,chat_id):
             await operations.logout_user_if_logged_out(bot,chat_id)
         return
     try:
-        soup = BeautifulSoup(cie_marks_response.text, 'html.parser')
+        soup = BeautifulSoup(cie_marks_html, 'html.parser')
         # Find all tables and reverse the list to get the semesters in ascending order i.e semester 1 to 8 
         tables = soup.find_all('table')
         reversed_tables = tables[::-1] 
@@ -771,9 +760,8 @@ async def silent_logout(chat_id):
     session from SQLite.
     """
     session_data = await tdatabase.load_user_session(chat_id)
-    logout_url = 'https://samvidha.iare.ac.in/logout'
-    cookies,headers = session_data['cookies'], session_data['headers']
-    requests.get(logout_url, cookies=cookies, headers=headers)
+    if session_data:
+        await async_logout_portal(session_data.get('cookies'))
     await tdatabase.delete_user_session(chat_id)
 
 async def get_server_stats():
