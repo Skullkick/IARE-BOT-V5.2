@@ -23,5 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
+# Expose port for optional MCP server (when ENABLE_MCP_SERVER=true with SSE transport)
+EXPOSE 8000
+
 # Start the Telegram bot
 CMD ["python", "main.py"]
