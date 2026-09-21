@@ -331,3 +331,148 @@ async def test_get_server_stats_resilience_to_psutil_exceptions(monkeypatch):
     assert "● **Network:** N/A" in stats_str
 
 
+async def test_verification_to_add_maintainer_hidden_account_reply(mock_bot, mock_message):
+    """Verify replying to a forwarded message from a hidden account notifies admin."""
+    chat_id = mock_message.chat.id
+    await managers_handler.create_required_bot_manager_tables()
+    await managers_handler.store_as_admin("Admin", chat_id)
+
+    replied_msg = MagicMock()
+    replied_msg.forward_from = None
+    replied_msg.forward_sender_name = "GhostUser"
+
+    mock_message.forward_date = None
+    mock_message.forward_from = None
+    mock_message.forward_sender_name = None
+    mock_message.forward_from_chat = None
+    mock_message.reply_to_message = replied_msg
+    mock_message.text = "/add_maintainer"
+
+    await manager_operations.verification_to_add_maintainer(mock_bot, mock_message)
+    mock_bot.send_message.assert_called_once()
+    args, kwargs = mock_bot.send_message.call_args
+    assert "GhostUser" in args[1]
+    assert "privacy settings hide their user ID" in args[1]
+
+
+async def test_verification_to_add_maintainer_hidden_account_contact(mock_bot, mock_message):
+    """Verify sharing a contact with no user_id informs admin of hidden account."""
+    chat_id = mock_message.chat.id
+    await managers_handler.create_required_bot_manager_tables()
+    await managers_handler.store_as_admin("Admin", chat_id)
+
+    mock_contact = MagicMock()
+    mock_contact.user_id = 0
+    mock_contact.first_name = "Hidden"
+    mock_contact.last_name = "Contact"
+    mock_contact.phone_number = "+1234567890"
+
+    mock_message.forward_date = None
+    mock_message.forward_from = None
+    mock_message.forward_sender_name = None
+    mock_message.forward_from_chat = None
+    mock_message.reply_to_message = None
+    mock_message.contact = mock_contact
+    mock_message.text = None
+
+    await manager_operations.verification_to_add_maintainer(mock_bot, mock_message)
+    mock_bot.send_message.assert_called_once()
+    args, kwargs = mock_bot.send_message.call_args
+    assert "User account is hidden" in args[1]
+    assert "Hidden Contact" in args[1]
+
+
+async def test_verification_to_add_maintainer_hidden_username_lookup_fails(mock_bot, mock_message):
+    """Verify /add_maintainer @username sends hidden account explanation when lookup fails."""
+    chat_id = mock_message.chat.id
+    await managers_handler.create_required_bot_manager_tables()
+    await managers_handler.store_as_admin("Admin", chat_id)
+
+    mock_bot.get_users = AsyncMock(side_effect=Exception("Username not accessible due to privacy"))
+
+    mock_message.forward_date = None
+    mock_message.forward_from = None
+    mock_message.forward_sender_name = None
+    mock_message.forward_from_chat = None
+    mock_message.reply_to_message = None
+    mock_message.text = "/add_maintainer @hidden_account"
+
+    await manager_operations.verification_to_add_maintainer(mock_bot, mock_message)
+    mock_bot.send_message.assert_called_once()
+    args, kwargs = mock_bot.send_message.call_args
+    assert "User account is hidden or cannot be resolved" in args[1]
+    assert "@hidden_account" in args[1]
+
+
+async def test_verification_to_add_maintainer_username_lookup_success(mock_bot, mock_message):
+    """Verify /add_maintainer @username resolves successfully and prompts confirmation."""
+    chat_id = mock_message.chat.id
+    await managers_handler.create_required_bot_manager_tables()
+    await managers_handler.store_as_admin("Admin", chat_id)
+
+    target_user = MagicMock()
+    target_user.id = 777999
+    target_user.first_name = "Clark"
+    target_user.last_name = "Kent"
+    target_user.username = "clark_kent"
+    mock_bot.get_users = AsyncMock(return_value=target_user)
+
+    mock_message.forward_date = None
+    mock_message.forward_from = None
+    mock_message.forward_sender_name = None
+    mock_message.forward_from_chat = None
+    mock_message.reply_to_message = None
+    mock_message.text = "/add_maintainer @clark_kent"
+
+    await manager_operations.verification_to_add_maintainer(mock_bot, mock_message)
+    mock_bot.send_message.assert_called_once()
+    args, kwargs = mock_bot.send_message.call_args
+    assert "Would you like to add Clark Kent as Maintainer." in args[1]
+
+
+async def test_verification_to_add_maintainer_authorized_maintainer(mock_bot, mock_message):
+    """Verify maintainer with manage_maintainers=1 can also trigger verification."""
+    chat_id = mock_message.chat.id
+    await managers_handler.create_required_bot_manager_tables()
+    await managers_handler.store_as_maintainer("SeniorMaintainer", chat_id)
+    await managers_handler.set_manage_maintainers_access_true(chat_id)
+
+    target_user = MagicMock()
+    target_user.id = 112233
+    target_user.first_name = "Newbie"
+    target_user.last_name = "Dev"
+
+    mock_message.forward_date = 1600000000
+    mock_message.forward_from = target_user
+    mock_message.forward_sender_name = None
+    mock_message.forward_from_chat = None
+    mock_message.reply_to_message = None
+    mock_message.text = "Hello"
+
+    await manager_operations.verification_to_add_maintainer(mock_bot, mock_message)
+    mock_bot.send_message.assert_called_once()
+    args, kwargs = mock_bot.send_message.call_args
+    assert "Would you like to add Newbie Dev as Maintainer." in args[1]
+
+
+async def test_manager_maintainers_add_maintainer_info_callback(mock_bot):
+    """Verify manager_add_maintainer_info callback renders maintainer instructions with hidden account guide."""
+    from Buttons import manager_buttons
+    from DATABASE import user_settings
+    await user_settings.create_user_settings_tables()
+
+    cb_query = MagicMock()
+    cb_query.data = "manager_add_maintainer_info"
+    cb_query.message = MagicMock()
+    cb_query.message.chat = MagicMock()
+    cb_query.message.chat.id = 54321
+    cb_query.edit_message_text = AsyncMock()
+
+    await manager_buttons.manager_callback_function(mock_bot, cb_query)
+    cb_query.edit_message_text.assert_called_once()
+    text = cb_query.edit_message_text.call_args[0][0]
+    assert "How to add a Maintainer" in text
+    assert "What if their account is hidden?" in text
+
+
+

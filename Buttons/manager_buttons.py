@@ -562,7 +562,8 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
                     callback_data=f"manager_select_maintainer-{maintainer_chat_id}"
                 )
             ])
-        # Adding Back button
+        # Adding Add Maintainer and Back buttons
+        button.append([InlineKeyboardButton("➕ Add Maintainer", callback_data="manager_add_maintainer_info")])
         button.append([InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")])
         # Create an inline keyboard markup
         maintainers_button = InlineKeyboardMarkup(inline_keyboard=button)
@@ -572,6 +573,31 @@ TOTAL USERS (PAST 24 HR'S)  : {total_count}
             "Maintainers : ",
             reply_markup = maintainers_button
         )
+    elif callback_query.data == "manager_add_maintainer_info":
+        chat_id = callback_query.message.chat.id
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+
+        body = (
+            "ℹ️ **How to add a Maintainer:**\n\n"
+            "1. **Forward a message:** Forward any message from the user directly to this chat.\n"
+            "2. **Use Username:** Send `/add_maintainer @username [name]`\n"
+            "3. **Use Chat ID:** Send `/add_maintainer <chat_id> [name]`\n"
+            "4. **Reply to message:** Reply to any message from the user with `/add_maintainer`\n\n"
+            "⚠️ **What if their account is hidden?**\n"
+            "If the user has Telegram privacy set to hidden, forwarded messages do not carry their user ID. "
+            "Ask them to send `/start` to this bot to retrieve their numeric Chat ID, then run:\n"
+            "`/add_maintainer <chat_id> [name]`"
+        )
+        if is_traditional:
+            info_text = f"**ADD MAINTAINER GUIDE**\n\n{body}"
+        else:
+            info_text = f"```ADD MAINTAINER\n⫷\n\n{body}\n\n⫸\n```"
+
+        back_button = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton("Back", callback_data="manager_maintainers")]]
+        )
+        await callback_query.edit_message_text(info_text, reply_markup=back_button)
     elif "manager_select_maintainer" in callback_query.data:
         chat_id = callback_query.data.split("-")[1] # Get the chat id from the callback query
         maintainer_name = await managers_handler.fetch_name(chat_id) # Fetching the name of the manager

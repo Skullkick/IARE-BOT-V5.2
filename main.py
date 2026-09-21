@@ -264,12 +264,28 @@ async def add_maintainer(bot, message):
     except Exception as e:
         logging.error("Error in 'add_maintainer' command: %s", e)
 
-@bot.on_message(filters.private & filters.forwarded & ~filters.command(commands="add_maintainer"))
+@bot.on_message(filters.private & (filters.forwarded | filters.contact) & ~filters.command(commands="add_maintainer"))
 async def forwarded_message_from_admin(bot, message):
-    """Handle forwarded messages sent by an admin in private chat to initiate maintainer verification."""
+    """Handle forwarded messages and contacts sent by an admin/maintainer in private chat to initiate maintainer verification."""
     try:
+        chat_id = message.chat.id
+        caller_id = chat_id
+        if getattr(message, "from_user", None) and getattr(message.from_user, "id", None) and isinstance(message.from_user.id, int):
+            caller_id = message.from_user.id
+
         admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
-        if message.chat.id in admin_chat_ids:
+        maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+
+        is_admin = (chat_id in admin_chat_ids) or (caller_id in admin_chat_ids)
+        is_authorized_maintainer = False
+        for mid in (caller_id, chat_id):
+            if mid in maintainer_chat_ids:
+                access_data = await managers_handler.get_access_data(mid)
+                if access_data and len(access_data) > 8 and access_data[8] == 1:
+                    is_authorized_maintainer = True
+                    break
+
+        if is_admin or is_authorized_maintainer:
             # If admin is in the middle of a lab upload flow, let lab title handler take precedence
             try:
                 status = await tdatabase.fetch_title_status(message.chat.id)

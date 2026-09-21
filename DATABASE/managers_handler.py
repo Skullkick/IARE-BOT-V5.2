@@ -260,7 +260,7 @@ async def fetch_admin_chat_ids():
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT chat_id FROM bot_managers WHERE admin = ?",(1,))
-            admin_chat_ids = [row[0] for row in cursor.fetchall()]
+            admin_chat_ids = [int(row[0]) for row in cursor.fetchall() if str(row[0]).lstrip("-").isdigit()]
             return admin_chat_ids
     except sqlite3.OperationalError:
         await create_required_bot_manager_tables()
@@ -272,7 +272,7 @@ async def fetch_maintainer_chat_ids():
         with sqlite3.connect(MANAGERS_DATABASE) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT chat_id FROM bot_managers WHERE maintainer = ?",(1,))
-            maintainer_chat_ids = [row[0] for row in cursor.fetchall()]
+            maintainer_chat_ids = [int(row[0]) for row in cursor.fetchall() if str(row[0]).lstrip("-").isdigit()]
             return maintainer_chat_ids
     except sqlite3.OperationalError:
         await create_required_bot_manager_tables()

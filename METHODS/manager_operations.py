@@ -223,16 +223,42 @@ async def add_maintainer(bot,message,maintainer_chat_id,maintainer_name):
 
 async def verification_to_add_maintainer(bot,message):
     """
-    Retrieve user details from a forwarded message, replied message, or command arguments,
+    Retrieve user details from a forwarded message, shared contact, replied message, or command arguments,
     and prompt the admin with a confirmation inline keyboard to add them as a maintainer.
+    If the target user account is hidden, sends an explicit message explaining it is hidden with recovery steps.
 
     :param bot: Pyrogram client
     :param message: Message sent by the admin
     """
-    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     chat_id = message.chat.id
-    if chat_id not in admin_chat_ids:
+    caller_id = chat_id
+    if getattr(message, "from_user", None) and getattr(message.from_user, "id", None) and isinstance(message.from_user.id, int):
+        caller_id = message.from_user.id
+
+    admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+    maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+
+    is_admin = (chat_id in admin_chat_ids) or (caller_id in admin_chat_ids)
+    is_authorized_maintainer = False
+    for mid in (caller_id, chat_id):
+        if mid in maintainer_chat_ids:
+            access_data = await managers_handler.get_access_data(mid)
+            if access_data and len(access_data) > 8 and access_data[8] == 1:
+                is_authorized_maintainer = True
+                break
+
+    if not (is_admin or is_authorized_maintainer):
         return
+
+    # Check UI mode preference
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    is_traditional = bool(ui_mode and ui_mode[0] == 1)
+
+    def _format_msg(title: str, body: str) -> str:
+        if is_traditional:
+            return f"**{title}**\n\n{body}"
+        else:
+            return f"```{title}\n⫷\n\n{body}\n\n⫸\n```"
 
     maintainer_chat_id = None
     maintainer_name = None
@@ -263,31 +289,57 @@ async def verification_to_add_maintainer(bot,message):
             maintainer_name = _extract_user_name(message.forward_from, maintainer_chat_id)
         elif getattr(message, "forward_sender_name", None):
             sender_name = message.forward_sender_name
-            await bot.send_message(
-                chat_id,
+            body = (
                 f"⚠️ The forwarded message is from **{sender_name}**, but their Telegram privacy settings hide their user ID on forwarded messages.\n\n"
+                f"Telegram does not provide user IDs for hidden accounts.\n\n"
                 f"To add them as a maintainer, please ask them for their Telegram Chat ID (they can find it by messaging this bot or @RawDataBot), then run:\n"
-                f"`/add_maintainer <chat_id>`"
+                f"`/add_maintainer <chat_id> {sender_name}`"
             )
+            await bot.send_message(chat_id, _format_msg("USER ACCOUNT HIDDEN", body))
             return
         elif getattr(message, "forward_from_chat", None):
             chat_title = getattr(message.forward_from_chat, "title", "channel/group")
-            await bot.send_message(
-                chat_id,
+            body = (
                 f"⚠️ The forwarded message is from a channel or group (**{chat_title}**), not an individual user.\n\n"
                 f"Please forward a message from the user's personal Telegram account, or run:\n"
                 f"`/add_maintainer <chat_id>`"
             )
+            await bot.send_message(chat_id, _format_msg("ADD MAINTAINER", body))
             return
         else:
-            await bot.send_message(
-                chat_id,
-                "⚠️ Could not retrieve user details from this forwarded message due to privacy settings.\n"
+            body = (
+                "⚠️ **User account is hidden!**\n\n"
+                "Could not retrieve user details from this forwarded message due to Telegram privacy settings.\n\n"
                 "Please ask the user for their Chat ID and run `/add_maintainer <chat_id>`."
             )
+            await bot.send_message(chat_id, _format_msg("USER ACCOUNT HIDDEN", body))
             return
 
-    # Check 2: Message is a reply to another message (/add_maintainer replied to a message)
+    # Check 2: Shared Contact card
+    elif getattr(message, "contact", None) and (
+        getattr(type(message.contact), "__name__", "") == "Contact"
+        or isinstance(getattr(message.contact, "user_id", None), int)
+        or (hasattr(message.contact, "phone_number") and not hasattr(message.contact, "_mock_return_value"))
+    ):
+        contact = message.contact
+        c_user_id = getattr(contact, "user_id", None)
+        c_first = getattr(contact, "first_name", "") if not hasattr(getattr(contact, "first_name", None), "_mock_return_value") else ""
+        c_last = getattr(contact, "last_name", "") if not hasattr(getattr(contact, "last_name", None), "_mock_return_value") else ""
+        c_name = f"{c_first or ''} {c_last or ''}".strip() or "User"
+        if isinstance(c_user_id, int) and c_user_id > 0:
+            maintainer_chat_id = c_user_id
+            maintainer_name = c_name
+        else:
+            body = (
+                f"⚠️ **User account is hidden!**\n\n"
+                f"The shared contact card for **{c_name}** has a hidden Telegram account (no Telegram user ID linked).\n\n"
+                f"Please ask them for their numeric Telegram Chat ID and run:\n"
+                f"`/add_maintainer <chat_id> {c_name}`"
+            )
+            await bot.send_message(chat_id, _format_msg("USER ACCOUNT HIDDEN", body))
+            return
+
+    # Check 3: Message is a reply to another message (/add_maintainer replied to a message)
     elif getattr(message, "reply_to_message", None):
         target = message.reply_to_message
         if getattr(target, "forward_from", None):
@@ -295,59 +347,87 @@ async def verification_to_add_maintainer(bot,message):
             maintainer_name = _extract_user_name(target.forward_from, maintainer_chat_id)
         elif getattr(target, "forward_sender_name", None):
             sender_name = target.forward_sender_name
-            await bot.send_message(
-                chat_id,
+            body = (
                 f"⚠️ The replied forwarded message is from **{sender_name}**, but their Telegram privacy settings hide their user ID.\n\n"
-                f"Please run `/add_maintainer <chat_id>` with their numeric Chat ID."
+                f"Telegram does not provide user IDs for hidden accounts.\n\n"
+                f"Please run `/add_maintainer <chat_id> {sender_name}` with their numeric Chat ID."
             )
+            await bot.send_message(chat_id, _format_msg("USER ACCOUNT HIDDEN", body))
             return
         elif getattr(target, "from_user", None):
             maintainer_chat_id = target.from_user.id
             maintainer_name = _extract_user_name(target.from_user, maintainer_chat_id)
-        else:
-            await bot.send_message(
-                chat_id,
-                "⚠️ Could not retrieve user details from the replied message.\n"
-                "Please run `/add_maintainer <chat_id>` directly."
+        elif getattr(target, "sender_chat", None):
+            chat_title = getattr(target.sender_chat, "title", "channel/group")
+            body = (
+                f"⚠️ The replied message is from a channel or anonymous admin (**{chat_title}**), not an individual user.\n\n"
+                f"Please run `/add_maintainer <chat_id>` with their numeric Chat ID."
             )
+            await bot.send_message(chat_id, _format_msg("ADD MAINTAINER", body))
+            return
+        else:
+            body = (
+                "⚠️ **User account is hidden!**\n\n"
+                "Could not retrieve user details from the replied message because the user's account is hidden.\n\n"
+                "Please ask them for their numeric Chat ID and run `/add_maintainer <chat_id>`."
+            )
+            await bot.send_message(chat_id, _format_msg("USER ACCOUNT HIDDEN", body))
             return
 
-    # Check 3: Command arguments (/add_maintainer <chat_id> [optional_name])
+    # Check 4: Command arguments (/add_maintainer <chat_id or @username> [optional_name])
     elif getattr(message, "text", None):
         tokens = message.text.strip().split()
         args = tokens[1:] if tokens and tokens[0].startswith("/") else tokens
         if args:
-            raw_id = args[0].strip()
-            try:
-                maintainer_chat_id = int(raw_id)
-            except ValueError:
-                await bot.send_message(
-                    chat_id,
-                    f"⚠️ Invalid Chat ID `{raw_id}`. Please provide a numeric Telegram Chat ID, e.g.:\n"
-                    f"`/add_maintainer 123456789`"
-                )
-                return
-
-            if len(args) > 1:
-                maintainer_name = " ".join(args[1:]).strip()
+            raw_arg = args[0].strip()
+            # 4a: Numeric Chat ID
+            if raw_arg.lstrip("-").isdigit():
+                maintainer_chat_id = int(raw_arg)
+                if len(args) > 1:
+                    maintainer_name = " ".join(args[1:]).strip()
+                else:
+                    maintainer_name = await get_username(bot, maintainer_chat_id)
+            # 4b: Username lookup
             else:
-                maintainer_name = await get_username(bot, maintainer_chat_id)
+                username_query = raw_arg if raw_arg.startswith("@") else f"@{raw_arg}"
+                try:
+                    user_obj = await bot.get_users(username_query)
+                    if user_obj and getattr(user_obj, "id", None):
+                        maintainer_chat_id = user_obj.id
+                        if len(args) > 1:
+                            maintainer_name = " ".join(args[1:]).strip()
+                        else:
+                            maintainer_name = _extract_user_name(user_obj, maintainer_chat_id)
+                    else:
+                        raise ValueError("User not resolved")
+                except Exception:
+                    body = (
+                        f"⚠️ **User account is hidden or cannot be resolved:** `{raw_arg}`\n\n"
+                        f"Telegram privacy settings prevent resolving this username or the user does not exist.\n\n"
+                        f"**How to add them:**\n"
+                        f"Ask the user for their numeric Telegram Chat ID (they can get it by sending `/start` to this bot or using @RawDataBot), then run:\n"
+                        f"`/add_maintainer <chat_id> [optional_name]`"
+                    )
+                    await bot.send_message(chat_id, _format_msg("USER ACCOUNT HIDDEN", body))
+                    return
         else:
             # /add_maintainer sent with no args, no reply, no forward
-            await bot.send_message(
-                chat_id,
+            body = (
                 "ℹ️ **How to add a maintainer:**\n\n"
                 "1. **Forward a message:** Forward any message from the user to this chat.\n"
-                "2. **Reply to a message:** Reply to any message from the user with `/add_maintainer`.\n"
-                "3. **Use Chat ID:** Send `/add_maintainer <chat_id> [optional_name]`\n\n"
-                "*(Users can get their Chat ID by sending `/start` or using @RawDataBot)*"
+                "2. **Use Username:** Send `/add_maintainer @username [name]`\n"
+                "3. **Use Chat ID:** Send `/add_maintainer <chat_id> [name]`\n"
+                "4. **Reply to a message:** Reply to their message with `/add_maintainer`\n\n"
+                "⚠️ **Note on Hidden Accounts:**\n"
+                "If the user has Telegram privacy set to hidden, forwarded messages do not carry their ID. Ask them to send `/start` to this bot to get their Chat ID, then use method 3."
             )
+            await bot.send_message(chat_id, _format_msg("ADD MAINTAINER", body))
             return
     else:
-        await bot.send_message(
-            chat_id,
-            "ℹ️ Please forward a message from the user, reply to their message with `/add_maintainer`, or use `/add_maintainer <chat_id>`."
+        body = (
+            "ℹ️ Please forward a message from the user, share their contact, reply to their message with `/add_maintainer`, or use `/add_maintainer <chat_id>`."
         )
+        await bot.send_message(chat_id, _format_msg("ADD MAINTAINER", body))
         return
 
     # If maintainer_chat_id was resolved, prompt admin
