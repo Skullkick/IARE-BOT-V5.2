@@ -346,6 +346,7 @@ async def main(bot):
             await operations.sync_databases(bot)
         else:
             logging.warning("PostgreSQL connection pool unavailable. Bot will operate using local SQLite storage.")
+            print("[INFO] PostgreSQL unreachable. Operating with local SQLite storage.")
         await user_settings.create_user_settings_tables()
         await managers_handler.create_required_bot_manager_tables()
         start_mcp_server_if_enabled()
