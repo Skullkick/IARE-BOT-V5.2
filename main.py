@@ -349,6 +349,9 @@ async def main(bot):
         await user_settings.create_user_settings_tables()
         await managers_handler.create_required_bot_manager_tables()
         start_mcp_server_if_enabled()
+        print("\n" + "=" * 60)
+        print(">>> IARE BOT is now ONLINE and ready to receive messages! <<<")
+        print("=" * 60 + "\n")
     except Exception as e:
         logging.error("Error in 'main' function: %s", e, exc_info=True)
 
