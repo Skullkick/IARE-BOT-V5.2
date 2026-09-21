@@ -19,7 +19,7 @@ import os
 from time import sleep
 # from DATABASE import tdatabase,pgdatabase
 import os
-from DATABASE import tdatabase
+from DATABASE import tdatabase, user_settings
 from Buttons import buttons
 from METHODS import lab_operations
 
@@ -37,8 +37,8 @@ async def download_pdf(bot, message,pdf_compress_scrape):
     Behavior:
     - Only proceeds when the chat's PDF status is set to receive (1).
     - Saves the file to `pdfs/C-<chat_id>.pdf` and reports status updates.
-    - Checks size against `allowable_size` (10MB by default, 125MB when
-      `pdf_compress_scrape` is True).
+    - Checks size against `allowable_size` (100MB by default, configurable via
+      `MAX_PDF_SIZE_MB`, or 125MB when `pdf_compress_scrape` is True).
     - If too large, deletes and asks the user to resend; otherwise clears the
       PDF status and triggers `initialize_lab_upload` to continue the flow.
 
@@ -49,10 +49,16 @@ async def download_pdf(bot, message,pdf_compress_scrape):
     """
     chat_id = message.chat.id
     download_folder = "pdfs"
+    max_limit = int(os.environ.get("MAX_PDF_SIZE_MB", 100))
     if pdf_compress_scrape is True:
-        allowable_size = 125
+        allowable_size = max(125, max_limit)
     else:
-        allowable_size = 10
+        allowable_size = max(100, max_limit)
+
+    # Fetch UI mode
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    is_traditional = bool(ui_mode and ui_mode[0] == 1)
+
     # Checks the Status
     status = await tdatabase.fetch_pdf_status(chat_id)
     # If the status is recieve then only it recieves the pdf.
@@ -66,14 +72,23 @@ async def download_pdf(bot, message,pdf_compress_scrape):
                 # If download_folder does not exist then it creates a directory
                 if not os.path.exists(download_folder):
                     os.makedirs(download_folder)
+
+                if is_traditional:
+                    receiving_msg = "**PDF STATUS**\n\n● **Status:** Receiving..."
+                else:
+                    receiving_msg = PDF_MESSAGE
+
                 # Message Receiving the PDF.
-                message_in_receive = await bot.send_message(chat_id,PDF_MESSAGE)
+                message_in_receive = await bot.send_message(chat_id, receiving_msg)
                 # Download the PDF file with progress callback
                 await message.download(
                     file_name=os.path.join(download_folder, f"C-{chat_id}.pdf"),
                 )
                 # Send a completion message
-                RECEIVED_PDF_MSG = f"""
+                if is_traditional:
+                    received_pdf_msg = "**PDF STATUS**\n\n● **Status:** Received.\n\n● **PDF Size:** Checking..."
+                else:
+                    received_pdf_msg = f"""
 ```PDF STATUS
 STATUS : Received.
 
@@ -81,11 +96,28 @@ PDF SIZE : Checking.
 ```
 """
                 # Message After Receiving the PDF.
-                message_after_recieve = await bot.edit_message_text(chat_id,message_in_receive.id, RECEIVED_PDF_MSG)
-                # check_pdf_size returns 2 values whether the pdf is above 10mb or not and size of pdf
-                check ,size = await check_pdf_size(chat_id,allowable_size)
+                message_after_recieve = await bot.edit_message_text(chat_id, message_in_receive.id, received_pdf_msg)
+                # check_pdf_size returns 2 values whether the pdf is above allowable_size or not and size of pdf
+                check, size = await check_pdf_size(chat_id, allowable_size)
                 if check is True:
-                    PDF_ABOVE_ALLOWED_SIZE_DELETED = f"""
+                    if is_traditional:
+                        pdf_above_allowed_size_deleted = (
+                            "**PDF STATUS**\n\n"
+                            "● **Status:** Received.\n"
+                            f"● **PDF Size:** {size} MB.\n\n"
+                            f"The PDF file exceeds the allowable size limit of {allowable_size}MB and has been deleted.\n\n"
+                            f"Please resend a PDF file that is under {allowable_size}MB."
+                        )
+                        pdf_above_allowed_size_error_delete = (
+                            "**PDF STATUS**\n\n"
+                            "● **Status:** Received.\n"
+                            f"● **PDF Size:** {size} MB.\n\n"
+                            f"The PDF file exceeds the allowable size limit of {allowable_size}MB.\n\n"
+                            "Error Deleting the PDF.\n\n"
+                            f"Please resend a PDF file that is under {allowable_size}MB."
+                        )
+                    else:
+                        pdf_above_allowed_size_deleted = f"""
 ```PDF STATUS
 STATUS : Received.
 
@@ -97,7 +129,7 @@ Please resend a PDF file that is under {allowable_size}MB.
 
 ```
 """
-                    PDF_ABOVE_ALLOWED_SIZE_ERROR_DELETE = f"""
+                        pdf_above_allowed_size_error_delete = f"""
 ```PDF STATUS
 STATUS : Received.
 
@@ -107,7 +139,7 @@ The PDF file exceeds the allowable size limit of {allowable_size}MB.
 
 Error Deleting the PDF.
 
-Please resend a PDF file that is under{allowable_size}MB.
+Please resend a PDF file that is under {allowable_size}MB.
 
 ```
 """
@@ -115,15 +147,22 @@ Please resend a PDF file that is under{allowable_size}MB.
                         await bot.edit_message_text(
                             chat_id,
                             message_after_recieve.id,
-                            PDF_ABOVE_ALLOWED_SIZE_DELETED)
+                            pdf_above_allowed_size_deleted)
                     else:
                         await bot.edit_message_text(
                             chat_id,
                             message_after_recieve.id,
-                            PDF_ABOVE_ALLOWED_SIZE_ERROR_DELETE)
+                            pdf_above_allowed_size_error_delete)
                     
                 else:
-                    LESS_THAN_ALLOWED_SIZE = f"""
+                    if is_traditional:
+                        less_than_allowed_size = (
+                            "**PDF STATUS**\n\n"
+                            "● **Status:** Received.\n"
+                            f"● **PDF Size:** {size} MB."
+                        )
+                    else:
+                        less_than_allowed_size = f"""
 ```PDF STATUS
 STATUS : Received.
 
@@ -133,7 +172,7 @@ PDF SIZE : {size} MB.
 """
                     # Remove the Status of pdf.
                     await tdatabase.delete_pdf_status_info(chat_id)   
-                    await bot.edit_message_text(chat_id,message_after_recieve.id,LESS_THAN_ALLOWED_SIZE)
+                    await bot.edit_message_text(chat_id,message_after_recieve.id,less_than_allowed_size)
                     await initialize_lab_upload(bot,message)
             else:
                 await bot.send_message(chat_id, "This File type is not supported.")

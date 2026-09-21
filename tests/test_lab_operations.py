@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 from bs4 import BeautifulSoup
 from METHODS import lab_operations
 from DATABASE import user_settings, tdatabase
@@ -179,4 +180,67 @@ async def test_lab_confirmation_callbacks(mock_bot, monkeypatch):
     status = await tdatabase.fetch_pdf_status(chat_id)
     assert status is None  # Status cleared
     assert mock_cb.edit_message_text.called
+
+
+async def test_download_pdf_under_100mb_accepted(mock_bot, mock_message, monkeypatch):
+    """Verify that a 50MB PDF is accepted under the new 100MB limit."""
+    from METHODS import labs_handler
+    chat_id = mock_message.chat.id
+    await tdatabase.create_all_tdatabase_tables()
+    await user_settings.create_user_settings_tables()
+    await tdatabase.store_pdf_status(chat_id, 1)
+
+    mock_doc = MagicMock()
+    mock_doc.mime_type = "application/pdf"
+    mock_message.document = mock_doc
+    mock_message.download = AsyncMock()
+
+    # 50 MB file check
+    monkeypatch.setattr(labs_handler, "check_pdf_size", AsyncMock(return_value=(False, 50.0)))
+    init_called = False
+
+    async def mock_init(bot, msg):
+        nonlocal init_called
+        init_called = True
+
+    monkeypatch.setattr(labs_handler, "initialize_lab_upload", mock_init)
+
+    await labs_handler.download_pdf(mock_bot, mock_message, pdf_compress_scrape=False)
+    assert init_called is True
+    # Verify PDF status cleared
+    status = await tdatabase.fetch_pdf_status(chat_id)
+    assert status is None
+
+
+async def test_download_pdf_above_100mb_rejected(mock_bot, mock_message, monkeypatch):
+    """Verify that a 105MB PDF exceeds the 100MB limit and is rejected/deleted."""
+    from METHODS import labs_handler
+    chat_id = mock_message.chat.id
+    await tdatabase.create_all_tdatabase_tables()
+    await user_settings.create_user_settings_tables()
+    await tdatabase.store_pdf_status(chat_id, 1)
+
+    mock_doc = MagicMock()
+    mock_doc.mime_type = "application/pdf"
+    mock_message.document = mock_doc
+    mock_message.download = AsyncMock()
+
+    # 105 MB file check
+    monkeypatch.setattr(labs_handler, "check_pdf_size", AsyncMock(return_value=(True, 105.0)))
+    removed_called = False
+
+    async def mock_remove(bot, cid):
+        nonlocal removed_called
+        removed_called = True
+        return True
+
+    monkeypatch.setattr(labs_handler, "remove_pdf_file", mock_remove)
+
+    await labs_handler.download_pdf(mock_bot, mock_message, pdf_compress_scrape=False)
+    assert removed_called is True
+    # Last edit_message_text contains the rejection notice mentioning 100MB
+    last_edit = mock_bot.edit_message_text.call_args[0][2]
+    assert "100MB" in last_edit
+    assert "105.0 MB" in last_edit
+
 
