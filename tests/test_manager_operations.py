@@ -274,3 +274,60 @@ async def test_start_add_maintainer_button_limits_callback_data():
     assert yes_btn.callback_data.endswith("-9876543210")
 
 
+async def test_get_server_stats_updated_ui(monkeypatch):
+    """Verify get_server_stats returns updated UI formatted code block with stats."""
+    import psutil
+
+    stats_str = await manager_operations.get_server_stats(traditional_ui=False)
+    assert "```SERVER STATS" in stats_str
+    assert "⫷" in stats_str
+    assert "CPU" in stats_str
+    assert "Memory" in stats_str
+    assert "Bot RAM" in stats_str
+    assert "Disk" in stats_str
+    assert "Network" in stats_str
+    assert "Uptime" in stats_str
+    assert "⫸" in stats_str
+
+
+async def test_get_server_stats_traditional_ui():
+    """Verify get_server_stats returns traditional UI bold markdown formatted stats."""
+    stats_str = await manager_operations.get_server_stats(traditional_ui=True)
+    assert "**SERVER STATS**" in stats_str
+    assert "```" not in stats_str
+    assert "● **CPU:**" in stats_str
+    assert "● **Memory:**" in stats_str
+    assert "● **Bot RAM:**" in stats_str
+    assert "● **Disk:**" in stats_str
+    assert "● **Network:**" in stats_str
+    assert "● **Uptime:**" in stats_str
+
+
+async def test_get_server_stats_docker_none_cpu_freq(monkeypatch):
+    """Verify get_server_stats handles psutil.cpu_freq() returning None in Docker / Coolify."""
+    import psutil
+    monkeypatch.setattr(psutil, "cpu_freq", lambda: None)
+
+    # Should not raise AttributeError: 'NoneType' object has no attribute 'current'
+    stats_updated = await manager_operations.get_server_stats(traditional_ui=False)
+    assert "```SERVER STATS" in stats_updated
+    assert "CPU" in stats_updated
+    assert "MHz" not in stats_updated
+
+    stats_trad = await manager_operations.get_server_stats(traditional_ui=True)
+    assert "**SERVER STATS**" in stats_trad
+    assert "● **CPU:**" in stats_trad
+
+
+async def test_get_server_stats_resilience_to_psutil_exceptions(monkeypatch):
+    """Verify get_server_stats gracefully handles network or disk metric exceptions."""
+    import psutil
+    monkeypatch.setattr(psutil, "net_io_counters", lambda: None)
+    monkeypatch.setattr(psutil, "disk_usage", MagicMock(side_effect=Exception("Disk access denied")))
+
+    stats_str = await manager_operations.get_server_stats(traditional_ui=True)
+    assert "**SERVER STATS**" in stats_str
+    assert "● **Disk:** N/A" in stats_str
+    assert "● **Network:** N/A" in stats_str
+
+

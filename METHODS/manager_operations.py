@@ -918,38 +918,112 @@ async def silent_logout(chat_id):
         await async_logout_portal(session_data.get('cookies'))
     await tdatabase.delete_user_session(chat_id)
 
-async def get_server_stats():
-    """Return a human-readable summary of CPU, memory, disk, and network stats.
+async def get_server_stats(traditional_ui: bool = False) -> str:
+    """Return a human-readable summary of CPU, memory, disk, network, and process stats.
 
-    Uses `psutil` metrics and formats them for quick diagnostic messages.
+    Uses `psutil` metrics safely (handling environments like Docker/Coolify where
+    cpu_freq or specific paths may return None) and formats them for the bot's UI mode.
     """
-    try:# CPU stats
-        cpu_percent = psutil.cpu_percent(interval=1)
-        cpu_freq = psutil.cpu_freq().current
+    try:
+        # Non-blocking CPU measurement
+        try:
+            cpu_percent = psutil.cpu_percent(interval=None)
+        except Exception:
+            cpu_percent = 0.0
+
+        cpu_count = psutil.cpu_count(logical=True) or 1
+
+        # CPU frequency (may be None in Docker/LXC/VM environments)
+        cpu_freq_str = ""
+        try:
+            freq = psutil.cpu_freq()
+            if freq and getattr(freq, "current", None):
+                cpu_freq_str = f" ({freq.current:.0f} MHz)"
+        except Exception:
+            pass
 
         # Memory stats
-        mem = psutil.virtual_memory()
-        mem_used = mem.used / (1024 * 1024)  # Convert bytes to MB
-        mem_total = mem.total / (1024 * 1024)  # Convert bytes to MB
+        try:
+            mem = psutil.virtual_memory()
+            mem_used = mem.used / (1024 * 1024)
+            mem_total = mem.total / (1024 * 1024)
+            mem_percent = mem.percent
+        except Exception:
+            mem_used, mem_total, mem_percent = 0.0, 0.0, 0.0
 
-        # Disk stats
-        disk = psutil.disk_usage('/')
-        disk_percent = disk.percent
+        # Bot process memory
+        process_mem_str = "N/A"
+        try:
+            process = psutil.Process()
+            proc_mb = process.memory_info().rss / (1024 * 1024)
+            process_mem_str = f"{proc_mb:.1f} MB"
+        except Exception:
+            pass
+
+        # Disk stats (cross-platform safe)
+        disk_str = "N/A"
+        for disk_path in ['/', '.', os.path.abspath(os.sep)]:
+            try:
+                disk = psutil.disk_usage(disk_path)
+                disk_used_gb = disk.used / (1024 * 1024 * 1024)
+                disk_total_gb = disk.total / (1024 * 1024 * 1024)
+                disk_str = f"{disk.percent}% ({disk_used_gb:.1f} GB / {disk_total_gb:.1f} GB)"
+                break
+            except Exception:
+                continue
 
         # Network stats
-        net = psutil.net_io_counters()
-        bytes_sent = net.bytes_sent / (1024 * 1024)  # Convert bytes to MB
-        bytes_recv = net.bytes_recv / (1024 * 1024)  # Convert bytes to MB
+        net_str = "N/A"
+        try:
+            net = psutil.net_io_counters()
+            if net:
+                bytes_sent = net.bytes_sent / (1024 * 1024)
+                bytes_recv = net.bytes_recv / (1024 * 1024)
+                net_str = f"Sent: {bytes_sent:.1f} MB | Recv: {bytes_recv:.1f} MB"
+        except Exception:
+            pass
 
-        # Construct message
-        message = f"CPU: {cpu_percent}% ({cpu_freq} MHz)\n\n"
-        message += f"Memory: {mem_used:.2f} MB / {mem_total:.2f} MB\n\n"
-        message += f"Disk: {disk_percent}%\n\n"
-        message += f"Network: Sent {bytes_sent:.2f} MB, Received {bytes_recv:.2f} MB"
+        # System Uptime
+        uptime_str = "N/A"
+        try:
+            import time
+            boot_time = psutil.boot_time()
+            uptime_seconds = int(time.time() - boot_time)
+            uptime_days = uptime_seconds // 86400
+            uptime_hours = (uptime_seconds % 86400) // 3600
+            uptime_mins = (uptime_seconds % 3600) // 60
+            uptime_str = f"{uptime_days}d {uptime_hours}h {uptime_mins}m"
+        except Exception:
+            pass
 
-        return message
+        if traditional_ui:
+            return (
+                "**SERVER STATS**\n\n"
+                f"● **CPU:** {cpu_percent}%{cpu_freq_str} ({cpu_count} cores)\n"
+                f"● **Memory:** {mem_used:.1f} MB / {mem_total:.1f} MB ({mem_percent}%)\n"
+                f"● **Bot RAM:** {process_mem_str}\n"
+                f"● **Disk:** {disk_str}\n"
+                f"● **Network:** {net_str}\n"
+                f"● **Uptime:** {uptime_str}"
+            )
+        else:
+            return (
+                "```SERVER STATS\n"
+                "⫷\n\n"
+                f"● CPU          -  {cpu_percent}%{cpu_freq_str} ({cpu_count} cores)\n"
+                f"● Memory       -  {mem_used:.1f} MB / {mem_total:.1f} MB ({mem_percent}%)\n"
+                f"● Bot RAM      -  {process_mem_str}\n"
+                f"● Disk         -  {disk_str}\n"
+                f"● Network      -  {net_str}\n"
+                f"● Uptime       -  {uptime_str}\n\n"
+                "⫸\n"
+                "```"
+            )
     except Exception as e:
-        return f"Error : {e}"
+        if traditional_ui:
+            return f"**SERVER STATS**\n\n**Error:** {e}"
+        else:
+            return f"```SERVER STATS\nError: {e}\n```"
 
 async def backup_all_credentials_and_settings(bot,message):
     """Create and send a SQLite backup of user credentials and settings.

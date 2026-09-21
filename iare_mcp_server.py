@@ -269,13 +269,20 @@ async def get_system_health() -> Dict[str, Any]:
     try:
         cpu_pct = psutil.cpu_percent(interval=0.2)
         mem = psutil.virtual_memory()
-        disk = psutil.disk_usage("/")
+        disk_pct = 0.0
+        for disk_path in ["/", ".", os.path.abspath(os.sep)]:
+            try:
+                disk = psutil.disk_usage(disk_path)
+                disk_pct = round(disk.percent, 1)
+                break
+            except Exception:
+                continue
         return {
             "cpu_percent": round(cpu_pct, 1),
             "memory_used_mb": round(mem.used / (1024 * 1024), 1),
             "memory_total_mb": round(mem.total / (1024 * 1024), 1),
             "memory_percent": round(mem.percent, 1),
-            "disk_percent": round(disk.percent, 1)
+            "disk_percent": disk_pct
         }
     except Exception as exc:
         return {"error": str(exc)}

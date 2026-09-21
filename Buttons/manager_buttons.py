@@ -1701,17 +1701,17 @@ Hope Tracker helped you to track the latest CIE marks
             reply_markup = CIE_STOPPED_TRACKER_BUTTON
         )
     elif callback_query.data == "manager_server_stats":
-        SERVER_STATS_MESSAGE = f"""
-```SERVER STATS
-{await manager_operations.get_server_stats()}
-```"""
+        chat_id = callback_query.message.chat.id
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        stats_message = await manager_operations.get_server_stats(traditional_ui=is_traditional)
         BACK_BUTTON = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("Back",callback_data="manager_back_to_admin_operations")]
             ]
         )
         await callback_query.edit_message_text(
-            SERVER_STATS_MESSAGE,
+            stats_message,
             reply_markup = BACK_BUTTON
         )
     elif callback_query.data == "manager_sync_databases":

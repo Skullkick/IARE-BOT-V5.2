@@ -218,6 +218,21 @@ async def maintainer_buttons(bot,message):
         await manager_buttons.start_maintainer_button(bot, message)
     except Exception as e:
         logging.error("Error in 'maintainer' command: %s", e)
+
+@bot.on_message(filters.command(commands=["stats", "server_stats", "serverstats"]))
+async def server_stats_command(bot, message):
+    """Handle /stats and /server_stats commands for admins and maintainers."""
+    chat_id = message.chat.id
+    try:
+        admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+        maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+        if chat_id in admin_chat_ids or chat_id in maintainer_chat_ids:
+            ui_mode = await user_settings.fetch_ui_bool(chat_id)
+            is_traditional = bool(ui_mode and ui_mode[0] == 1)
+            stats_text = await manager_operations.get_server_stats(traditional_ui=is_traditional)
+            await message.reply_text(stats_text)
+    except Exception as e:
+        logging.error("Error in 'stats' command: %s", e)
 @bot.on_message(filters.command(commands="ban"))
 async def ban_username(bot,message):
     """Handle /ban command to ban a username/user id."""
