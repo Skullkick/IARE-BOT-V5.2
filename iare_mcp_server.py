@@ -583,7 +583,8 @@ def main():
         import uvicorn
         import anyio
         host = os.environ.get("MCP_HOST", "0.0.0.0").strip()
-        port = int(os.environ.get("MCP_PORT", "8000"))
+        raw_port = os.environ.get("MCP_PORT") or os.environ.get("PORT") or "8000"
+        port = int(raw_port)
         logger.info("Starting IARE-BOT MCP Server over SSE on %s:%d (Protected: %s)...", 
                     host, port, bool(password))
         app = get_sse_app_with_auth(host=host, password=password)

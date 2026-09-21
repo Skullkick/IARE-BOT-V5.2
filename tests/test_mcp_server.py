@@ -557,3 +557,41 @@ def test_mcp_auth_middleware_disabled_when_no_password():
     # Without any password, request reaches the handler and does not return 401
     r = client.post("/messages?session_id=s1", json={"test": 1})
     assert r.status_code != 401
+
+
+def test_dynamic_port_resolution(monkeypatch):
+    """Verify that port resolution prioritizes MCP_PORT, falls back to PORT, and defaults to 8000."""
+    from unittest.mock import patch
+
+    captured_ports = []
+
+    def fake_config(app, host, port, log_level):
+        captured_ports.append(port)
+        return MagicMock()
+
+    # Case 1: Default when neither is set -> 8000
+    monkeypatch.delenv("MCP_PORT", raising=False)
+    monkeypatch.delenv("PORT", raising=False)
+    monkeypatch.setenv("MCP_TRANSPORT", "sse")
+
+    with patch("uvicorn.Config", side_effect=fake_config), \
+         patch("uvicorn.Server", return_value=MagicMock()), \
+         patch("anyio.run"):
+        iare_mcp_server.main()
+    assert captured_ports[-1] == 8000
+
+    # Case 2: Standard hosting PORT set (e.g. Coolify / Heroku) -> 3000
+    monkeypatch.setenv("PORT", "3000")
+    with patch("uvicorn.Config", side_effect=fake_config), \
+         patch("uvicorn.Server", return_value=MagicMock()), \
+         patch("anyio.run"):
+        iare_mcp_server.main()
+    assert captured_ports[-1] == 3000
+
+    # Case 3: Specific MCP_PORT takes precedence over PORT -> 9090
+    monkeypatch.setenv("MCP_PORT", "9090")
+    with patch("uvicorn.Config", side_effect=fake_config), \
+         patch("uvicorn.Server", return_value=MagicMock()), \
+         patch("anyio.run"):
+        iare_mcp_server.main()
+    assert captured_ports[-1] == 9090
