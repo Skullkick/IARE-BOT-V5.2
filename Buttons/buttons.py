@@ -29,7 +29,7 @@ USER_BUTTONS = InlineKeyboardMarkup(
         [InlineKeyboardButton("Biometric", callback_data="biometric"),InlineKeyboardButton("Logout", callback_data="logout")],
         [InlineKeyboardButton("Labs Records",callback_data="lab_record_subject")],
         [InlineKeyboardButton("Student Info",callback_data="student_info")],
-        [InlineKeyboardButton("Saved Username", callback_data="saved_username"), InlineKeyboardButton("User Guide", callback_data="help_menu")]
+        [InlineKeyboardButton("Saved Username", callback_data="saved_username")]
     ]
 )
 
