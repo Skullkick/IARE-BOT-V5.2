@@ -23,8 +23,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
-# Expose port for optional MCP server (when ENABLE_MCP_SERVER=true with SSE transport)
-EXPOSE 8000
+# Expose default HTTP healthcheck port and MCP server port
+EXPOSE 3000 8000
+
+# Docker native container healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD python -c "import urllib.request, os; port = os.environ.get('PORT', '3000'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health')" || exit 1
 
 # Start the Telegram bot
 CMD ["python", "main.py"]

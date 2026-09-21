@@ -330,7 +330,46 @@ def stop_mcp_server():
             _MCP_PROCESS.kill()
         _MCP_PROCESS = None
 
-atexit.register(stop_mcp_server)
+_HEALTHCHECK_SERVER = None
+
+async def start_healthcheck_server(port: int = 3000):
+    """Start an async HTTP health check server for Docker, Coolify, and container health checks."""
+    global _HEALTHCHECK_SERVER
+
+    async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        try:
+            request_line = await reader.readline()
+            while True:
+                line = await reader.readline()
+                if not line or line in (b"\r\n", b"\n"):
+                    break
+
+            body = b'{"status":"healthy","service":"IARE-BOT"}\n'
+            response = (
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Content-Length: " + str(len(body)).encode("ascii") + b"\r\n"
+                b"Connection: close\r\n"
+                b"\r\n" + body
+            )
+            writer.write(response)
+            await writer.drain()
+        except Exception:
+            pass
+        finally:
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+
+    try:
+        _HEALTHCHECK_SERVER = await asyncio.start_server(handle_client, "0.0.0.0", port)
+        print(f"[INFO] HTTP Healthcheck server listening on port {port} (status: 200 OK)")
+        return _HEALTHCHECK_SERVER
+    except Exception as exc:
+        logging.warning("Could not start HTTP healthcheck server on port %d: %s", port, exc)
+        return None
 
 async def main(bot):
     """Application bootstrap.
@@ -353,7 +392,18 @@ async def main(bot):
             logging.warning("PostgreSQL connection pool unavailable. Bot will operate using local SQLite storage.")
             print("[INFO] PostgreSQL unreachable. Operating with local SQLite storage.")
 
+        # 3. Start background services & HTTP healthcheck server
         start_mcp_server_if_enabled()
+
+        port_val = os.environ.get("PORT") or os.environ.get("HEALTHCHECK_PORT")
+        if port_val and port_val.isdigit():
+            port_num = int(port_val)
+            mcp_enabled = os.environ.get("ENABLE_MCP_SERVER", "").strip().lower() in ("1", "true", "yes", "on")
+            mcp_transport = os.environ.get("MCP_TRANSPORT", "").strip().lower()
+            mcp_port = int(os.environ.get("MCP_PORT") or os.environ.get("PORT") or "8000")
+            if not (mcp_enabled and mcp_transport == "sse" and mcp_port == port_num):
+                await start_healthcheck_server(port_num)
+
         print("\n" + "=" * 60)
         print(">>> IARE BOT is now ONLINE and ready to receive messages! <<<")
         print("=" * 60 + "\n")

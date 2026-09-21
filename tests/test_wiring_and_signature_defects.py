@@ -103,4 +103,28 @@ async def test_forwarded_message_from_admin_invokes_verification(monkeypatch):
     manager_operations.verification_to_add_maintainer.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_start_healthcheck_server():
+    """Verify start_healthcheck_server starts an HTTP server responding 200 OK."""
+    import main
+    import httpx
+
+    # Bind to random available high port
+    server = await main.start_healthcheck_server(port=0)
+    assert server is not None
+    # Extract bound port
+    bound_port = server.sockets[0].getsockname()[1]
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"http://127.0.0.1:{bound_port}/health")
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "healthy"
+            assert data["service"] == "IARE-BOT"
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
 

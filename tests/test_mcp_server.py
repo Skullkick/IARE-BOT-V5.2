@@ -526,6 +526,12 @@ def test_mcp_auth_middleware_rejected_when_password_required():
     r4 = client.get("/sse", headers={"X-MCP-Password": "wrong_token"})
     assert r4.status_code == 401
 
+    # 5. Unauthenticated health checks bypass auth
+    for health_path in ("/", "/health", "/healthz", "/ping"):
+        r_health = client.get(health_path)
+        assert r_health.status_code == 200
+        assert r_health.json()["status"] == "healthy"
+
 
 def test_mcp_auth_middleware_accepted_when_password_valid():
     """Verify requests with valid password pass the authentication middleware."""

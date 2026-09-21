@@ -549,6 +549,11 @@ class MCPAuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
+        # Allow health checks without authentication
+        if request.url.path in ("/", "/health", "/healthz", "/ping"):
+            from starlette.responses import JSONResponse
+            return JSONResponse({"status": "healthy", "service": "iare-mcp-server"})
+
         auth_header = request.headers.get("authorization", "")
         bearer = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
         custom_header = request.headers.get("x-mcp-password") or request.headers.get("x-api-key")
