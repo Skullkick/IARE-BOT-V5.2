@@ -256,27 +256,40 @@ async def store_as_maintainer(name,chat_id):
 
 async def fetch_admin_chat_ids():
     """Return list of chat_ids where `admin=1`."""
-    with sqlite3.connect(MANAGERS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT chat_id FROM bot_managers WHERE admin = ?",(1,))
-        admin_chat_ids = [row[0] for row in cursor.fetchall()]
-        return admin_chat_ids
+    try:
+        with sqlite3.connect(MANAGERS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT chat_id FROM bot_managers WHERE admin = ?",(1,))
+            admin_chat_ids = [row[0] for row in cursor.fetchall()]
+            return admin_chat_ids
+    except sqlite3.OperationalError:
+        await create_required_bot_manager_tables()
+        return []
 
 async def fetch_maintainer_chat_ids():
     """Return list of chat_ids where `maintainer=1`."""
-    with sqlite3.connect(MANAGERS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT chat_id FROM bot_managers WHERE maintainer = ?",(1,))
-        maintainer_chat_ids = [row[0] for row in cursor.fetchall()]
-        return maintainer_chat_ids
+    try:
+        with sqlite3.connect(MANAGERS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT chat_id FROM bot_managers WHERE maintainer = ?",(1,))
+            maintainer_chat_ids = [row[0] for row in cursor.fetchall()]
+            return maintainer_chat_ids
+    except sqlite3.OperationalError:
+        await create_required_bot_manager_tables()
+        return []
+
 async def fetch_name(chat_id):
     """Return manager name for `chat_id`, or None if not found."""
-    with sqlite3.connect(MANAGERS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM bot_managers WHERE chat_id = ?",(chat_id,))
-        name = cursor.fetchone()
-        if name is not None:
-            return name[0]
+    try:
+        with sqlite3.connect(MANAGERS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM bot_managers WHERE chat_id = ?",(chat_id,))
+            name = cursor.fetchone()
+            if name is not None:
+                return name[0]
+    except sqlite3.OperationalError:
+        await create_required_bot_manager_tables()
+        return None
 
 async def store_name(chat_id,name):
     """Update the `name` for a manager identified by `chat_id`."""

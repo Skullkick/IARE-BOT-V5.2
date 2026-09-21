@@ -339,16 +339,20 @@ async def main(bot):
     between them on startup.
     """
     try:
-        pg_pool = await pgdatabase.init_pg_pool()
+        # 1. Initialize all local SQLite databases first
         await tdatabase.create_all_tdatabase_tables()
+        await user_settings.create_user_settings_tables()
+        await managers_handler.create_required_bot_manager_tables()
+
+        # 2. Connect to PostgreSQL and synchronize if available
+        pg_pool = await pgdatabase.init_pg_pool()
         if pg_pool is not None:
             await pgdatabase.create_all_pgdatabase_tables()
             await operations.sync_databases(bot)
         else:
             logging.warning("PostgreSQL connection pool unavailable. Bot will operate using local SQLite storage.")
             print("[INFO] PostgreSQL unreachable. Operating with local SQLite storage.")
-        await user_settings.create_user_settings_tables()
-        await managers_handler.create_required_bot_manager_tables()
+
         start_mcp_server_if_enabled()
         print("\n" + "=" * 60)
         print(">>> IARE BOT is now ONLINE and ready to receive messages! <<<")
