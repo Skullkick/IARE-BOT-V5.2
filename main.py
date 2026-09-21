@@ -12,28 +12,44 @@ Environment variables required:
 Run: Executed directly, it schedules `main()` and calls `bot.run()`.
 """
 
-from pyrogram import Client, filters,errors
-import asyncio, os, sys, subprocess, atexit
-from DATABASE import tdatabase,pgdatabase,user_settings,managers_handler
-from METHODS import labs_handler, operations,manager_operations,lab_operations,pdf_compressor
-from Buttons import buttons,manager_buttons
+import asyncio, os, sys, subprocess, atexit, time, logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env if present
+load_dotenv()
+
+from pyrogram import Client, filters, errors
 from pyrogram.errors import FloodWait
-import time,logging
-BOT_TOKEN = os.environ.get("BOT_TOKEN")  # Bot token
-API_ID = os.environ.get("API_ID")  # API ID
-API_HASH = os.environ.get("API_HASH")  # API Hash
+from DATABASE import tdatabase, pgdatabase, user_settings, managers_handler
+from METHODS import labs_handler, operations, manager_operations, lab_operations, pdf_compressor
+from Buttons import buttons, manager_buttons
+
+def _clean_env(val):
+    if val is None:
+        return None
+    cleaned = str(val).strip().strip('"').strip("'")
+    return cleaned if cleaned else None
+
+BOT_TOKEN = _clean_env(os.environ.get("BOT_TOKEN"))
+API_ID_RAW = _clean_env(os.environ.get("API_ID"))
+API_HASH = _clean_env(os.environ.get("API_HASH"))
+API_ID = int(API_ID_RAW) if (API_ID_RAW and API_ID_RAW.isdigit()) else API_ID_RAW
+
 bot = Client(
-        "IARE BOT",
-        bot_token = BOT_TOKEN,
-        api_id = API_ID,
-        api_hash = API_HASH
+    "IARE BOT",
+    bot_token=BOT_TOKEN,
+    api_id=API_ID,
+    api_hash=API_HASH
 )
-logging.basicConfig(level=logging.ERROR,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    handlers=[
-                        logging.FileHandler("bot_errors.log"),
-                        logging.StreamHandler()
-                    ])
+
+logging.basicConfig(
+    level=logging.ERROR,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("bot_errors.log"),
+        logging.StreamHandler()
+    ]
+)
 @bot.on_message(filters.command(commands=['start']))
 async def _start(bot,message):
     """Handle /start command.
@@ -349,6 +365,17 @@ async def main(bot):
     #     await asyncio.sleep(300)
 
 if __name__ == "__main__":
+    if not BOT_TOKEN or not API_ID or not API_HASH:
+        print("\n" + "=" * 70, file=sys.stderr)
+        print("CRITICAL CONFIGURATION ERROR: Telegram API credentials missing!", file=sys.stderr)
+        print(f"  - BOT_TOKEN: {'SET' if BOT_TOKEN else 'MISSING / EMPTY'}", file=sys.stderr)
+        print(f"  - API_ID:    {'SET' if API_ID else 'MISSING / EMPTY'}", file=sys.stderr)
+        print(f"  - API_HASH:  {'SET' if API_HASH else 'MISSING / EMPTY'}", file=sys.stderr)
+        print("Pyrogram requires BOT_TOKEN, API_ID, and API_HASH to start.", file=sys.stderr)
+        print("Please ensure these environment variables are set in Coolify and REDEPLOY.", file=sys.stderr)
+        print("=" * 70 + "\n", file=sys.stderr)
+        sys.exit(1)
+
     loop = asyncio.get_event_loop()
     loop.create_task(main(bot))
     bot.run()
