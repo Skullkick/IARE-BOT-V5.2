@@ -2064,9 +2064,10 @@ async def sync_databases(bot):
 async def help_command(bot,message):
     """Show comprehensive, anti-forwarding protected interactive user guide."""
     chat_id = message.chat.id
+    user_id = message.from_user.id if message.from_user else chat_id
     admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
-    is_manager = (chat_id in admin_chat_ids) or (chat_id in maintainer_chat_ids)
+    is_manager = bool((user_id in admin_chat_ids) or (user_id in maintainer_chat_ids) or (chat_id in admin_chat_ids) or (chat_id in maintainer_chat_ids))
 
     ui_mode = await user_settings.fetch_ui_bool(chat_id)
     if ui_mode is None:

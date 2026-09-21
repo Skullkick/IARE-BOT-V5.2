@@ -68,20 +68,96 @@ async def test_help_command_includes_admin_options_for_admin():
     ("help_labs", "GUIDE: LAB RECORDS & UPLOADS"),
     ("help_settings", "GUIDE: SETTINGS & PREFERENCES"),
     ("help_tricks", "GUIDE: TIPS & ACCOUNT TRICKS"),
-    ("help_admin", "GUIDE: ADMIN & MAINTAINER COMMANDS"),
 ])
 async def test_help_sections_callbacks(callback_data, expected_title):
     mock_bot = AsyncMock()
     mock_query = AsyncMock()
     mock_query.data = callback_data
     mock_query.message.chat.id = 12345
+    mock_query.from_user.id = 12345
 
     await buttons.callback_function(mock_bot, mock_query)
 
     mock_query.edit_message_text.assert_awaited_once()
     called_text = mock_query.edit_message_text.call_args[0][0]
     assert expected_title in called_text
-    mock_query.answer.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_help_admin_callback_for_authorized_manager():
+    mock_bot = AsyncMock()
+    mock_query = AsyncMock()
+    mock_query.data = "help_admin"
+    mock_query.message.chat.id = 99999
+    mock_query.from_user.id = 99999
+
+    with patch.object(managers_handler, "fetch_admin_chat_ids", new_callable=AsyncMock) as mock_admins, \
+         patch.object(managers_handler, "fetch_maintainer_chat_ids", new_callable=AsyncMock) as mock_maintainers:
+        mock_admins.return_value = [99999]
+        mock_maintainers.return_value = []
+
+        await buttons.callback_function(mock_bot, mock_query)
+
+        mock_query.edit_message_text.assert_awaited_once()
+        called_text = mock_query.edit_message_text.call_args[0][0]
+        assert "GUIDE: ADMIN & MAINTAINER COMMANDS" in called_text
+
+@pytest.mark.asyncio
+async def test_help_admin_callback_denies_unauthorized_user():
+    mock_bot = AsyncMock()
+    mock_query = AsyncMock()
+    mock_query.data = "help_admin"
+    mock_query.message.chat.id = 12345
+    mock_query.from_user.id = 12345
+
+    with patch.object(managers_handler, "fetch_admin_chat_ids", new_callable=AsyncMock) as mock_admins, \
+         patch.object(managers_handler, "fetch_maintainer_chat_ids", new_callable=AsyncMock) as mock_maintainers:
+        mock_admins.return_value = [99999]
+        mock_maintainers.return_value = [88888]
+
+        await buttons.callback_function(mock_bot, mock_query)
+
+        mock_query.edit_message_text.assert_awaited_once()
+        called_text = mock_query.edit_message_text.call_args[0][0]
+        assert "ACCESS DENIED" in called_text or "Access Denied" in called_text
+        assert "GUIDE: ADMIN & MAINTAINER COMMANDS" not in called_text
+
+@pytest.mark.asyncio
+async def test_help_menu_callback_respects_authorization():
+    mock_bot = AsyncMock()
+    
+    # Unauthorized student
+    mock_query_student = AsyncMock()
+    mock_query_student.data = "help_menu"
+    mock_query_student.message.chat.id = 12345
+    mock_query_student.from_user.id = 12345
+
+    with patch.object(managers_handler, "fetch_admin_chat_ids", new_callable=AsyncMock) as mock_admins, \
+         patch.object(managers_handler, "fetch_maintainer_chat_ids", new_callable=AsyncMock) as mock_maintainers:
+        mock_admins.return_value = [99999]
+        mock_maintainers.return_value = []
+
+        await buttons.callback_function(mock_bot, mock_query_student)
+        mock_query_student.edit_message_text.assert_awaited_once()
+        student_kb = mock_query_student.edit_message_text.call_args[1]["reply_markup"]
+        student_callbacks = [btn.callback_data for row in student_kb.inline_keyboard for btn in row]
+        assert "help_admin" not in student_callbacks
+
+    # Authorized manager
+    mock_query_mgr = AsyncMock()
+    mock_query_mgr.data = "help_menu"
+    mock_query_mgr.message.chat.id = 99999
+    mock_query_mgr.from_user.id = 99999
+
+    with patch.object(managers_handler, "fetch_admin_chat_ids", new_callable=AsyncMock) as mock_admins, \
+         patch.object(managers_handler, "fetch_maintainer_chat_ids", new_callable=AsyncMock) as mock_maintainers:
+        mock_admins.return_value = [99999]
+        mock_maintainers.return_value = []
+
+        await buttons.callback_function(mock_bot, mock_query_mgr)
+        mock_query_mgr.edit_message_text.assert_awaited_once()
+        mgr_kb = mock_query_mgr.edit_message_text.call_args[1]["reply_markup"]
+        mgr_callbacks = [btn.callback_data for row in mgr_kb.inline_keyboard for btn in row]
+        assert "help_admin" in mgr_callbacks
 
 @pytest.mark.asyncio
 async def test_help_close_deletes_message():

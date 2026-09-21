@@ -827,12 +827,32 @@ async def callback_function(bot,callback_query):
         ui_mode = await user_settings.fetch_ui_bool(chat_id)
         is_traditional = bool(ui_mode and ui_mode[0] == 1)
 
+        user_id = callback_query.from_user.id if callback_query.from_user else chat_id
+        admin_chat_ids = await managers_handler.fetch_admin_chat_ids()
+        maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
+        is_admin = (user_id in admin_chat_ids) or (chat_id in admin_chat_ids)
+        is_maintainer = (user_id in maintainer_chat_ids) or (chat_id in maintainer_chat_ids)
+        is_manager = bool(is_admin or is_maintainer)
+
         if callback_query.data == "help_menu":
-            is_admin = chat_id in await managers_handler.fetch_admin_chat_ids()
-            is_maintainer = chat_id in await managers_handler.fetch_maintainer_chat_ids()
-            kb = get_guide_keyboard(is_admin or is_maintainer)
+            kb = get_guide_keyboard(is_manager)
             text = get_guide_text("main", traditional_ui=is_traditional)
             await callback_query.edit_message_text(text, reply_markup=kb)
+        elif callback_query.data == "help_admin":
+            if not is_manager:
+                try:
+                    await callback_query.answer("⛔ Access denied: Admin/Maintainer commands are restricted to authorized managers.", show_alert=True)
+                except Exception:
+                    pass
+                denied_text = (
+                    "**⛔ Access Denied**\n\nAdmin and maintainer commands are restricted to authorized managers."
+                    if is_traditional
+                    else "```ACCESS DENIED\n⛔ Admin and maintainer commands are restricted to authorized managers.```"
+                )
+                await callback_query.edit_message_text(denied_text, reply_markup=GUIDE_BACK_KEYBOARD)
+                return
+            text = get_guide_text("admin", traditional_ui=is_traditional)
+            await callback_query.edit_message_text(text, reply_markup=GUIDE_BACK_KEYBOARD)
         else:
             topic = callback_query.data.replace("help_", "")
             text = get_guide_text(topic, traditional_ui=is_traditional)
