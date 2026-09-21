@@ -21,26 +21,32 @@ Tables managed here (created on demand):
     (attendance, biometric, PAT). Stored as rows keyed by ``name``.
 - cgpa_tracker / cie_tracker: Tracker state for CGPA and CIE.
 """
-import asyncpg,os,json,logging
+import asyncpg, os, json, logging, re
 from contextlib import asynccontextmanager
 from typing import Optional
 from METHODS.crypto_helper import encrypt_password, decrypt_password
 
 logger = logging.getLogger(__name__)
 
-#Database Credentials
-DATABASE_URL = os.environ.get("DATABASE_URL")
-USER_CRED = os.environ.get("POSTGRES_USER_ID")
-PASSWORD_CRED = os.environ.get("POSTGRES_PASSWORD")
-DATABASE_CRED = os.environ.get("POSTGRES_DATABASE")
-HOST_CRED = os.environ.get("POSTGRES_HOST")
-PORT_CRED = os.environ.get("POSTGRES_PORT")
+def _clean_env(val):
+    if val is None:
+        return None
+    cleaned = str(val).strip().strip('"').strip("'")
+    return cleaned if cleaned else None
+
+# Database Credentials
+DATABASE_URL = _clean_env(os.environ.get("DATABASE_URL"))
+USER_CRED = _clean_env(os.environ.get("POSTGRES_USER_ID"))
+PASSWORD_CRED = _clean_env(os.environ.get("POSTGRES_PASSWORD"))
+DATABASE_CRED = _clean_env(os.environ.get("POSTGRES_DATABASE"))
+HOST_CRED = _clean_env(os.environ.get("POSTGRES_HOST"))
+PORT_CRED = _clean_env(os.environ.get("POSTGRES_PORT"))
 
 _pg_pool: Optional[asyncpg.Pool] = None
 
 def _get_pg_dsn() -> Optional[str]:
     """Resolve PostgreSQL DSN from DATABASE_URL or individual credentials."""
-    url = os.environ.get("DATABASE_URL")
+    url = _clean_env(os.environ.get("DATABASE_URL"))
     if url:
         # Heroku/Render use postgres:// which asyncpg requires to be postgresql://
         if url.startswith("postgres://"):
@@ -55,16 +61,25 @@ async def init_pg_pool(min_size: int = 2, max_size: int = 15) -> Optional[asyncp
         return _pg_pool
 
     dsn = _get_pg_dsn()
+    user = _clean_env(os.environ.get("POSTGRES_USER_ID")) or USER_CRED
+    password = _clean_env(os.environ.get("POSTGRES_PASSWORD")) or PASSWORD_CRED
+    database = _clean_env(os.environ.get("POSTGRES_DATABASE")) or DATABASE_CRED
+    host = _clean_env(os.environ.get("POSTGRES_HOST")) or HOST_CRED
+    port = _clean_env(os.environ.get("POSTGRES_PORT")) or PORT_CRED or "5432"
+
     try:
         if dsn:
+            masked = re.sub(r":([^:@]+)@", ":****@", dsn)
+            logger.info("Attempting PostgreSQL connection via DATABASE_URL: %s", masked)
             _pg_pool = await asyncpg.create_pool(dsn=dsn, min_size=min_size, max_size=max_size)
-        elif USER_CRED and PASSWORD_CRED and DATABASE_CRED and HOST_CRED:
+        elif user and password and database and host:
+            logger.info("Attempting PostgreSQL connection to host: %s:%s (user: %s, db: %s)", host, port, user, database)
             _pg_pool = await asyncpg.create_pool(
-                user=USER_CRED,
-                password=PASSWORD_CRED,
-                database=DATABASE_CRED,
-                host=HOST_CRED,
-                port=PORT_CRED,
+                user=user,
+                password=password,
+                database=database,
+                host=host,
+                port=port,
                 min_size=min_size,
                 max_size=max_size
             )
