@@ -15,7 +15,10 @@ from METHODS.portal_client import async_fetch_page, get_http_client
 from DATABASE import user_settings,tdatabase
 from METHODS import operations,labs_handler,pdf_compressor
 from Buttons import buttons
-import os,re
+import os, re
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def fetch_available_labs(bot,message):
     """Return available labs for the logged-in user as a dict of name→code.
@@ -518,6 +521,11 @@ async def upload_lab_record(bot,message,title,subject_code,week_no,bypass_confir
 
 ● PDF Size : {size}"""
                     await bot.send_message(chat_id,failed_message)
+                    await labs_handler.remove_pdf_file(bot, chat_id)
+                    await tdatabase.delete_indexes_and_title_info(chat_id)
+                    await tdatabase.delete_pdf_status_info(chat_id)
+                    pdf_compressor.clear_compression_metrics(chat_id)
+                    await buttons.start_user_buttons(bot, message)
                     return
 
                 # If aggressive compression was applied and not yet confirmed by user, prompt with preview & buttons
@@ -570,20 +578,22 @@ async def upload_lab_record(bot,message,title,subject_code,week_no,bypass_confir
     pdf_folder = "pdfs"
     # Check Whether the pdf is present or not, If the pdf is present gets the compression status
     check_present , check_compress = await labs_handler.check_recieved_pdf_file(bot,chat_id)
-    if check_present:
-        # According to the compression status the pdf file is selected to uplaod
-        if check_compress is True:
-            pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}-comp.pdf")
-        else:
-            pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}.pdf")
-        # if check_compress is True:
-        #     pdf_name = f"C-{chat_id}-comp.pdf"
-        # else:
-        #     pdf_name = f"C-{chat_id}.pdf"
+    if not check_present:
+        await bot.send_message(chat_id, "No PDF file found for upload. Please send your experiment PDF again.")
+        await buttons.start_user_buttons(bot, message)
+        return
+
+    if check_compress is True:
+        pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}-comp.pdf")
+    else:
+        pdf_folder = os.path.join(pdf_folder,f"C-{chat_id}.pdf")
     pdf_file_path = os.path.abspath(pdf_folder)
     pdf_size = await labs_handler.get_pdf_size(bot,chat_id)
-    renamed_pdf_name,updated_pdf_file_path = await labs_handler.rename_to_upload_pdf(pdf_file_path,chat_id,week_no)
-    message_text_before_uploading = f"""
+
+    renamed_pdf_name, updated_pdf_file_path = None, None
+    try:
+        renamed_pdf_name, updated_pdf_file_path = await labs_handler.rename_to_upload_pdf(pdf_file_path, chat_id, week_no)
+        message_text_before_uploading = f"""
 ```UPLOAD INITIATED
 ⫸ STATUS : UPLOADING
 
@@ -598,18 +608,20 @@ WEEK : {f"Week - {week_no}"}
 PDF SIZE : {pdf_size}MB
 ```
 """
-    message_before_start_upload = await bot.edit_message_text(chat_id,message_of_pdf_operation.id,message_text_before_uploading)
-    try:
-        upload_details = await get_upload_details(week_no,title,file_name=renamed_pdf_name,file_path=updated_pdf_file_path)
-        lab_record_upload_json = await upload_pdf(bot,message,subject_code,extracted_user_details,upload_details=upload_details)
-    except Exception as e:
-        print(e)    
-    if lab_record_upload_json['status'] == "error":# Checks if received status code is error or not.
-        UNSUCCESSFULL_UPLOAD_MESSAGE = f"""
+        message_before_start_upload = await bot.edit_message_text(chat_id, message_of_pdf_operation.id, message_text_before_uploading)
+        try:
+            upload_details = await get_upload_details(week_no, title, file_name=renamed_pdf_name, file_path=updated_pdf_file_path)
+            lab_record_upload_json = await upload_pdf(bot, message, subject_code, extracted_user_details, upload_details=upload_details)
+        except Exception as e:
+            logger.error("Exception during upload_pdf for chat_id %s: %s", chat_id, e)
+            lab_record_upload_json = {"status": "error", "msg": f"Upload failed: {e}"}
+
+        if lab_record_upload_json.get('status') == "error":
+            UNSUCCESSFULL_UPLOAD_MESSAGE = f"""
     ```UPLOAD FAILED
 ⫸ STATUS : FAILED
 
-⫸ ERROR : {lab_record_upload_json['msg']}
+⫸ ERROR : {lab_record_upload_json.get('msg', 'Upload error')}
 
 ⫸ UPLOAD DETAILS :
 
@@ -621,15 +633,14 @@ PDF SIZE : {pdf_size}MB
 
     ```
     """
-        await labs_handler.remove_pdf_file(bot,chat_id) # Removes the Pdf from the pdf folder
-        await tdatabase.delete_indexes_and_title_info(chat_id) # Delete the selected index values
-        await bot.edit_message_text(chat_id,message_before_start_upload.id,UNSUCCESSFULL_UPLOAD_MESSAGE)
-    else:
-        SUCCESSFULL_UPLOAD_MESSAGE = F"""
+            await tdatabase.delete_indexes_and_title_info(chat_id)
+            await bot.edit_message_text(chat_id, message_before_start_upload.id, UNSUCCESSFULL_UPLOAD_MESSAGE)
+        else:
+            SUCCESSFULL_UPLOAD_MESSAGE = f"""
     ```UPLOAD SUCCESS
-⫸ STATUS : {lab_record_upload_json['status'].upper()}
+⫸ STATUS : {lab_record_upload_json.get('status', 'SUCCESS').upper()}
 
-⫸ STATUS MESSAGE : {lab_record_upload_json['msg']}
+⫸ STATUS MESSAGE : {lab_record_upload_json.get('msg', 'Success')}
 
 ⫸ Upload details :
 
@@ -642,8 +653,18 @@ PDF SIZE : {pdf_size}MB
 ● PDF SIZE : {pdf_size}MB
     ``` 
     """
-        await labs_handler.remove_pdf_file(bot,chat_id)# Removes the Pdf from the pdf folder
-        await tdatabase.delete_indexes_and_title_info(chat_id)# Delete the selected index values
-        await bot.edit_message_text(chat_id,message_before_start_upload.id,SUCCESSFULL_UPLOAD_MESSAGE)
-    await buttons.start_user_buttons(bot,message) # Starts the user buttons.
+            await tdatabase.delete_indexes_and_title_info(chat_id)
+            await bot.edit_message_text(chat_id, message_before_start_upload.id, SUCCESSFULL_UPLOAD_MESSAGE)
+    finally:
+        # Guarantee removal of all PDF files: renamed file, raw file, compressed file
+        if updated_pdf_file_path and os.path.exists(updated_pdf_file_path):
+            try:
+                os.remove(updated_pdf_file_path)
+            except Exception:
+                pass
+        await labs_handler.remove_pdf_file(bot, chat_id)
+        await tdatabase.delete_pdf_status_info(chat_id)
+        pdf_compressor.clear_compression_metrics(chat_id)
+
+    await buttons.start_user_buttons(bot, message)
 

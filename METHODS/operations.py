@@ -309,6 +309,14 @@ async def logout(bot,message):
     await async_logout_portal(cookies)
     invalidate_user_cache(chat_id)
     await tdatabase.delete_user_session(chat_id)
+    try:
+        from METHODS import labs_handler
+        await labs_handler.remove_pdf_file(bot, chat_id)
+        await tdatabase.delete_lab_upload_data(chat_id)
+        await tdatabase.delete_pdf_status_info(chat_id)
+        await tdatabase.delete_title_status_info(chat_id)
+    except Exception:
+        pass
     await message.reply("Logout successful.")
 
 async def logout_user_and_remove(bot,message):
@@ -325,7 +333,14 @@ async def logout_user_and_remove(bot,message):
     await async_logout_portal(cookies)
     invalidate_user_cache(chat_id)
     await tdatabase.delete_user_session(chat_id)
-
+    try:
+        from METHODS import labs_handler
+        await labs_handler.remove_pdf_file(bot, chat_id)
+        await tdatabase.delete_lab_upload_data(chat_id)
+        await tdatabase.delete_pdf_status_info(chat_id)
+        await tdatabase.delete_title_status_info(chat_id)
+    except Exception:
+        pass
     await message.reply("Logout successful.")
 
 async def logout_user_if_logged_out(bot,chat_id):

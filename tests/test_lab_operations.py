@@ -244,3 +244,132 @@ async def test_download_pdf_above_100mb_rejected(mock_bot, mock_message, monkeyp
     assert "105.0 MB" in last_edit
 
 
+async def test_upload_lab_record_always_deletes_files_on_success(mock_bot, mock_message, monkeypatch):
+    """Verify that when upload completes successfully, all user PDFs are purged immediately."""
+    import os
+    from METHODS import lab_operations, labs_handler
+    chat_id = mock_message.chat.id
+
+    await tdatabase.create_all_tdatabase_tables()
+    import json
+    await tdatabase.store_user_session(chat_id, json.dumps({"username": "22951A0501"}), user_id=12345)
+
+    pdf_dir = os.path.abspath("pdfs")
+    os.makedirs(pdf_dir, exist_ok=True)
+    raw_file = os.path.join(pdf_dir, f"C-{chat_id}.pdf")
+    with open(raw_file, "wb") as f:
+        f.write(b"%PDF-1.4 dummy raw content")
+
+    monkeypatch.setattr(lab_operations, "user_lab_data", AsyncMock(return_value={"user": "data"}))
+    monkeypatch.setattr(lab_operations, "fetch_available_labs", AsyncMock(return_value={"Python Lab": "CS101"}))
+    monkeypatch.setattr(lab_operations, "get_subject_name", AsyncMock(return_value="Python Lab"))
+    monkeypatch.setattr(lab_operations, "get_upload_details", AsyncMock(return_value={}))
+    monkeypatch.setattr(lab_operations, "upload_pdf", AsyncMock(return_value={"status": "success", "msg": "Uploaded successfully"}))
+    monkeypatch.setattr(lab_operations.buttons, "start_user_buttons", AsyncMock())
+
+    await lab_operations.upload_lab_record(
+        mock_bot,
+        mock_message,
+        title="Test Experiment",
+        subject_code="CS101",
+        week_no="1",
+        bypass_confirmation=True,
+    )
+
+    # Assert raw file, compressed file, and renamed file are all purged
+    assert not os.path.exists(raw_file)
+    assert not os.path.exists(os.path.join(pdf_dir, f"C-{chat_id}-comp.pdf"))
+    assert not os.path.exists(os.path.join(pdf_dir, "22951A0501_week1.pdf"))
+
+
+async def test_upload_lab_record_always_deletes_files_on_failure(mock_bot, mock_message, monkeypatch):
+    """Verify that if upload raises an unexpected network exception, files are still deleted in finally block."""
+    import os
+    from METHODS import lab_operations, labs_handler
+    chat_id = mock_message.chat.id
+
+    await tdatabase.create_all_tdatabase_tables()
+    await user_settings.create_user_settings_tables()
+    import json
+    await tdatabase.store_user_session(chat_id, json.dumps({"username": "22951A0501"}), user_id=12345)
+
+    pdf_dir = os.path.abspath("pdfs")
+    os.makedirs(pdf_dir, exist_ok=True)
+    raw_file = os.path.join(pdf_dir, f"C-{chat_id}.pdf")
+    with open(raw_file, "wb") as f:
+        f.write(b"%PDF-1.4 dummy raw content")
+
+    monkeypatch.setattr(lab_operations, "user_lab_data", AsyncMock(return_value={"user": "data"}))
+    monkeypatch.setattr(lab_operations, "fetch_available_labs", AsyncMock(return_value={"Python Lab": "CS101"}))
+    monkeypatch.setattr(lab_operations, "get_subject_name", AsyncMock(return_value="Python Lab"))
+    monkeypatch.setattr(lab_operations, "get_upload_details", AsyncMock(return_value={}))
+    # Simulate network crash during upload
+    monkeypatch.setattr(lab_operations, "upload_pdf", AsyncMock(side_effect=RuntimeError("Portal network unreachable")))
+    monkeypatch.setattr(lab_operations.buttons, "start_user_buttons", AsyncMock())
+
+    await lab_operations.upload_lab_record(
+        mock_bot,
+        mock_message,
+        title="Test Experiment",
+        subject_code="CS101",
+        week_no="1",
+        bypass_confirmation=True,
+    )
+
+    # Must be deleted despite runtime crash
+    assert not os.path.exists(raw_file)
+    assert not os.path.exists(os.path.join(pdf_dir, f"C-{chat_id}-comp.pdf"))
+    assert not os.path.exists(os.path.join(pdf_dir, "22951A0501_week1.pdf"))
+
+
+def test_cleanup_stale_pdfs_older_than_30_minutes():
+    """Verify cleanup_stale_pdfs purges files older than 30 mins (1800s) and keeps fresh files."""
+    import os
+    import time
+    from METHODS import labs_handler
+
+    pdf_dir = os.path.abspath("pdfs")
+    os.makedirs(pdf_dir, exist_ok=True)
+    stale_file = os.path.join(pdf_dir, "stale_test.pdf")
+    fresh_file = os.path.join(pdf_dir, "fresh_test.pdf")
+
+    with open(stale_file, "wb") as f:
+        f.write(b"%PDF-stale")
+    with open(fresh_file, "wb") as f:
+        f.write(b"%PDF-fresh")
+
+    now = time.time()
+    # Stale: 35 minutes ago (2100 seconds)
+    os.utime(stale_file, (now - 2100, now - 2100))
+    # Fresh: 5 minutes ago (300 seconds)
+    os.utime(fresh_file, (now - 300, now - 300))
+
+    purged = labs_handler.cleanup_stale_pdfs(max_age_seconds=1800)
+
+    assert purged >= 1
+    assert not os.path.exists(stale_file)
+    assert os.path.exists(fresh_file)
+
+    # Cleanup fresh file
+    if os.path.exists(fresh_file):
+        os.remove(fresh_file)
+
+
+async def test_cancel_command_deletes_all_user_pdfs(mock_bot, mock_message):
+    """Verify /cancel command purges user files from pdfs directory."""
+    import main
+    import os
+    chat_id = mock_message.chat.id
+    pdf_dir = os.path.abspath("pdfs")
+    os.makedirs(pdf_dir, exist_ok=True)
+
+    dummy_pdf = os.path.join(pdf_dir, f"C-{chat_id}.pdf")
+    with open(dummy_pdf, "wb") as f:
+        f.write(b"%PDF-dummy")
+
+    await main._cancel_command(mock_bot, mock_message)
+
+    assert not os.path.exists(dummy_pdf)
+    assert mock_bot.send_message.called
+
+

@@ -14,14 +14,16 @@ Key responsibilities:
 - Provide small utilities to check size, rename files, and clean up
 """
 
+import asyncio
+import logging
+import os
+import time
 from pyrogram import filters
-import os
-from time import sleep
-# from DATABASE import tdatabase,pgdatabase
-import os
 from DATABASE import tdatabase, user_settings
 from Buttons import buttons
 from METHODS import lab_operations
+
+logger = logging.getLogger(__name__)
 
 
 PDF_MESSAGE = f"""
@@ -84,6 +86,8 @@ async def download_pdf(bot, message,pdf_compress_scrape):
                 await message.download(
                     file_name=os.path.join(download_folder, f"C-{chat_id}.pdf"),
                 )
+                # Schedule safety cleanup timer to guarantee removal after 30 minutes
+                asyncio.create_task(schedule_pdf_cleanup(chat_id, 1800))
                 # Send a completion message
                 if is_traditional:
                     received_pdf_msg = "**PDF STATUS**\n\n● **Status:** Received.\n\n● **PDF Size:** Checking..."
@@ -326,32 +330,61 @@ async def get_title_from_user(bot, message):
                 await tdatabase.delete_title_status_info(chat_id)
             await initialize_lab_upload(bot,message)
 
-async def remove_pdf_file(bot,chat_id):
-    """Delete the user's current PDF (compressed or raw) if present.
+async def remove_pdf_file(bot, chat_id):
+    """Delete all PDF files associated with the user/chat_id.
 
-    Uses `check_recieved_pdf_file` to determine which file exists and removes
-    it. Returns True on success, False otherwise.
+    Cleans up any raw (`C-<chat_id>.pdf`), compressed (`C-<chat_id>-comp.pdf`),
+    temporary variants, or renamed submission files (`<ROLLNO>_week<no>.pdf`)
+    for this chat_id.
+
+    Args:
+        bot: Pyrogram client or None.
+        chat_id: Telegram chat id.
+
+    Returns:
+        bool: True if operations completed without fatal errors, False otherwise.
     """
-    pdf_folder = "pdfs"
-    check_present , check_compress = await check_recieved_pdf_file(bot,chat_id)
-    if check_present and check_compress:
-        pdf_location = os.path.join(pdf_folder, f"C-{chat_id}-comp.pdf")
-    elif check_present and not check_compress:
-        pdf_location = os.path.join(pdf_folder, f"C-{chat_id}.pdf")
-    else:
-        # If neither present nor compress, no action needed
-        return False
-
-    pdf_location_path = os.path.abspath(pdf_location)
-    
-    try:
-        os.remove(pdf_location_path)
+    pdf_folder = os.path.abspath("pdfs")
+    if not os.path.exists(pdf_folder):
         return True
-    except OSError as e:
-        await bot.send_message(chat_id,f"Error deleting pdf : {e}")
+
+    prefix = f"C-{chat_id}"
+    try:
+        # 1. Remove all files starting with C-{chat_id} (raw, comp, temp)
+        for fname in os.listdir(pdf_folder):
+            if fname.startswith(prefix) and (fname.lower().endswith(".pdf") or fname.lower().endswith(".tmp")):
+                fpath = os.path.join(pdf_folder, fname)
+                try:
+                    os.remove(fpath)
+                except OSError as err:
+                    logger.warning("Error removing %s: %s", fpath, err)
+
+        # 2. Check and remove any renamed files for this user: {username}_week*.pdf
+        try:
+            session_data = await tdatabase.load_user_session(chat_id)
+            if session_data and session_data.get("username"):
+                username = session_data["username"][:10].upper()
+                user_prefix = f"{username}_week"
+                for fname in os.listdir(pdf_folder):
+                    if fname.upper().startswith(user_prefix) and fname.lower().endswith(".pdf"):
+                        fpath = os.path.join(pdf_folder, fname)
+                        try:
+                            os.remove(fpath)
+                        except OSError as err:
+                            logger.warning("Error removing %s: %s", fpath, err)
+        except Exception as err:
+            logger.debug("Could not resolve session username for PDF cleanup: %s", err)
+
+        return True
+    except Exception as e:
+        if bot and hasattr(bot, "send_message"):
+            try:
+                await bot.send_message(chat_id, f"Error deleting pdf : {e}")
+            except Exception:
+                pass
         return False
 
-async def check_recieved_pdf_file(bot,chat_id):
+async def check_recieved_pdf_file(bot, chat_id):
     """Check if a PDF exists for the chat and whether it's compressed.
 
     Returns two booleans: (present, compressed). When present is False,
@@ -364,26 +397,83 @@ async def check_recieved_pdf_file(bot,chat_id):
     Returns:
         tuple[bool, bool | None]: (is_present, is_compressed)
     """
-    pdf_folder = "pdfs"
-    pdf_folder = os.path.abspath(pdf_folder)
+    pdf_folder = os.path.abspath("pdfs")
     file_name = f"C-{chat_id}.pdf"
     file_name_compressed = f"C-{chat_id}-comp.pdf"
-    # Checks if the directory is present or not
     try:
         all_pdf_files = os.listdir(pdf_folder)
     except Exception:
         return False, None
     try:
-        # Checks if the Normal pdf is present in the directory and returns
-        # indicating it as uncompressed file
-        if file_name in all_pdf_files:
-            return True, False
-        elif file_name_compressed in all_pdf_files:
+        # If compressed exists, prefer compressed
+        if file_name_compressed in all_pdf_files:
             return True, True
+        elif file_name in all_pdf_files:
+            return True, False
         else:
             return False, None
     except Exception as e:
-        await bot.send_message(chat_id,f"There is an error finding pdf : {e}")
+        if bot and hasattr(bot, "send_message"):
+            try:
+                await bot.send_message(chat_id, f"There is an error finding pdf : {e}")
+            except Exception:
+                pass
+        return False, None
+
+def cleanup_stale_pdfs(max_age_seconds: int = 1800) -> int:
+    """Purge any PDF or temporary files in the pdfs folder older than max_age_seconds (30 minutes).
+
+    Args:
+        max_age_seconds: Maximum allowable age in seconds (default: 1800 = 30 minutes).
+
+    Returns:
+        int: Number of files deleted.
+    """
+    pdf_folder = os.path.abspath("pdfs")
+    if not os.path.exists(pdf_folder):
+        return 0
+
+    now = time.time()
+    deleted_count = 0
+    try:
+        for fname in os.listdir(pdf_folder):
+            if fname.lower().endswith(".pdf") or fname.lower().endswith(".tmp"):
+                fpath = os.path.join(pdf_folder, fname)
+                try:
+                    mtime = os.path.getmtime(fpath)
+                    if (now - mtime) >= max_age_seconds:
+                        os.remove(fpath)
+                        deleted_count += 1
+                        logger.info("Purged stale PDF: %s (age: %.1f minutes)", fname, (now - mtime) / 60)
+                except OSError as exc:
+                    logger.warning("Could not check/remove stale PDF %s: %s", fname, exc)
+    except Exception as exc:
+        logger.error("Error during stale PDF cleanup: %s", exc)
+
+    return deleted_count
+
+async def start_pdf_cleanup_loop(interval_seconds: int = 300, max_age_seconds: int = 1800):
+    """Background task that periodically purges PDFs older than max_age_seconds (30 minutes)."""
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            deleted = cleanup_stale_pdfs(max_age_seconds=max_age_seconds)
+            if deleted > 0:
+                logger.info("Janitor: Cleaned up %d stale PDF(s) older than 30 minutes.", deleted)
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error("Error in start_pdf_cleanup_loop: %s", exc)
+
+async def schedule_pdf_cleanup(chat_id: int, delay_seconds: int = 1800):
+    """Safety timer ensuring a user's PDF is deleted after delay_seconds at most."""
+    try:
+        await asyncio.sleep(delay_seconds)
+        await remove_pdf_file(None, chat_id)
+    except asyncio.CancelledError:
+        pass
+    except Exception as exc:
+        logger.debug("Exception in schedule_pdf_cleanup for %s: %s", chat_id, exc)
 
 
 

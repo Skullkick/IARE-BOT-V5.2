@@ -223,7 +223,12 @@ async def compress_pdf(bot, chat_id, batch_size: int = 1) -> bool:
                     "is_high_compression": is_high,
                 }
                 logger.info("PDF compressed successfully to: %s (%d bytes, is_high=%s)", output_path, final_size, is_high)
-                await labs_handler.remove_pdf_file(bot, chat_id)
+                # Remove uncompressed source PDF so only the compressed version remains for upload
+                if os.path.exists(input_path):
+                    try:
+                        os.remove(input_path)
+                    except Exception:
+                        pass
                 return True
             return False
 

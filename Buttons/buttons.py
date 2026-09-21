@@ -841,6 +841,12 @@ async def callback_function(bot,callback_query):
         await callback_query.message.delete()
 
     elif callback_query.data == "user_back":
+        chat_id = callback_query.message.chat.id
+        await labs_handler.remove_pdf_file(bot, chat_id)
+        await tdatabase.delete_lab_upload_data(chat_id)
+        await tdatabase.delete_pdf_status_info(chat_id)
+        await tdatabase.delete_title_status_info(chat_id)
+        pdf_compressor.clear_compression_metrics(chat_id)
         await callback_query.edit_message_text(USER_MESSAGE,reply_markup = USER_BUTTONS)
     elif callback_query.data == "username_saved_options":
         USERNAME_SAVED_OPTIONS_TEXT = "**Logout and Remove Controls**"
@@ -1577,13 +1583,6 @@ Selected:
         message_ = callback_query.message
         chat_id = message_.chat.id
         await labs_handler.remove_pdf_file(bot, chat_id)
-        for fname in (f"C-{chat_id}.pdf", f"C-{chat_id}-comp.pdf"):
-            fpath = os.path.abspath(os.path.join("pdfs", fname))
-            if os.path.exists(fpath):
-                try:
-                    os.remove(fpath)
-                except Exception:
-                    pass
         await tdatabase.delete_lab_upload_data(chat_id)
         await tdatabase.delete_pdf_status_info(chat_id)
         await tdatabase.delete_title_status_info(chat_id)

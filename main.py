@@ -135,13 +135,34 @@ async def _profile_details(bot,message):
 async def delete_login_details_pgdatabase(bot,message):
     chat_id = message.chat.id
     await pgdatabase.remove_saved_credentials(bot,chat_id)
-# @bot.on_message(filters.command(commands="deletepdf"))
-async def delete_pdf(bot,message):
+@bot.on_message(filters.command(commands=["cancel", "abort"]))
+async def _cancel_command(bot, message):
+    """Handle /cancel or /abort command to cancel any pending lab upload or operation."""
+    chat_id = message.chat.id
+    await labs_handler.remove_pdf_file(bot, chat_id)
+    try:
+        await tdatabase.delete_lab_upload_data(chat_id)
+        await tdatabase.delete_pdf_status_info(chat_id)
+        await tdatabase.delete_title_status_info(chat_id)
+        pdf_compressor.clear_compression_metrics(chat_id)
+    except Exception:
+        pass
+    await bot.send_message(chat_id, "🚫 **Operation Cancelled**\n\nAny pending upload was aborted and temporary files have been deleted.")
+    await buttons.start_user_buttons(bot, message)
+
+@bot.on_message(filters.command(commands=["deletepdf", "delpdf"]))
+async def delete_pdf(bot, message):
     chat_id = message.chat.id
     if await labs_handler.remove_pdf_file(bot, chat_id) is True:
-        await bot.send_message(chat_id,"Deleted Successfully")
+        try:
+            await tdatabase.delete_pdf_status_info(chat_id)
+            await tdatabase.delete_title_status_info(chat_id)
+            pdf_compressor.clear_compression_metrics(chat_id)
+        except Exception:
+            pass
+        await bot.send_message(chat_id, "Deleted Successfully")
     else:
-        await bot.send_message(chat_id,"Failed")
+        await bot.send_message(chat_id, "Failed")
 @bot.on_message(filters.command(commands=['reply']))
 async def _reply(bot,message):
     """Handle /reply command for maintainers/admins to reply to reports."""
@@ -434,6 +455,12 @@ async def main(bot):
             mcp_port = int(os.environ.get("MCP_PORT") or os.environ.get("PORT") or "8000")
             if not (mcp_enabled and mcp_transport == "sse" and mcp_port == port_num):
                 await start_healthcheck_server(port_num)
+
+        # 4. Clean up any stale PDFs (> 30 mins) and start background janitor loop
+        stale_purged = labs_handler.cleanup_stale_pdfs(max_age_seconds=1800)
+        if stale_purged > 0:
+            logging.info("Startup sweep: purged %d stale PDF(s) older than 30 mins.", stale_purged)
+        asyncio.create_task(labs_handler.start_pdf_cleanup_loop(interval_seconds=300, max_age_seconds=1800))
 
         print("\n" + "=" * 60)
         print(">>> IARE BOT is now ONLINE and ready to receive messages! <<<")
