@@ -339,12 +339,15 @@ async def main(bot):
     between them on startup.
     """
     try:
-        await pgdatabase.init_pg_pool()
+        pg_pool = await pgdatabase.init_pg_pool()
         await tdatabase.create_all_tdatabase_tables()
-        await pgdatabase.create_all_pgdatabase_tables()
+        if pg_pool is not None:
+            await pgdatabase.create_all_pgdatabase_tables()
+            await operations.sync_databases(bot)
+        else:
+            logging.warning("PostgreSQL connection pool unavailable. Bot will operate using local SQLite storage.")
         await user_settings.create_user_settings_tables()
         await managers_handler.create_required_bot_manager_tables()
-        await operations.sync_databases(bot)
         start_mcp_server_if_enabled()
     except Exception as e:
         logging.error("Error in 'main' function: %s", e, exc_info=True)

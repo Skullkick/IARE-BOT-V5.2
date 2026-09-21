@@ -75,6 +75,13 @@ async def init_pg_pool(min_size: int = 2, max_size: int = 15) -> Optional[asyncp
         return _pg_pool
     except Exception as e:
         logger.error("Failed to initialize PostgreSQL pool: %s", e)
+        if "[Errno 101]" in str(e) or "Network is unreachable" in str(e) or "2406:" in str(e):
+            logger.error(
+                "PostgreSQL host returned 'Network is unreachable' (IPv6). "
+                "Your Docker/server environment does not have IPv6 routing enabled. "
+                "If using Supabase, switch to the Supabase Connection Pooler host (e.g., aws-0-ap-south-1.pooler.supabase.com on port 6543 or 5432) "
+                "or use Coolify's built-in PostgreSQL."
+            )
         return None
 
 async def close_pg_pool():
@@ -164,6 +171,10 @@ async def create_all_pgdatabase_tables():
     ``pending_reports``, ``index_values``, ``cgpa_tracker``, ``cie_tracker``.
 
     """
+    if _pg_pool is None:
+        logger.warning("PostgreSQL pool is not initialized. Skipping PostgreSQL table creation.")
+        return False
+
     await create_user_credentials_table()
     await create_banned_users_table()
     await create_bot_managers_tables()
