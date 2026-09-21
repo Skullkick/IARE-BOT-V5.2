@@ -33,120 +33,275 @@ USER_BUTTONS = InlineKeyboardMarkup(
     ]
 )
 
-GUIDE_MAIN_TEXT = """IARE UNOFFICIAL BOT — USER GUIDE
+GUIDE_TEXTS_TRADITIONAL = {
+    "main": """**IARE UNOFFICIAL BOT — USER GUIDE**
 
 Select a topic below to read detailed instructions on how to use the bot:
 
-1. Login & Accounts: Logging in, passwords with spaces, saving credentials.
-2. Attendance & Bunk: How attendance, safe misses, and biometric work.
-3. Lab Records: Uploading experiment PDFs and automatic compression.
-4. Settings: Customizing attendance threshold, biometric target, UI style.
-5. Account Tricks: Checking a friend's account without losing your login.
-"""
+1. **Login & Accounts:** Logging in, passwords with spaces, saving credentials.
+2. **Attendance & Bunk:** How attendance, safe misses, and biometric work.
+3. **Lab Records:** Uploading experiment PDFs and automatic compression.
+4. **Settings:** Customizing attendance threshold, biometric target, UI style.
+5. **Account Tricks:** Checking a friend's account without losing your login.""",
 
-GUIDE_LOGIN_TEXT = """GUIDE: LOGIN & ACCOUNTS
+    "login": """**GUIDE: LOGIN & ACCOUNTS**
 
-Command Format:
-/login <ROLL_NUMBER> <PASSWORD>
+**Command Format:**
+`/login <ROLL_NUMBER> <PASSWORD>`
 
-Example:
-/login 21951A0501 MyPassword123
+**Example:**
+`/login 21951A0501 MyPassword123`
 
-Passwords with Spaces:
+**Passwords with Spaces:**
 If your password contains spaces, wrap it in quotes:
-/login 21951A0501 "my secret password"
+`/login 21951A0501 "my secret password"`
 
-Saving Credentials:
+**Saving Credentials:**
 After logging in, the bot asks:
 "If you want to save your credentials Click on 'Yes'."
-- If you click "Yes": Credentials are saved. Whenever your session expires, the bot will automatically re-log you in in the background when you press any menu button.
-- If you click "No": Credentials are not stored. When your session expires, you must log in again with /login.
+- **Yes:** Credentials are saved. Whenever your session expires, the bot will automatically re-log you in in the background when you press any menu button.
+- **No:** Credentials are not stored. When your session expires, you must log in again with `/login`.
 
-Logging Out:
-Send /logout or tap the "Logout" button on the main menu.
-"""
+**Logging Out:**
+Send `/logout` or tap the **Logout** button on the main menu.""",
 
-GUIDE_ATTENDANCE_TEXT = """GUIDE: ATTENDANCE, BUNK & BIOMETRIC
+    "attendance": """**GUIDE: ATTENDANCE, BUNK & BIOMETRIC**
 
-Attendance:
+**Attendance:**
 - Displays subject-wise conducted vs attended classes.
 - Shows individual subject percentages and overall aggregate percentage.
 
-Bunk Calculator:
-- Compares current attendance against your target threshold (default 75%, adjustable in /settings).
-- If above threshold: Calculates the exact number of classes you can safely miss while remaining above target.
-- If below threshold: Calculates the number of consecutive upcoming classes you must attend to recover.
+**Bunk Calculator:**
+- Compares current attendance against your target threshold (default 75%, adjustable in `/settings`).
+- **Above threshold:** Calculates the exact number of classes you can safely miss while remaining above target.
+- **Below threshold:** Calculates the number of consecutive upcoming classes you must attend to recover.
 
-Biometric Log:
+**Biometric Log:**
 - First check-in and latest check-out timestamps for today.
 - Total elapsed campus hours and minimum hours completion status.
 
-PAT Attendance:
-- Dedicated attendance tracking for Placement and Training modules.
-"""
+**PAT Attendance:**
+- Dedicated attendance tracking for Placement and Training modules.""",
 
-GUIDE_LABS_TEXT = """GUIDE: LAB RECORDS & UPLOADS
+    "labs": """**GUIDE: LAB RECORDS & UPLOADS**
 
-Uploading an Experiment PDF:
-1. Send or forward your experiment .pdf document in this chat.
-2. Enter the experiment title when prompted (or let the bot detect it automatically if Auto-Extract is enabled in /settings).
+**Uploading an Experiment PDF:**
+1. Send or forward your experiment `.pdf` document in this chat.
+2. Enter the experiment title when prompted (or let the bot detect it automatically if Auto-Extract is enabled in `/settings`).
 3. Select your lab subject from the buttons.
 
-Automatic PDF Compression:
+**Automatic PDF Compression:**
 - If your PDF file is larger than 1 MB, the bot automatically optimizes and compresses it before uploading to Samvidha.
 - No third-party apps or manual resizing needed.
 
-Managing Records:
-- Tap "Labs Records" in the main menu to view all submitted files or delete an old record to re-upload.
-"""
+**Managing Records:**
+- Tap **Labs Records** in the main menu to view all submitted files or delete an old record to re-upload.""",
 
-GUIDE_SETTINGS_TEXT = """GUIDE: SETTINGS & PREFERENCES
+    "settings": """**GUIDE: SETTINGS & PREFERENCES**
 
-Send /settings to customize your experience:
+Send `/settings` to customize your experience:
 
-- Attendance Threshold: Set your target attendance percentage (65%, 70%, 75%, 80%, or 85%). The Bunk calculator updates immediately.
-- Biometric Threshold: Adjust your daily campus stay duration goal.
-- Title Extract: Choose between Automatic title detection from the PDF or Manual typing.
-- User Interface: Choose between Traditional (clean monospace) or Updated (modern card view).
+- **Attendance Threshold:** Set your target attendance percentage (65%, 70%, 75%, 80%, or 85%). The Bunk calculator updates immediately.
+- **Biometric Threshold:** Adjust your daily campus stay duration goal.
+- **Title Extract:** Choose between Automatic title detection from the PDF or Manual typing.
+- **User Interface:** Choose between Traditional (clean markdown) or Updated (monospace card view).
 
-Submitting Reports:
+**Submitting Reports:**
 - If you encounter a problem or have a request, send:
-  /report <your issue or message>
-- Reports are recorded in Indian Standard Time (IST), and maintainers will reply directly to you in Telegram.
-"""
+  `/report <your issue or message>`
+- Reports are recorded in Indian Standard Time (IST), and maintainers will reply directly to you in Telegram.""",
 
-GUIDE_TRICKS_TEXT = """GUIDE: TIPS & ACCOUNT TRICKS
+    "tricks": """**GUIDE: TIPS & ACCOUNT TRICKS**
 
-Checking a Friend's Account:
+**Checking a Friend's Account:**
 If you have saved credentials on your device but want to temporarily check a friend's attendance:
-1. Tap the standard "Logout" button on the main menu (do NOT tap "Remove" or "Remove and Logout").
+1. Tap the standard **Logout** button on the main menu (do NOT tap "Remove" or "Remove and Logout").
 2. Log in with your friend's credentials:
-   /login <FRIEND_ROLL> <FRIEND_PASSWORD>
+   `/login <FRIEND_ROLL> <FRIEND_PASSWORD>`
+3. When prompted to save credentials, select **No**.
+4. Check their attendance, marks, or records.
+5. When finished, tap **Logout** again.
+Because your original credentials were never removed, pressing any menu button (like Attendance) will automatically restore your own account in the background!
+
+**Removing Saved Credentials:**
+- Tap **Saved Username** on the main menu, select your roll number, and tap **Remove**.""",
+
+    "admin": """**GUIDE: ADMIN & MAINTAINER COMMANDS**
+
+**Admin / Maintainer Operations:**
+- `/admin` - Open admin dashboard
+- `/maintainer` - Open maintainer dashboard
+- `/announce <text>` - Broadcast announcement to active users
+- `/add_maintainer <chat_id>` - Add maintainer (or forward user's message)
+- `/rshow` - View pending student reports
+- `/reply <text>` - Reply to a student report (quote-reply)
+- `/rclear` - Clear processed reports
+- `/ban <username>` - Ban a user
+- `/unban <username>` - Unban a user
+- `/lusers` - List active users
+- `/tusers` - Total users count in last 24h
+- `/reset` - Reset local session database"""
+}
+
+GUIDE_TEXTS_UPDATED = {
+    "main": """```USER GUIDE
+⫷
+
+Select a topic below to read detailed instructions on how to use the bot:
+
+1. Login & Accounts
+2. Attendance & Bunk
+3. Lab Records & Uploads
+4. Settings & Preferences
+5. Tips & Account Tricks
+
+⫸
+```""",
+
+    "login": """```GUIDE: LOGIN & ACCOUNTS
+⫷
+
+● Command Format:
+/login <ROLL_NUMBER> <PASSWORD>
+
+● Example:
+/login 21951A0501 MyPassword123
+
+● Passwords with Spaces:
+Wrap in quotes: /login 21951A0501 "my secret password"
+
+● Saving Credentials:
+Tap "Yes" after login to store credentials.
+Expired sessions auto-refresh when pressing any menu button!
+Tap "No" for single-session use.
+
+● Logging Out:
+Send /logout or tap the "Logout" button.
+
+⫸
+```""",
+
+    "attendance": """```GUIDE: ATTENDANCE, BUNK & BIOMETRIC
+⫷
+
+● Attendance:
+Subject-wise conducted vs attended classes, individual %, and overall aggregate %.
+
+● Bunk Calculator:
+Compares attendance with your /settings threshold.
+- Above target: Shows exact safe classes to miss.
+- Below target: Shows consecutive classes to attend.
+
+● Biometric Log:
+First check-in, latest check-out, campus hours, and 6-hour minimum completion status.
+
+● PAT Attendance:
+Dedicated tracking for Placement & Training classes.
+
+⫸
+```""",
+
+    "labs": """```GUIDE: LAB RECORDS & UPLOADS
+⫷
+
+● Uploading an Experiment PDF:
+1. Send or forward your experiment .pdf document in this chat.
+2. Enter experiment title (or auto-extract).
+3. Select your lab subject from the buttons.
+
+● Automatic PDF Compression:
+PDFs larger than 1 MB are automatically optimized & compressed for portal limits.
+
+● Managing Records:
+Tap "Labs Records" in main menu to view all submissions or delete old records to re-upload.
+
+⫸
+```""",
+
+    "settings": """```GUIDE: SETTINGS & PREFERENCES
+⫷
+
+Send /settings to customize:
+
+● Attendance Threshold:
+Set target % (65%, 70%, 75%, 80%, or 85%).
+Bunk calculator updates immediately.
+
+● Biometric Threshold:
+Adjust target daily campus stay duration.
+
+● Title Extract:
+Automatic PDF title detection vs Manual typing.
+
+● User Interface:
+Traditional (markdown) vs Updated (code block).
+
+● Submitting Reports:
+Use /report <issue> to report problems.
+Maintainers reply directly in Telegram!
+
+⫸
+```""",
+
+    "tricks": """```GUIDE: TIPS & ACCOUNT TRICKS
+⫷
+
+● Friend's Account Login Trick:
+1. Tap standard "Logout" button on main menu (do NOT tap Remove).
+2. Login: /login <FRIEND_ROLL> <PASSWORD>
 3. When prompted to save credentials, select "No".
 4. Check their attendance, marks, or records.
 5. When finished, tap "Logout" again.
-Because your original credentials were never removed, pressing any menu button (like Attendance) will automatically restore your own account in the background!
+Your original credentials are never deleted. Pressing any menu button automatically restores your account in the background!
 
-Removing Saved Credentials:
-- Tap "Saved Username" on the main menu, select your roll number, and tap "Remove".
-"""
+● Removing Credentials:
+Tap "Saved Username" on main menu, select your roll number, and tap "Remove".
 
-GUIDE_ADMIN_TEXT = """GUIDE: ADMIN & MAINTAINER COMMANDS
+⫸
+```""",
 
-Admin / Maintainer Operations:
+    "admin": """```GUIDE: ADMIN & MAINTAINER COMMANDS
+⫷
+
+● Navigation:
 /admin - Open admin dashboard
 /maintainer - Open maintainer dashboard
-/announce <text> - Broadcast announcement to active users
-/add_maintainer <chat_id> - Add maintainer (or forward user's message)
+
+● Broadcast:
+/announce <text> - Broadcast to active users
+
+● Maintainers:
+/add_maintainer <chat_id> - Add maintainer
+(Or forward a user's message to bot)
+
+● Reports:
 /rshow - View pending student reports
-/reply <text> - Reply to a student report (quote-reply)
+/reply <text> - Reply to report (quote-reply)
 /rclear - Clear processed reports
+
+● Users:
 /ban <username> - Ban a user
 /unban <username> - Unban a user
 /lusers - List active users
 /tusers - Total users count in last 24h
-/reset - Reset local session database
-"""
+/reset - Clear local session database
+
+⫸
+```"""
+}
+
+def get_guide_text(topic: str, traditional_ui: bool = False) -> str:
+    """Return the guide text for a topic in either Traditional UI (markdown) or Updated UI (monospace codeblock)."""
+    texts = GUIDE_TEXTS_TRADITIONAL if traditional_ui else GUIDE_TEXTS_UPDATED
+    return texts.get(topic, texts.get("main", ""))
+
+GUIDE_MAIN_TEXT = GUIDE_TEXTS_TRADITIONAL["main"]
+GUIDE_LOGIN_TEXT = GUIDE_TEXTS_TRADITIONAL["login"]
+GUIDE_ATTENDANCE_TEXT = GUIDE_TEXTS_TRADITIONAL["attendance"]
+GUIDE_LABS_TEXT = GUIDE_TEXTS_TRADITIONAL["labs"]
+GUIDE_SETTINGS_TEXT = GUIDE_TEXTS_TRADITIONAL["settings"]
+GUIDE_TRICKS_TEXT = GUIDE_TEXTS_TRADITIONAL["tricks"]
+GUIDE_ADMIN_TEXT = GUIDE_TEXTS_TRADITIONAL["admin"]
 
 def get_guide_keyboard(is_manager=False):
     rows = [
@@ -176,8 +331,14 @@ SETTINGS_BUTTONS = InlineKeyboardMarkup(
         # [InlineKeyboardButton("Labs Data",callback_data="labs_data")]
     ]
 )
-SETTINGS_TEXT = """```Personalize Your Settings
+SETTINGS_TEXT_UPDATED = """```Personalize Your Settings
 In this section, you can tailor various aspects of your experience to align with your preferences and needs.```"""
+
+SETTINGS_TEXT_TRADITIONAL = """**Personalize Your Settings**
+
+In this section, you can tailor various aspects of your experience to align with your preferences and needs."""
+
+SETTINGS_TEXT = SETTINGS_TEXT_UPDATED
 
 remove_cred_keyboard = InlineKeyboardMarkup(
 inline_keyboard=[
@@ -319,6 +480,18 @@ This can be used only by Saved login users.
 ● Example : /login 22951A0000 password
 ```
 """
+
+NO_SAVED_LOGIN_TRADITIONAL_TEXT = """**NO SAVED LOGIN**
+This can be used only by Saved login users.
+
+⫸ **How To Save the Login Credentials:**
+
+● Click on Logout
+
+● Login Again Using `/login username password`
+
+● Example : `/login 22951A0000 password`
+"""
 # PDF Uploading text.
 UPLOAD_PDF_TEXT = "Please send me the PDF file you'd like to upload."
 # Text for title sending instructions.
@@ -378,7 +551,10 @@ async def start_user_settings(bot,message):
     - bot: Pyrogram client/session (unused here but kept for symmetry).
     - message: The triggering message to reply to.
     """
-    await message.reply_text(SETTINGS_TEXT,reply_markup = SETTINGS_BUTTONS)
+    chat_id = message.chat.id
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    text = SETTINGS_TEXT_TRADITIONAL if (ui_mode and ui_mode[0] == 1) else SETTINGS_TEXT_UPDATED
+    await message.reply_text(text,reply_markup = SETTINGS_BUTTONS)
 
 
 async def start_save_credentials_buttons(username,password):
@@ -408,6 +584,19 @@ async def start_student_profile_buttons(message):
     Parameters:
     - message: The triggering message to reply to.
     """
+    chat_id = message.chat.id
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode and ui_mode[0] == 1:
+        text = """**Choose Your Desired Action**
+
+⫸ **Note:**
+Selecting the CIE Option may temporarily slow down other operations due to loading from Samvidha."""
+    else:
+        text = """```Choose Your Desired Action
+
+⫸ Note: 
+Selecting the CIE Option may temporarily slow down other operations due to loading from Samvidha.```"""
+
     STUDENT_PROFILE_BUTTON = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton("GPA",callback_data="user_gpa")],
@@ -418,12 +607,7 @@ async def start_student_profile_buttons(message):
                 [InlineKeyboardButton("Back",callback_data="user_back")]
             ]
         )
-    await message.reply_text("""
-    ```Choose Your Desired Action
-
-⫸ Note: 
-Selecting the CIE Option may temporarily slow down other operations due to loading from Samvidha.```
-""",reply_markup = STUDENT_PROFILE_BUTTON)
+    await message.reply_text(text,reply_markup = STUDENT_PROFILE_BUTTON)
 
 async def callback_function(bot,callback_query):
     """Route inline keyboard callbacks to the appropriate action.
@@ -514,20 +698,23 @@ async def callback_function(bot,callback_query):
             )
         else:
             await callback_query.answer()
-            await callback_query.edit_message_text(NO_SAVED_LOGIN_TEXT,reply_markup = BACK_TO_USER_BUTTON)
+            chat_id = callback_query.message.chat.id
+            ui_mode = await user_settings.fetch_ui_bool(chat_id)
+            no_saved_text = NO_SAVED_LOGIN_TRADITIONAL_TEXT if (ui_mode and ui_mode[0] == 1) else NO_SAVED_LOGIN_TEXT
+            await callback_query.edit_message_text(no_saved_text,reply_markup = BACK_TO_USER_BUTTON)
 
     elif callback_query.data == "lab_upload_start":
         _message = callback_query.message
         chat_id = _message.chat.id
         chat_id_in_pgdatabase = await pgdatabase.check_chat_id_in_pgb(chat_id)
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if chat_id_in_pgdatabase is False:
             # Lab upload is restricted to saved-credential users
             await bot.send_message(chat_id,"This feature is currently available to Saved Credential users")
             await callback_query.answer()
             return
         await tdatabase.store_pdf_status(chat_id,"Recieve")
-        title_mode = await user_settings.fetch_extract_title_bool(chat_id)
+        title_mode = await user_settings.fetch_extract_title_bool(chat_id) or (1,)
         if title_mode[0] == 0:
             await tdatabase.store_title_status(chat_id,"Recieve")
             if ui_mode[0] == 0:
@@ -634,25 +821,22 @@ async def callback_function(bot,callback_query):
     elif callback_query.data == "no_save":
         await callback_query.message.delete()
 
-    elif callback_query.data == "help_menu":
+    elif callback_query.data in ("help_menu", "help_login", "help_attendance", "help_labs", "help_settings", "help_tricks", "help_admin"):
         chat_id = callback_query.message.chat.id
         from DATABASE import managers_handler
-        is_admin = chat_id in await managers_handler.fetch_admin_chat_ids()
-        is_maintainer = chat_id in await managers_handler.fetch_maintainer_chat_ids()
-        kb = get_guide_keyboard(is_admin or is_maintainer)
-        await callback_query.edit_message_text(GUIDE_MAIN_TEXT, reply_markup=kb)
-    elif callback_query.data == "help_login":
-        await callback_query.edit_message_text(GUIDE_LOGIN_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
-    elif callback_query.data == "help_attendance":
-        await callback_query.edit_message_text(GUIDE_ATTENDANCE_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
-    elif callback_query.data == "help_labs":
-        await callback_query.edit_message_text(GUIDE_LABS_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
-    elif callback_query.data == "help_settings":
-        await callback_query.edit_message_text(GUIDE_SETTINGS_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
-    elif callback_query.data == "help_tricks":
-        await callback_query.edit_message_text(GUIDE_TRICKS_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
-    elif callback_query.data == "help_admin":
-        await callback_query.edit_message_text(GUIDE_ADMIN_TEXT, reply_markup=GUIDE_BACK_KEYBOARD)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+
+        if callback_query.data == "help_menu":
+            is_admin = chat_id in await managers_handler.fetch_admin_chat_ids()
+            is_maintainer = chat_id in await managers_handler.fetch_maintainer_chat_ids()
+            kb = get_guide_keyboard(is_admin or is_maintainer)
+            text = get_guide_text("main", traditional_ui=is_traditional)
+            await callback_query.edit_message_text(text, reply_markup=kb)
+        else:
+            topic = callback_query.data.replace("help_", "")
+            text = get_guide_text(topic, traditional_ui=is_traditional)
+            await callback_query.edit_message_text(text, reply_markup=GUIDE_BACK_KEYBOARD)
     elif callback_query.data == "help_close":
         await callback_query.message.delete()
 
@@ -693,8 +877,19 @@ async def callback_function(bot,callback_query):
     elif callback_query.data == "attendance_threshold":
         _message = callback_query.message
         chat_id = _message.chat.id
-        current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
-        ATTENDANCE_THRESHOLD_TEXT = f"""
+        current_threshold = await user_settings.fetch_attendance_threshold(chat_id) or (75,)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        if is_traditional:
+            ATTENDANCE_THRESHOLD_TEXT = f"""**Attendance Threshold**
+
+⫸ **Current Attendance Threshold** : {current_threshold[0]}%
+
+Click on:
+● **"+"** to increase threshold
+● **"-"** to decrease threshold"""
+        else:
+            ATTENDANCE_THRESHOLD_TEXT = f"""
 ```Attendance Threshold
 ⫸ Current Attendance Threshold : {current_threshold[0]}
 
@@ -722,13 +917,24 @@ Click on
         chat_id = _message.chat.id
         query = callback_query.data.split("_")[0]
         if query == "increase":
-            current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
+            current_threshold = await user_settings.fetch_attendance_threshold(chat_id) or (75,)
             await user_settings.set_attendance_threshold(chat_id,current_threshold[0]+5)
         elif query == "decrease":
-            current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
+            current_threshold = await user_settings.fetch_attendance_threshold(chat_id) or (75,)
             await user_settings.set_attendance_threshold(chat_id,current_threshold[0]-5)
-        current_threshold = await user_settings.fetch_attendance_threshold(chat_id)
-        ATTENDANCE_THRESHOLD_TEXT = f"""
+        current_threshold = await user_settings.fetch_attendance_threshold(chat_id) or (75,)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        if is_traditional:
+            ATTENDANCE_THRESHOLD_TEXT = f"""**Attendance Threshold**
+
+⫸ **Current Attendance Threshold** : {current_threshold[0]}%
+
+Click on:
+● **"+"** to increase threshold
+● **"-"** to decrease threshold"""
+        else:
+            ATTENDANCE_THRESHOLD_TEXT = f"""
 ```Attendance Threshold
 ⫸ Current Attendance Threshold : {current_threshold[0]}
 
@@ -753,9 +959,19 @@ Click on
     elif callback_query.data == "biometric_threshold":
         _message = callback_query.message
         chat_id = _message.chat.id
-        current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
-        # current_threshold = current_threshold[0]
-        BIOMETRIC_THRESHOLD_TEXT = f"""
+        current_threshold = await user_settings.fetch_biometric_threshold(chat_id) or (75,)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        if is_traditional:
+            BIOMETRIC_THRESHOLD_TEXT = f"""**Biometric Threshold**
+
+⫸ **Current Biometric Threshold** : {current_threshold[0]}%
+
+Click on:
+● **"+"** to increase threshold
+● **"-"** to decrease threshold"""
+        else:
+            BIOMETRIC_THRESHOLD_TEXT = f"""
 ```Biometric Threshold
 ⫸ Current Biometric Threshold : {current_threshold[0]}
 
@@ -781,13 +997,24 @@ Click on
         chat_id = _message.chat.id    
         query = callback_query.data.split("_")[0]
         if query == "increase":
-            current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+            current_threshold = await user_settings.fetch_biometric_threshold(chat_id) or (75,)
             await user_settings.set_biometric_threshold(chat_id,current_threshold[0]+5)
         elif query == "decrease":
-            current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+            current_threshold = await user_settings.fetch_biometric_threshold(chat_id) or (75,)
             await user_settings.set_biometric_threshold(chat_id,current_threshold[0]-5)
-        current_threshold = await user_settings.fetch_biometric_threshold(chat_id)
-        BIOMETRIC_THRESHOLD_TEXT = f"""
+        current_threshold = await user_settings.fetch_biometric_threshold(chat_id) or (75,)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        if is_traditional:
+            BIOMETRIC_THRESHOLD_TEXT = f"""**Biometric Threshold**
+
+⫸ **Current Biometric Threshold** : {current_threshold[0]}%
+
+Click on:
+● **"+"** to increase threshold
+● **"-"** to decrease threshold"""
+        else:
+            BIOMETRIC_THRESHOLD_TEXT = f"""
 ```Biometric Threshold
 ⫸ Current Biometric Threshold : {current_threshold[0]}
 
@@ -812,8 +1039,17 @@ Click on
     elif callback_query.data == "title_extract":
         _message = callback_query.message
         chat_id = _message.chat.id
-        TITLE_BOOL = await user_settings.fetch_extract_title_bool(chat_id)
-        TITLE_EXTRACT_TEXT = """```Title Modes
+        TITLE_BOOL = await user_settings.fetch_extract_title_bool(chat_id) or (1,)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        if is_traditional:
+            TITLE_EXTRACT_TEXT = """**Title Modes**
+
+**Automatic:** Title is taken from the Experiment Details
+
+**Manual:** Title needs to be given by the user to the bot"""
+        else:
+            TITLE_EXTRACT_TEXT = """```Title Modes
 Automatic: Title is taken from the Experiment Details
 
 Manual: Title needs to be given by the user to the bot```"""
@@ -838,14 +1074,26 @@ Manual: Title needs to be given by the user to the bot```"""
             reply_markup = TITLE_EXTRACT_BUTTONS
         )
     elif callback_query.data == "back_settings":
+        chat_id = callback_query.message.chat.id
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        text = SETTINGS_TEXT_TRADITIONAL if (ui_mode and ui_mode[0] == 1) else SETTINGS_TEXT_UPDATED
         await callback_query.edit_message_text(
-            SETTINGS_TEXT,
+            text,
             reply_markup = SETTINGS_BUTTONS
         )
     elif callback_query.data == "set_auto_title":
         _message = callback_query.message
         chat_id = _message.chat.id
-        TITLE_EXTRACT_TEXT = """```Title Modes
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        if is_traditional:
+            TITLE_EXTRACT_TEXT = """**Title Modes**
+
+**Automatic:** Title is taken from the Experiment Details
+
+**Manual:** Title needs to be given by the user to the bot"""
+        else:
+            TITLE_EXTRACT_TEXT = """```Title Modes
 Automatic: Title is taken from the Experiment Details
 
 Manual: Title needs to be given by the user to the bot```"""
@@ -865,7 +1113,16 @@ Manual: Title needs to be given by the user to the bot```"""
     elif callback_query.data == "set_man_title":
         _message = callback_query.message
         chat_id = _message.chat.id
-        TITLE_EXTRACT_TEXT = """```Title Modes
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        is_traditional = bool(ui_mode and ui_mode[0] == 1)
+        if is_traditional:
+            TITLE_EXTRACT_TEXT = """**Title Modes**
+
+**Automatic:** Title is taken from the Experiment Details
+
+**Manual:** Title needs to be given by the user to the bot"""
+        else:
+            TITLE_EXTRACT_TEXT = """```Title Modes
 Automatic: Title is taken from the Experiment Details
 
 Manual: Title needs to be given by the user to the bot```"""
@@ -885,18 +1142,22 @@ Manual: Title needs to be given by the user to the bot```"""
     elif callback_query.data == "ui":
         _message = callback_query.message
         chat_id = _message.chat.id
-        current_ui = await user_settings.fetch_ui_bool(chat_id)
-        USERINTERFACE_TEXT = """```User Interface
+        current_ui = await user_settings.fetch_ui_bool(chat_id) or (0,)
+        if current_ui[0] == 1:
+            USERINTERFACE_TEXT = """**User Interface**
+
+Switch effortlessly between traditional and updated UI for a refreshed experience.
+
+Customize your view with just a click!"""
+            traditional_ui = "● Traditional"
+            updated_ui = "Updated"
+        else:
+            USERINTERFACE_TEXT = """```User Interface
 Switch effortlessly between traditional and updated UI for a refreshed experience.
 
 Customize your view with just a click!```"""    
-        # "Switch effortlessly between traditional and updated UI for a refreshed experience. Customize your view with just a click!" 
-        if current_ui[0] == 0:
             traditional_ui = "Traditional"
             updated_ui = "● Updated"
-        elif current_ui[0] == 1:
-            traditional_ui = "● Traditional"
-            updated_ui = "Updated"
         USERINTERFACE_BUTTONS = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(traditional_ui,callback_data="traditional_set_ui")],
@@ -916,7 +1177,7 @@ Customize your view with just a click!```"""
             await user_settings.set_traditional_ui_true(chat_id)
         if query == "updated":
             await user_settings.set_traditional_ui_as_false(chat_id)
-        current_ui = await user_settings.fetch_ui_bool(chat_id)
+        current_ui = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if current_ui[0] == 0:
             traditional_ui = "Traditional"
             updated_ui = "● Updated"
@@ -980,8 +1241,11 @@ BIOMETRIC
         if chat_id_in_local_database is False:
             await bot.send_message(chat_id,"This can be used by saved login users only.")
             return
-        # print(await user_settings.fetch_user_settings(chat_id))
-        chat_id,attendance_threshold,bio_threshold,ui,title = await user_settings.fetch_user_settings(chat_id)
+        settings = await user_settings.fetch_user_settings(chat_id)
+        if settings is None:
+            await user_settings.set_user_default_settings(chat_id)
+            settings = await user_settings.fetch_user_settings(chat_id)
+        chat_id,attendance_threshold,bio_threshold,ui,title = settings
         ui_pgdatabase = await pgdatabase.sqlite_bool_to_pg_bool(ui)
         title_pgdatabase = await pgdatabase.sqlite_bool_to_pg_bool(title)
         if await pgdatabase.update_all_the_threshold_values(attendance_threshold,bio_threshold,ui_pgdatabase,title_pgdatabase,chat_id) is True:
@@ -1063,7 +1327,15 @@ BIOMETRIC
                 reply_markup = BACK_TO_STUDENT_INFO
         )
     elif callback_query.data == "student_info":
-        STUDENT_PROFILE_TEXT = """```Choose Your Desired Action
+        chat_id = callback_query.message.chat.id
+        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        if ui_mode and ui_mode[0] == 1:
+            STUDENT_PROFILE_TEXT = """**Choose Your Desired Action**
+
+⫸ **Note:**
+Selecting the CIE Option may temporarily slow down other operations due to loading from Samvidha."""
+        else:
+            STUDENT_PROFILE_TEXT = """```Choose Your Desired Action
 
 ⫸ Note: 
 Selecting the CIE Option may temporarily slow down other operations due to loading from Samvidha.```"""
@@ -1130,7 +1402,7 @@ Selecting the CIE Option may temporarily slow down other operations due to loadi
     elif callback_query.data == "lab_record_subject":
         message_ = callback_query.message
         chat_id = message_.chat.id
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if ui_mode[0] == 0:
             LAB_RECORD_TEXT = """```Available Subjects
 ● Select the subject you want```"""
@@ -1154,7 +1426,7 @@ Selecting the CIE Option may temporarily slow down other operations due to loadi
         selected_subject = callback_query.data.split("lab_record_select_")[1]
         lab_details = await lab_operations.fetch_available_labs(bot,_message)
         subject_name = await lab_operations.get_subject_name(selected_subject,lab_details)
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if ui_mode[0] == 0:
             LAB_SELECTED_SUBJECT_TEXT = f"""```Available Operatations
 Selected:
@@ -1187,7 +1459,7 @@ Selected:
         experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,selected_subject)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,selected_subject)
         week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,False,True,False)
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if ui_mode[0] == 0:
             if week_details:
                 LAB_WEEK_TEXT = f"""
@@ -1251,7 +1523,7 @@ Selected:
         chat_id = message_.chat.id
         subject_code_and_week_number = callback_query.data.split("select_week")[1]
         subject_code,week_no = subject_code_and_week_number.split("-")
-        title_mode = await user_settings.fetch_extract_title_bool(chat_id)
+        title_mode = await user_settings.fetch_extract_title_bool(chat_id) or (1,)
         if title_mode[0] == 0:
             await tdatabase.store_title_status(chat_id,1)
             await tdatabase.store_pdf_status(chat_id,1)
@@ -1330,7 +1602,7 @@ Selected:
         experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,selected_subject)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,selected_subject)
         week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,True,False,False)
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if ui_mode[0] == 0:
             if week_details:
                 LAB_WEEK_TEXT = f"""
@@ -1400,7 +1672,7 @@ Selected:
         lab_record_url = await lab_operations.get_view_pdf_url(subject_code,user_lab_details,week_no)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,subject_code)
         marks = await lab_operations.get_marks_by_week(all_submitted_lab_records,week_no)
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if ui_mode[0] == 0:
             VIEW_LAB_RECORD = f"```LAB : \n\n{subject_name}\n\nWEEK : {week_no}\n\nMARKS : {marks}```"
         else:
@@ -1424,7 +1696,7 @@ Selected:
         experiment_names = await lab_operations.fetch_experiment_names_html(bot,chat_id,user_lab_details,subject_code)
         all_submitted_lab_records = await lab_operations.fetch_submitted_lab_records(bot,chat_id,user_lab_details,subject_code)
         week_details = await lab_operations.get_week_details(experiment_names,all_submitted_lab_records,False,False,False,True)
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if ui_mode[0] == 0:
             if week_details:
                 LAB_DELETE_WEEK_TEXT = f"""
@@ -1503,7 +1775,7 @@ Selected:
         deletion_data = await lab_operations.delete_lab_record(bot,chat_id,subject_code,user_data,week_no)
         status = deletion_data['status'].upper()
         status_message = deletion_data['msg']
-        ui_mode = await user_settings.fetch_ui_bool(chat_id)
+        ui_mode = await user_settings.fetch_ui_bool(chat_id) or (0,)
         if ui_mode[0] == 0:
             DELETION_TEXT = f"""
 ```DELETION {status}

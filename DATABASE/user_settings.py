@@ -68,16 +68,24 @@ async def set_user_default_settings(chat_id):
     Parameters:
     - chat_id: Telegram chat id used as the primary key.
     """
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        # Check if the chat_id already exists
-        cursor.execute("SELECT * FROM user_settings WHERE chat_id = ?", (chat_id,))
-        existing_row = cursor.fetchone()
-        if existing_row:
-            # Chat_id already exists, do not set default values
-            return
-        else:
-            # Chat_id doesn't exist, insert default values
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            # Check if the chat_id already exists
+            cursor.execute("SELECT * FROM user_settings WHERE chat_id = ?", (chat_id,))
+            existing_row = cursor.fetchone()
+            if existing_row:
+                # Chat_id already exists, do not set default values
+                return
+            else:
+                # Chat_id doesn't exist, insert default values
+                cursor.execute("INSERT OR REPLACE INTO user_settings (chat_id) VALUES (?)",
+                               (chat_id,))
+                conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
             cursor.execute("INSERT OR REPLACE INTO user_settings (chat_id) VALUES (?)",
                            (chat_id,))
             conn.commit()
@@ -89,11 +97,15 @@ async def fetch_user_settings(chat_id):
     - tuple | None: (chat_id, attendance_threshold, biometric_threshold, traditional_ui, extract_title)
       or None if not found.
     """
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_settings WHERE chat_id = ?", (chat_id,))
-        settings = cursor.fetchone()
-        return settings
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM user_settings WHERE chat_id = ?", (chat_id,))
+            settings = cursor.fetchone()
+            return settings
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
+        return None
 
 async def set_attendance_threshold(chat_id,attendance_threshold):
     """Set attendance threshold for `chat_id`, clamped to [35, 95]."""
@@ -101,10 +113,13 @@ async def set_attendance_threshold(chat_id,attendance_threshold):
         attendance_threshold = 95
     if attendance_threshold < 35:
         attendance_threshold = 35
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE user_settings SET attendance_threshold = ? WHERE chat_id = ?", (attendance_threshold, chat_id))
-        conn.commit()
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE user_settings SET attendance_threshold = ? WHERE chat_id = ?", (attendance_threshold, chat_id))
+            conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
 
 async def set_biometric_threshold(chat_id,biometric_threshold):
     """Set biometric threshold for `chat_id`, clamped to [35, 95]."""
@@ -112,39 +127,54 @@ async def set_biometric_threshold(chat_id,biometric_threshold):
         biometric_threshold = 95
     if biometric_threshold < 35:
         biometric_threshold = 35
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE user_settings SET biometric_threshold = ? WHERE chat_id = ?",(biometric_threshold,chat_id))
-        conn.commit()
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE user_settings SET biometric_threshold = ? WHERE chat_id = ?",(biometric_threshold,chat_id))
+            conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
 
 async def set_traditional_ui_true(chat_id):
     """Enable traditional UI for `chat_id` (set to 1)."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE user_settings SET traditional_ui = 1 WHERE chat_id = ?",(chat_id,))
-        conn.commit()
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE user_settings SET traditional_ui = 1 WHERE chat_id = ?",(chat_id,))
+            conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
 
 async def set_traditional_ui_as_false(chat_id):
     """Disable traditional UI for `chat_id` (set to 0)."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE user_settings SET traditional_ui = 0 WHERE chat_id = ?",(chat_id,))
-        conn.commit()
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE user_settings SET traditional_ui = 0 WHERE chat_id = ?",(chat_id,))
+            conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
 
 async def set_extract_title_as_true(chat_id):
     """Enable automatic title extraction for `chat_id` (set to 1)."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE user_settings SET extract_title = 1 WHERE chat_id = ?",(chat_id,))
-        conn.commit()
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE user_settings SET extract_title = 1 WHERE chat_id = ?",(chat_id,))
+            conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
 
 
 async def set_extract_title_as_false(chat_id):
     """Disable automatic title extraction for `chat_id` (set to 0)."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE user_settings SET extract_title = 0 WHERE chat_id = ?",(chat_id,))
-        conn.commit()
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE user_settings SET extract_title = 0 WHERE chat_id = ?",(chat_id,))
+            conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
 
 async def delete_user_settings(chat_id):
     """Delete the `user_settings` row for `chat_id`.
@@ -163,42 +193,61 @@ async def delete_user_settings(chat_id):
 
 async def clear_user_settings_table():
     """Remove all rows from the `user_settings` table (destructive)."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM user_settings")
-        conn.commit()
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM user_settings")
+            conn.commit()
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
 
 async def fetch_extract_title_bool(chat_id):
     """Return `(extract_title,)` for `chat_id` (1 or 0), or None if missing."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT extract_title FROM user_settings WHERE chat_id = ?",(chat_id,))
-        value = cursor.fetchone()
-        return value
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT extract_title FROM user_settings WHERE chat_id = ?",(chat_id,))
+            value = cursor.fetchone()
+            return value
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
+        return None
 
 async def fetch_biometric_threshold(chat_id):
     """Return `(biometric_threshold,)` for `chat_id`, or None if missing."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT biometric_threshold FROM user_settings WHERE chat_id = ?",(chat_id,))
-        value = cursor.fetchone()
-        return value
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT biometric_threshold FROM user_settings WHERE chat_id = ?",(chat_id,))
+            value = cursor.fetchone()
+            return value
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
+        return None
 
 async def fetch_attendance_threshold(chat_id):
     """Return `(attendance_threshold,)` for `chat_id`, or None if missing."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT attendance_threshold FROM user_settings WHERE chat_id = ?",(chat_id,))
-        value = cursor.fetchone()
-        return value
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT attendance_threshold FROM user_settings WHERE chat_id = ?",(chat_id,))
+            value = cursor.fetchone()
+            return value
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
+        return None
 
 async def fetch_ui_bool(chat_id):
     """Return `(traditional_ui,)` for `chat_id` (1 or 0), or None if missing."""
-    with sqlite3.connect(SETTINGS_DATABASE) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT traditional_ui FROM user_settings WHERE chat_id = ?",(chat_id,))
-        value = cursor.fetchone()
-        return value
+    try:
+        with sqlite3.connect(SETTINGS_DATABASE) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT traditional_ui FROM user_settings WHERE chat_id = ?",(chat_id,))
+            value = cursor.fetchone()
+            return value
+    except sqlite3.OperationalError:
+        await create_user_settings_tables()
+        return None
     
 async def store_user_settings(chat_id,attendance_threshold,biometric_threshold,ui,title_mode):
     """Upsert a complete settings row for `chat_id`.

@@ -91,3 +91,45 @@ async def test_help_close_deletes_message():
 
     await buttons.callback_function(mock_bot, mock_query)
     mock_query.message.delete.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_guide_text_updated_vs_traditional_ui():
+    # Test all topics in both UI modes
+    topics = ["main", "login", "attendance", "labs", "settings", "tricks", "admin"]
+    for topic in topics:
+        text_updated = buttons.get_guide_text(topic, traditional_ui=False)
+        text_trad = buttons.get_guide_text(topic, traditional_ui=True)
+        assert text_updated.startswith("```")
+        assert text_updated.endswith("```")
+        assert "⫷" in text_updated
+        assert not text_trad.startswith("```")
+        assert "**GUIDE:" in text_trad or "USER GUIDE" in text_trad
+
+@pytest.mark.asyncio
+async def test_help_command_respects_traditional_ui():
+    mock_bot = AsyncMock()
+    mock_msg = MagicMock()
+    mock_msg.chat.id = 55555
+
+    from DATABASE import user_settings
+    with patch.object(user_settings, "fetch_ui_bool", new_callable=AsyncMock) as mock_ui:
+        mock_ui.return_value = (1,)  # Traditional UI
+        await operations.help_command(mock_bot, mock_msg)
+        called_text = mock_bot.send_message.call_args.kwargs.get("text") or mock_bot.send_message.call_args[0][1]
+        assert not called_text.startswith("```")
+        assert "USER GUIDE" in called_text
+
+@pytest.mark.asyncio
+async def test_help_callbacks_respect_traditional_ui():
+    mock_bot = AsyncMock()
+    mock_query = AsyncMock()
+    mock_query.data = "help_login"
+    mock_query.message.chat.id = 55555
+
+    from DATABASE import user_settings
+    with patch.object(user_settings, "fetch_ui_bool", new_callable=AsyncMock) as mock_ui:
+        mock_ui.return_value = (1,)  # Traditional UI
+        await buttons.callback_function(mock_bot, mock_query)
+        called_text = mock_query.edit_message_text.call_args[0][0]
+        assert not called_text.startswith("```")
+        assert "**GUIDE: LOGIN & ACCOUNTS**" in called_text

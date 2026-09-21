@@ -100,7 +100,7 @@ async def get_random_greeting(bot,message):
     await message.reply(greeting)
 
     # Check if User Logged-In else,return LOGIN_MESSAGE
-    login_message = login_message_updated_ui
+    login_message = login_message_traditional_ui if (ui_mode and ui_mode[0] == 1) else login_message_updated_ui
     if not await tdatabase.load_user_session(chat_id) and await pgdatabase.check_chat_id_in_pgb(chat_id) is False:
         await bot.send_message(chat_id,login_message)
     else:
@@ -555,7 +555,7 @@ async def biometric(bot, message):
     six_percentage,days_six_hours = await six_hours_biometric(biometric_rows, attendance_data['Total Days'],intime_index,outtime_index)
     leaves_biometric,leave_status = await biometric_leaves(chat_id,present_days=attendance_data['Total Days Present'],total_days=attendance_data['Total Days'])
     six_hour_leaves,six_hour_leave_status = await biometric_leaves(chat_id,present_days=days_six_hours,total_days=attendance_data['Total Days'])
-    biometric_threshold = await user_settings.fetch_biometric_threshold(chat_id)
+    biometric_threshold = await user_settings.fetch_biometric_threshold(chat_id) or (75,)
     if leave_status is True:
         leaves_biometric_msg = f"● Leaves available       -  {leaves_biometric}"
     elif leave_status is False:
@@ -1438,7 +1438,7 @@ async def cie_marks(bot,message,sem_no):
 ```CIE 2 Marks
 """ 
         cie2_marks_message_traditional = f"""
-**CIE 2 Marks
+**CIE 2 Marks**
 """
         if ui_mode[0] == 0:
             cie2_marks_message = cie2_marks_message_updated
@@ -1450,7 +1450,10 @@ async def cie_marks(bot,message,sem_no):
             
         cie2_marks_message += "----\n"
         cie2_marks_message += f"Total Marks - {total_cie2_marks} / {default_total_marks} \n"
-        cie2_marks_message += "\n```"
+        if ui_mode[0] == 0:
+            cie2_marks_message += "\n```"
+        elif ui_mode[0] == 1:
+            cie2_marks_message += "\n"
         await bot.send_message(chat_id,cie2_marks_message)
         total_cie_marks = total_cie1_marks + total_cie2_marks
         await bot.send_message(chat_id,f"Total CIE Marks: {total_cie_marks} / {default_total_marks * 2}")
@@ -1487,7 +1490,16 @@ async def report(bot,message):
 
     user_report = " ".join(message.text.split()[1:])
     if not user_report:
-        no_report_message = f"""
+        if ui_mode and ui_mode[0] == 1:
+            no_report_message = """**EMPTY MESSAGE**
+⫸ **ERROR : MESSAGE CANNOT BE EMPTY**
+
+⫸ **How to use command:**
+
+● `/report We are encountering issues with the attendance feature.`
+"""
+        else:
+            no_report_message = f"""
 ```EMPTY MESSAGE
 ⫸ ERROR : MESSAGE CANNOT BE EMPTY
 
@@ -2041,10 +2053,17 @@ async def help_command(bot,message):
     maintainer_chat_ids = await managers_handler.fetch_maintainer_chat_ids()
     is_manager = (chat_id in admin_chat_ids) or (chat_id in maintainer_chat_ids)
 
+    ui_mode = await user_settings.fetch_ui_bool(chat_id)
+    if ui_mode is None:
+        await user_settings.set_user_default_settings(chat_id)
+        ui_mode = (0,)
+    is_traditional = bool(ui_mode and ui_mode[0] == 1)
+
     kb = buttons.get_guide_keyboard(is_manager)
+    guide_text = buttons.get_guide_text("main", traditional_ui=is_traditional)
     await bot.send_message(
         chat_id,
-        text=buttons.GUIDE_MAIN_TEXT,
+        text=guide_text,
         reply_markup=kb,
         protect_content=True
     )
